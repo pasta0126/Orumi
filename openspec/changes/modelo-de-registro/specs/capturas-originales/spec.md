@@ -43,3 +43,19 @@ Las capturas MUST poder leerse sin depender del agente ni del índice derivado.
 #### Scenario: Lectura directa
 - **WHEN** se abre un fichero de captura sin ninguna herramienta de ORUMI
 - **THEN** su contenido y metadatos son legibles como texto
+
+### Requirement: Metadatos opcionales
+Una captura MAY incluir la fecha del acontecimiento, una etiqueta o proyecto, y contexto automático de hora y dispositivo. El sistema MUST NOT registrar ubicación ni monitorizar la actividad del usuario, y MUST tratar los metadatos aportados por el usuario como información dicha por él.
+
+#### Scenario: Fecha indicada por el usuario
+- **WHEN** el usuario indica que la captura trata de un día anterior
+- **THEN** la captura guarda esa fecha del acontecimiento y la fecha de comunicación no cambia
+
+#### Scenario: Sin metadatos
+- **WHEN** el usuario entrega solo el contenido
+- **THEN** la captura es válida con el contexto automático de hora y dispositivo
+
+#### Scenario: Sin ubicación
+- **WHEN** se guarda cualquier captura
+- **THEN** no contiene datos de ubicación
+

@@ -8,6 +8,8 @@
 ## 2. Ejemplos y validación
 
 - [ ] 2.1 Crear un conjunto de ejemplos ficticios (captura con varios registros, dato desconocido, corrección, rechazo)
+- [ ] 2.1b Añadir ejemplos de contradicción, evento multi-día abierto/cerrado y fecha imprecisa con rango
+- [ ] 2.1c Añadir ejemplos de captura multitema con fragmentos de origen, de metadatos opcionales y de aportación a un registro existente
 - [ ] 2.2 Revisar los ejemplos contra cada escenario de las specs
 - [ ] 2.3 Probar a mano la lectura de los ejemplos con Atlas (frontmatter y wikilinks)
 

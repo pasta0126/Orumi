@@ -11,6 +11,10 @@ Cada registro personal (evento, actividad, idea, decisión, problema u otro tipo
 - **WHEN** una captura contiene una actividad, una idea y una decisión
 - **THEN** existen tres registros distintos, cada uno enlazado a esa captura
 
+#### Scenario: Fragmento de origen
+- **WHEN** un registro procede de una parte de una captura con varios temas
+- **THEN** el registro referencia ese fragmento y la captura permanece entera
+
 #### Scenario: Registro incompleto
 - **WHEN** falta un dato como la duración o la herramienta
 - **THEN** el registro se crea igualmente y el dato figura como desconocido
@@ -20,7 +24,11 @@ Cada registro MUST incluir identificador, tipo, fecha del acontecimiento (o su i
 
 #### Scenario: Fecha imprecisa
 - **WHEN** el usuario dice «la semana pasada»
-- **THEN** el registro conserva la expresión original y no inventa una fecha exacta
+- **THEN** el registro conserva la expresión original y un rango estimado marcado como interpretación no verificada, sin inventar una fecha exacta
+
+#### Scenario: Corrección del rango
+- **WHEN** el usuario indica la fecha real
+- **THEN** el rango se sustituye, pasa a confirmado y la expresión original se conserva
 
 #### Scenario: Campos opcionales ausentes
 - **WHEN** un registro no tiene personas ni lugares
@@ -79,3 +87,48 @@ Las aclaraciones solicitadas por el agente MUST asociarse al registro afectado, 
 #### Scenario: Respuesta «no lo recuerdo»
 - **WHEN** el usuario responde que no recuerda un dato
 - **THEN** la pregunta se cierra y el dato permanece desconocido
+
+### Requirement: Contradicciones
+Cuando una captura contradiga datos de otra, el sistema MUST conservar ambas versiones, marcar el conflicto en los registros afectados, MUST NOT elegir una como ganadora y MUST registrar una pregunta pendiente.
+
+#### Scenario: Dato contradictorio
+- **WHEN** una captura nueva da un valor distinto para un dato ya registrado
+- **THEN** ambos valores permanecen visibles, el conflicto queda marcado y se crea una pregunta pendiente
+
+#### Scenario: Sin respuesta
+- **WHEN** el usuario no resuelve el conflicto
+- **THEN** ambas versiones siguen marcadas como en conflicto
+
+### Requirement: Eventos de varios días
+Una actividad que se extienda varios días MUST representarse como un único registro con inicio, fin (si se conoce), estado abierto o cerrado y entradas fechadas.
+
+#### Scenario: Continuación
+- **WHEN** una captura posterior continúa una actividad abierta
+- **THEN** se añade una entrada fechada al mismo registro y no se crea uno nuevo
+
+#### Scenario: Cierre
+- **WHEN** el usuario indica que la actividad terminó
+- **THEN** el registro pasa a cerrado con su fecha de fin
+
+### Requirement: Completitud no bloqueante
+Un registro MUST ser válido desde su creación y el sistema MUST NOT exigir un estado «completo». El agente MUST dejar de formular preguntas sobre un registro cuando se haya cubierto el valor esperado, el usuario indique que no recuerda o se alcance el límite de preguntas.
+
+#### Scenario: Registro mínimo
+- **WHEN** se crea un registro con solo descripción y fecha
+- **THEN** es válido y consultable
+
+#### Scenario: Fin de preguntas
+- **WHEN** se alcanza el límite de preguntas para un registro
+- **THEN** no se generan más aclaraciones sobre él salvo nueva información
+
+### Requirement: Aportaciones a registros existentes
+Cuando una captura nueva amplíe un registro existente, el sistema MUST añadirla como nueva fuente o entrada de ese registro en lugar de crear uno nuevo, y cuando exista duda MUST registrar una pregunta pendiente.
+
+#### Scenario: Ampliación clara
+- **WHEN** una captura aporta más información sobre una actividad ya registrada
+- **THEN** el registro existente incorpora la nueva captura como fuente y no se duplica
+
+#### Scenario: Coincidencia dudosa
+- **WHEN** no está claro si la captura se refiere a un registro existente
+- **THEN** se crea una pregunta pendiente y no se fusionan hasta la respuesta
+

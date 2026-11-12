@@ -106,11 +106,23 @@ Además de los criterios rectores (C1–C5):
 | X13 | **Preguntas de Mira:** siempre pendientes (nunca interrumpen), ordenadas por valor y con un máximo N por revisión. | 2026-11-12 | D11 |
 | X14 | **App Android offline:** cola local y sincronización posterior; el audio local solo se borra tras confirmación del servidor. | 2026-11-12 | D14 |
 | X15 | **Pantalla principal del panel:** cronología reciente + preguntas pendientes; descubrimientos en sección aparte; sin métricas de productividad. | 2026-11-12 | D18 |
+| X16 | **Contradicciones:** Mira conserva ambas versiones, marca el conflicto en los dos registros, no elige ganador y lo deja como pregunta pendiente. | 2026-11-12 | D12 |
+| X17 | **Eventos multi-día:** un único registro con inicio, fin, estado (abierto/cerrado) y entradas fechadas. | 2026-11-12 | D12 |
+| X18 | **Fechas imprecisas:** se guarda la expresión original y un rango estimado marcado como interpretación, corregible por el usuario. | 2026-11-12 | D12 |
+| X19 | **Completitud:** un registro es válido desde el principio y no hay estado «completo»; Mira deja de preguntar por saturación (valor cubierto, «no recuerdo» o límite de preguntas). | 2026-11-12 | D12 |
+| X20 | **Evidencia mínima de un patrón:** ≥3 registros en ≥2 semanas distintas. Los umbrales son configuración ajustable, no parte fija del modelo. | 2026-11-12 | D13 |
+| X21 | **Presentación de descubrimientos:** revisión semanal, sin interrumpir, con pocos patrones, en la sección de descubrimientos del panel; solo activa tras la etapa de observación (~4 semanas). | 2026-11-12 | D13 |
+| X22 | **Revisión de hipótesis:** el usuario puede confirmar, matizar o descartar. Lo descartado no se vuelve a proponer salvo evidencia nueva sustancial; lo matizado se reescribe con su comentario. | 2026-11-12 | D13 |
+| X23 | **Indicadores:** solo frecuencia observada y evidencia enlazada. Duración e impacto únicamente si el usuario los expresó; sin puntuaciones ni métricas de productividad. | 2026-11-12 | D13 |
+| X24 | **Capturas con varios temas:** la captura se guarda entera e inmutable; Mira la divide en registros durante el lote, y cada registro referencia el fragmento de origen. El usuario puede fusionar o separar después. | 2026-11-12 | D16 |
+| X25 | **Metadatos opcionales de una captura:** fecha del acontecimiento (si no es hoy), etiqueta o proyecto, y contexto automático (hora y dispositivo, sin ubicación ni monitorización). Los aportados por el usuario cuentan como «dicho por el usuario». | 2026-11-12 | D16 |
+| X26 | **Aportación a registros existentes:** una captura nueva que amplía algo ya registrado se añade como nueva fuente/entrada al mismo registro; ante la duda, Mira pregunta. | 2026-11-12 | D16 |
 | X4 | **Agente por lotes nocturno + a petición.** Las preguntas se acumulan para revisarlas cuando el usuario quiera. | 2026-11-12 | D8 |
 | X5 | **El audio se borra tras transcribirlo.** La transcripción cruda se conserva siempre y pasa a ser el «original» del sistema. | 2026-11-12 | D6, G1 |
 | X6 | **Orden de construcción:** texto (entrada propia de ORUMI, no el inbox de Atlas) + agente + modelo de registro primero; voz (Flutter) y dashboard después. | 2026-11-12 | D15, D19 |
 
 Notas abiertas derivadas:
+- **X20–X23 (patrones):** se implementarán en una change posterior de análisis (no en `modelo-de-registro`). El modelo de registro ya admite hipótesis con evidencia enlazada y rechazo de interpretaciones.
 - **X12, respaldo de `orumi/` (abierta):** al descartar vedlvm, hace falta decidir cómo se respalda `orumi/` (p. ej. repo git propio con remoto privado o copia local en otro disco/equipo). Hasta entonces el único respaldo es el disco del servidor.
 - **X5 y principio 3.2:** al borrar el audio, la transcripción cruda es el original. Mitigación acordada de facto: no pasarla por ningún LLM antes de guardarla (el STT no «limpia»), y verificar que la transcripción se guardó antes de borrar. Si la calidad del STT en español resulta insuficiente en las pruebas, se reabre (p. ej. con caducidad de N días).
 - **X2, ubicación de `orumi/`:** confirmado 2026-11-12: ORUMI tiene sus propios ficheros, en un directorio/repo propio en el servidor, distinto de vedlvm. **No se usa el `/api/inbox` de Atlas.** El agente crea los ficheros en `orumi/` y después, por SSH, genera la copia `.md` en vedlvm (backup).

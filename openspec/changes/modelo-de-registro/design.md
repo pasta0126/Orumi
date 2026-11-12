@@ -24,6 +24,8 @@
 6. **Reprocesado idempotente:** cada registro guarda la captura de origen y una clave de extracción estable, de modo que regenerar actualiza en lugar de duplicar. Se registra versión de Mira y modelo.
 7. **Índice derivado reconstruible** (X3). El motor concreto (SQLite o el Postgres existente) se decide en una change posterior.
 8. **Sin respaldo en vedlvm** (X12, sustituye a X2 en ese punto): los datos de ORUMI no salen hacia vedlvm ni GitHub por privacidad. El respaldo de `orumi/` se decidirá aparte. *Alternativa descartada:* copia de informes en vedlvm.
+9. **Información imperfecta** (X16–X19): conflictos marcados sin ganador, un registro multi-día con entradas fechadas, rango estimado para fechas imprecisas y completitud no bloqueante. *Alternativas descartadas:* prevalece lo más reciente, un registro por día, no estimar fechas, estado «completo» explícito.
+10. **Capturas multitema y aportaciones** (X24–X26): la captura no se divide; los registros referencian fragmentos de origen. La coincidencia con un registro existente se decide por la clave de extracción (decisión 6) y, ante duda, se pregunta. Metadatos opcionales sin ubicación.
 
 ## Risks / Trade-offs
 
