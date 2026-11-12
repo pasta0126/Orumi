@@ -1,0 +1,63 @@
+# --- Sistema operativo ---
+.DS_Store
+.AppleDouble
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Desktop.ini
+
+# --- Editores / IDEs ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# --- Agentes de IA (config local, no compartida) ---
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+
+# --- Secretos y entorno ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials*.json
+
+# --- Datos personales (privacidad: nunca al repo) ---
+# Grabaciones, transcripciones y registros reales del usuario.
+data/
+recordings/
+transcripts/
+*.wav
+*.m4a
+*.mp3
+*.ogg
+*.webm
+
+# --- Dependencias y compilados (genérico, hasta decidir el stack) ---
+node_modules/
+vendor/
+.venv/
+venv/
+__pycache__/
+*.pyc
+dist/
+build/
+out/
+target/
+.next/
+.cache/
+coverage/
+
+# --- Logs y temporales ---
+*.log
+logs/
+tmp/
+temp/
+*.tmp
