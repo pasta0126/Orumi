@@ -28,6 +28,13 @@ Trabajamos con Spec-Driven Development. **No se escribe código sin una change a
 - Fase: definición. **No hay tecnología ni arquitectura elegidas.** No introducir frameworks, bases de datos ni formatos sin una change que lo decida y justifique.
 - Orden previsto: (1) estudiar el repositorio de ficheros existente, (2) modelo de registro y procedencia, (3) flujo del agente, (4) captura y panel.
 
+## Criterios de coste y reutilización
+
+- Minimizar coste, idealmente gratis. Antes de elegir un servicio, comparar precios y capas gratuitas.
+- Reutilizar software propio del fundador siempre que sea viable, aunque requiera ajustes.
+- Preferir el ecosistema Google y similares cuando reduzcan coste o fricción.
+- Dudas y decisiones pendientes: `docs/decisiones.md` (documento vivo; mantenerlo al día).
+
 ## Principios de producto (innegociables)
 
 1. Capturar debe ser más fácil que organizar; el usuario no categoriza.

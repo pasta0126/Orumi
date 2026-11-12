@@ -40,6 +40,10 @@ transcripts/
 *.ogg
 *.webm
 
+# Detalles de infraestructura y notas privadas (el repo puede ser público).
+docs/privado/
+*.private.md
+
 # --- Dependencias y compilados (genérico, hasta decidir el stack) ---
 node_modules/
 vendor/
