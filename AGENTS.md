@@ -25,8 +25,8 @@ Trabajamos con Spec-Driven Development. **No se escribe código sin una change a
 
 ## Estado actual
 
-- Fase: definición. **No hay tecnología ni arquitectura elegidas.** No introducir frameworks, bases de datos ni formatos sin una change que lo decida y justifique.
-- Orden previsto: (1) modelo de registro y procedencia (change `modelo-de-registro`, archivada el 2026-11-13), (2) flujo del agente (Mira), (3) elección de tecnologías, (4) captura y panel.
+- Fase: definición completada; pendiente de implementar. Stack decidido en la change `tecnologias-mvp` (detalle en `docs/tecnologias.md`): **.NET**, **PostgreSQL** (base y rol propios en la instancia compartida del servidor), contenedor Docker con temporizador, proveedor de IA **Anthropic** (Claude Haiku 5.5 por defecto), contratación aplazada hasta necesitar la API. No introducir otros frameworks, bases de datos ni formatos sin una change que lo decida y justifique.
+- Orden previsto: (1) modelo de registro y procedencia (change `modelo-de-registro`, archivada el 2026-11-13), (2) flujo del agente (Mira, change `agente-mira`, archivada), (3) elección de tecnologías (change `tecnologias-mvp`), (4) implementación del MVP (change `mvp-mira`), (5) captura por voz, API y panel.
 
 ## Criterios de coste y reutilización
 
