@@ -26,7 +26,14 @@ public static class LectorDeRespuesta
         }
         catch (Exception e) when (e is JsonException or FormatException or KeyNotFoundException or InvalidOperationException)
         {
-            throw new ProcesamientoFallidoException("la respuesta del proveedor no tiene el formato esperado");
+            // Solo se indica qué campo falla (nombres de campo del formato, nunca contenido de las notas).
+            var detalle = e switch
+            {
+                JsonException je => $"JSON no válido en {je.Path ?? "?"}",
+                FormatException fe => fe.Message,
+                _ => e.GetType().Name,
+            };
+            throw new ProcesamientoFallidoException($"la respuesta del proveedor no tiene el formato esperado ({detalle})");
         }
     }
 
@@ -61,7 +68,7 @@ public static class LectorDeRespuesta
         Fragmento = Requerido(e, "fragmento"),
         Clase = Requerido(e, "clase"),
         Titulo = Requerido(e, "titulo"),
-        Descripcion = Requerido(e, "descripcion"),
+        Descripcion = Texto(e, "descripcion") ?? Requerido(e, "titulo"),
         Reclama = Texto(e, "reclama"),
         Amplia = Texto(e, "amplia"),
         Duda = Texto(e, "duda"),
@@ -69,19 +76,20 @@ public static class LectorDeRespuesta
         ConflictoCampo = Texto(e, "conflicto_campo"),
         Campos = e.TryGetProperty("campos", out var c) && c.ValueKind == JsonValueKind.Object ? Mapa(c) : [],
         Certeza = e.TryGetProperty("certeza", out var z) && z.ValueKind == JsonValueKind.Object
-            ? z.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetString() ?? throw new FormatException("certeza no textual"))
+            ? z.EnumerateObject().Where(p => p.Value.ValueKind == JsonValueKind.String).ToDictionary(p => p.Name, p => p.Value.GetString()!)
             : [],
+        // Si el modelo omite la certeza de una relación o de un estado, se usa la más débil («interpretado»): nunca se supone «dicho».
         Relaciones = Lista(e, "relaciones").Select(r => new RelacionExtraida(
-            Requerido(r, "tipo"), Requerido(r, "certeza"), Texto(r, "destino_id"),
+            Texto(r, "tipo") ?? "relacionado_con", Texto(r, "certeza") ?? "interpretado", Texto(r, "destino_id"),
             r.TryGetProperty("destino_indice", out var di) && di.ValueKind == JsonValueKind.Number ? di.GetInt32() : null)).ToList(),
         Multidia = e.TryGetProperty("multidia", out var m) && m.ValueKind == JsonValueKind.Object
-            ? new MultidiaExtraido(Requerido(m, "estado"), Texto(m, "fin_desde"), Texto(m, "fin_hasta"), Requerido(m, "certeza_estado"), Texto(m, "certeza_fin") ?? "interpretado")
+            ? new MultidiaExtraido(Requerido(m, "estado"), Texto(m, "fin_desde"), Texto(m, "fin_hasta"), Texto(m, "certeza_estado") ?? "interpretado", Texto(m, "certeza_fin") ?? "interpretado")
             : null,
         ResumenEntrada = Texto(e, "resumen_entrada"),
     };
 
     private static PreguntaCandidata Pregunta(JsonElement e) => new(
-        Requerido(e, "campo"), Requerido(e, "texto"), Requerido(e, "valor"), Texto(e, "registro_id"),
+        Requerido(e, "campo"), Requerido(e, "texto"), Texto(e, "valor") ?? "media", Texto(e, "registro_id"),
         e.TryGetProperty("registro_indice", out var i) && i.ValueKind == JsonValueKind.Number ? i.GetInt32() : null);
 
     private static Dictionary<string, object?> Mapa(JsonElement e) =>

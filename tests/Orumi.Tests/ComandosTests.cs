@@ -254,6 +254,38 @@ public class LectorDeRespuestaTests
     }
 
     [Fact]
+    public void Un_error_de_formato_indica_que_campo_falla_sin_reproducir_contenido()
+    {
+        var e = Assert.Throws<Orumi.Agente.ProcesamientoFallidoException>(() =>
+            Orumi.Agente.Proveedores.LectorDeRespuesta.Analizar("""{"registros":[{"clase":"actividad","titulo":"T"}]}"""));
+        Assert.Contains("falta fragmento", e.Message);
+
+        var j = Assert.Throws<Orumi.Agente.ProcesamientoFallidoException>(() =>
+            Orumi.Agente.Proveedores.LectorDeRespuesta.Analizar("""{"registros": [ {"fragmento": "texto secreto de la nota" """));
+        Assert.Contains("JSON no válido", j.Message);
+        Assert.DoesNotContain("secreto", j.Message);
+    }
+
+    [Fact]
+    public void Si_faltan_certezas_o_valores_opcionales_se_usan_los_mas_conservadores()
+    {
+        var r = Orumi.Agente.Proveedores.LectorDeRespuesta.Analizar("""
+            {"registros":[{"fragmento":"x","clase":"actividad","titulo":"Pintar",
+              "multidia":{"estado":"abierto"},
+              "relaciones":[{"destino_indice":0}],
+              "certeza":{"fecha":"interpretado","hora":null}}],
+             "preguntas":[{"campo":"hora","texto":"¿A qué hora?"}]}
+            """);
+        var reg = Assert.Single(r.Registros);
+        Assert.Equal("Pintar", reg.Descripcion); // sin descripción se usa el título
+        Assert.Equal("interpretado", reg.Multidia!.CertezaEstado); // nunca se supone «dicho»
+        Assert.Equal("interpretado", reg.Relaciones[0].Certeza);
+        Assert.Equal("relacionado_con", reg.Relaciones[0].Tipo);
+        Assert.False(reg.Certeza.ContainsKey("hora")); // certeza nula: se ignora
+        Assert.Equal("media", r.Preguntas[0].Valor);
+    }
+
+    [Fact]
     public void El_mensaje_al_proveedor_contiene_solo_lo_minimo()
     {
         var s = new Orumi.Agente.SolicitudExtraccion("cap-1", "texto", new DateTimeOffset(2026, 11, 16, 9, 0, 0, TimeSpan.FromHours(1)), null, null, [],
