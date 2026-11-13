@@ -5,7 +5,8 @@ namespace Orumi.Core.Ficheros;
 /// <summary>Los ficheros de un directorio <c>orumi/</c>, cargados y clasificados.</summary>
 public sealed class Almacen
 {
-    private static readonly string[] Omitidos = ["entrada"];
+    /// <summary>Carpetas que no son datos: audio pendiente y <c>lost+found</c>, que ext4 crea en la raíz de un volumen nuevo (de root, sin permiso).</summary>
+    private static readonly string[] Omitidos = ["entrada", "lost+found"];
 
     public string Raiz { get; }
 
@@ -18,7 +19,9 @@ public sealed class Almacen
     public static Almacen Cargar(string raiz)
     {
         var almacen = new Almacen(Path.GetFullPath(raiz));
-        foreach (var ruta in Directory.EnumerateFiles(almacen.Raiz, "*.md", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+        // IgnoreInaccessible: una carpeta sin permiso de lectura no debe tumbar la lectura de todo lo demás.
+        var opciones = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
+        foreach (var ruta in Directory.EnumerateFiles(almacen.Raiz, "*.md", opciones).Order(StringComparer.Ordinal))
         {
             var relativa = Path.GetRelativePath(almacen.Raiz, ruta).Replace('\\', '/');
             var partes = relativa.Split('/');

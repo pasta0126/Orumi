@@ -113,6 +113,27 @@ public class ValidadorTests : IDisposable
     }
 
     [Fact]
+    public void Una_carpeta_sin_permiso_como_lost_and_found_no_tumba_la_validacion()
+    {
+        // ext4 crea lost+found (de root, modo 700) en la raíz de un volumen nuevo.
+        var perdida = Path.Combine(_copia, "lost+found");
+        var ilegible = Path.Combine(_copia, "capturas", "carpeta-ilegible");
+        Directory.CreateDirectory(perdida);
+        Directory.CreateDirectory(ilegible);
+        File.SetUnixFileMode(perdida, 0);
+        File.SetUnixFileMode(ilegible, 0);
+        try
+        {
+            Assert.Empty(Validar());
+        }
+        finally
+        {
+            File.SetUnixFileMode(perdida, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(ilegible, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+    }
+
+    [Fact]
     public void No_modifica_ningun_fichero()
     {
         var antes = Directory.GetFiles(_copia, "*", SearchOption.AllDirectories).Order().Select(f => (f, File.ReadAllText(f))).ToList();
