@@ -82,7 +82,8 @@ public static class Formato
 {
     public static string Usd(decimal d) => d.ToString("0.000000", CultureInfo.InvariantCulture);
 
-    public static string Usd2(decimal d) => d.ToString("0.00", CultureInfo.InvariantCulture);
+    /// <summary>Para mostrar al usuario: tres decimales por debajo de 1 US$ (el gasto por nota es de milésimas), dos desde ahí.</summary>
+    public static string Usd2(decimal d) => d.ToString(d < 1m ? "0.000" : "0.00", CultureInfo.InvariantCulture);
 }
 
 public static class ControlDeGasto
