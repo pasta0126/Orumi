@@ -10,6 +10,7 @@ Estado: **propuesta pendiente de revisión** (ver X33 en `docs/decisiones.md`). 
 - El nombre del fichero es siempre `<id>.md`. Los enlaces entre ficheros se hacen **por identificador**: en el frontmatter como texto plano y en el cuerpo como wikilink `[[id]]` (legible en cualquier editor Markdown; ORUMI no depende de otro software, X34).
 - Un dato desconocido se escribe con el valor literal `desconocido`. Un campo opcional que no aplica se omite.
 - Dentro de mapas en línea `{…}` los instantes con hora van **entre comillas** (`"2026-11-12T20:05:00+01:00"`): algunos lectores YAML fallan con los dos puntos sin comillas. En el resto del frontmatter se escriben sin ellas.
+- Los textos libres (`titulo`, `contexto`…) que contengan `:` seguido de espacio, o empiecen por un carácter especial, van **entre comillas dobles**. Surgió en la primera prueba con una nota real: `titulo: Incidencia: …` no es YAML válido.
 - Un identificador nunca se reutiliza ni se cambia, aunque el contenido se corrija.
 
 ## 2. Identificadores (tarea 1.3)
