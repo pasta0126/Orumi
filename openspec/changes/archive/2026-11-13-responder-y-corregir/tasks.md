@@ -17,5 +17,5 @@
 
 - [x] 3.1 Documentar en `docs/formato-de-ficheros.md` (conflicto resuelto, historial de origen usuario) y `docs/agente-mira.md`
 - [x] 3.2 Actualizar la guía de notas (responder, corregir, rechazar) y `docs/decisiones.md`
-- [ ] 3.3 Reconstruir la imagen en el servidor y probar con datos ficticios, incluido que un reprocesado de Mira respeta lo corregido
-- [ ] 3.4 Actualizar `infra` (README y ROADMAP)
+- [x] 3.3 Reconstruir la imagen en el servidor y probar con datos ficticios, incluido que un reprocesado de Mira respeta lo corregido
+- [x] 3.4 Actualizar `infra` (README y ROADMAP)
