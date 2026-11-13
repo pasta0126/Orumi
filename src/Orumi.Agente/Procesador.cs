@@ -255,7 +255,17 @@ public sealed class Procesador(
     {
         var res = new ResultadoCaptura();
         var (solicitud, existentes, relacionados) = Preparar(almacen, captura);
-        var respuesta = await proveedor.ExtraerAsync(solicitud, ct);
+        RespuestaExtraccion respuesta;
+        try
+        {
+            respuesta = await proveedor.ExtraerAsync(solicitud, ct);
+        }
+        catch (ProcesamientoFallidoException e) when (e.Uso is not null)
+        {
+            ContarUso(e.Uso, res); // una salida inservible también se cobra
+            throw;
+        }
+
         ContarUso(respuesta.Uso, res);
         return AplicarRespuesta(almacen, captura, ejecucion, respuesta, existentes, relacionados.Select(r => r.Id).ToHashSet(), res);
     }
@@ -512,6 +522,21 @@ public sealed class Procesador(
 
     // ------------------------------------------------------------------ construcción de registros
 
+    private static readonly string[] CamposConCertezaObligatoria =
+        ["fecha", "hora", "duracion", "contexto", "personas", "lugares", "proyectos", "herramientas", "acciones", "resultados", "problemas", "ideas"];
+
+    /// <summary>Si el modelo da un valor sin indicar su certeza, se anota la más débil («interpretado»): nunca se supone «dicho».</summary>
+    private static void CompletarCertezaOmitida(Dictionary<string, object?> fm, Dictionary<string, object?> certeza)
+    {
+        foreach (var campo in CamposConCertezaObligatoria)
+        {
+            if (fm.TryGetValue(campo, out var v) && v is not null && v as string != "desconocido" && !certeza.ContainsKey(campo))
+            {
+                certeza[campo] = "interpretado";
+            }
+        }
+    }
+
     private Dictionary<string, object?> NuevoFrontmatter(Contexto ctx, RegistroExtraido r, Accion a, List<string> ids)
     {
         var fm = new Dictionary<string, object?>
@@ -538,6 +563,8 @@ public sealed class Procesador(
                 certeza[campo] = c;
             }
         }
+
+        CompletarCertezaOmitida(fm, certeza);
 
         if (r.Multidia is { } m)
         {
@@ -704,6 +731,10 @@ public sealed class Procesador(
             if (r.Certeza.TryGetValue(campo, out var c))
             {
                 certeza[campo] = c;
+            }
+            else if (CamposConCertezaObligatoria.Contains(campo))
+            {
+                certeza[campo] = "interpretado"; // el modelo la omitió: se usa la más débil
             }
         }
 
@@ -1362,7 +1393,11 @@ public sealed class Procesador(
     };
 }
 
-public sealed class ProcesamientoFallidoException(string mensaje) : Exception(mensaje);
+public sealed class ProcesamientoFallidoException(string mensaje) : Exception(mensaje)
+{
+    /// <summary>Consumo de la llamada que falló (ya cobrada), si el proveedor lo informó.</summary>
+    public UsoDeTokens? Uso { get; init; }
+}
 
 /// <summary>Registros existentes que se ofrecen al proveedor: recientes y que comparten algo con el texto, o actividades abiertas.</summary>
 public static class SelectorDeRelacionados

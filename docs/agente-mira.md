@@ -180,3 +180,9 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 - Se valida el resultado antes de escribir (si aparece un error nuevo no se escribe nada), la escritura es atómica, no se tocan capturas y no se ejecuta mientras Mira procesa (código de salida 3). Mira respeta lo corregido en los reprocesados (X30).
 - `orumi consultar pendientes` lee los ficheros y muestra, por pregunta, el registro, el campo, el valor actual y el otro registro implicado.
 
+## 13. Robustez ante la salida del modelo (primeras notas reales, 2026-11-13)
+
+- **Razonamiento interno desactivado** (`thinking` desactivado) y límite de salida de 16 000 tokens: con Sonnet 5.5 el razonamiento oculto consumía el límite de 8192 y cortaba el JSON en las notas largas (`stop_reason: max_tokens`). Una salida cortada deja la captura pendiente con el motivo «la salida del modelo se cortó por el límite de tokens» y **su consumo se contabiliza** (también el de cualquier salida inservible, que antes no se sumaba).
+- **Certeza omitida:** si el modelo da un valor sin certeza, se anota `interpretado` (la más débil; nunca se supone `dicho`), en lugar de rechazar el registro entero. Mismo criterio que para relaciones y estados.
+- **Depuración:** con `ORUMI_DEPURAR_DIR` definido, la salida cruda no legible se vuelca en ese directorio. Está apagado por defecto: esa salida contiene texto del usuario y nunca se registra.
+

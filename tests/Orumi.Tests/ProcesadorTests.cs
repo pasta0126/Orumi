@@ -542,20 +542,6 @@ public class ProcesadorTests
     }
 
     [Fact]
-    public async Task Un_registro_sin_certeza_se_rechaza_antes_de_escribir()
-    {
-        using var e = new EntornoMira();
-        e.Capturar("Hoy hice algo con Pau.");
-        e.Respuesta = _ => Resp([Registro("Hoy hice algo con Pau.", "actividad", "Algo",
-            campos: new() { ["personas"] = new List<object?> { "Pau" } })]); // sin certeza
-
-        var r = await e.Procesar();
-
-        Assert.Empty(e.Registros());
-        Assert.Contains("personas sin certeza", r.Problemas.Single().Motivo);
-    }
-
-    [Fact]
     public async Task Una_referencia_a_un_registro_no_ofrecido_se_rechaza()
     {
         using var e = new EntornoMira();

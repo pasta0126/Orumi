@@ -12,7 +12,8 @@ namespace Orumi.Agente.Proveedores;
 /// </summary>
 public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente = null) : IProveedorIA
 {
-    private const int MaximoDeTokens = 8192;
+    /// <summary>Holgura para notas largas. El razonamiento interno está desactivado (la extracción no lo necesita y encarece cada nota).</summary>
+    internal const int MaximoDeTokens = 16000;
 
     private readonly Lazy<AnthropicClient> _cliente = new(() => cliente ?? new AnthropicClient());
 
@@ -28,6 +29,7 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         {
             Model = modelo,
             MaxTokens = MaximoDeTokens,
+            Thinking = new ThinkingConfigDisabled(),
             System = Instrucciones,
             Messages = [new UserMessageParam { Content = Mensaje(solicitud) }],
         };
@@ -43,25 +45,33 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         }
 
         var texto = string.Concat(respuesta.Content.Select(b => b.TryPickText(out var t) ? t.Text : string.Empty));
+        var uso = new UsoDeTokens(respuesta.Usage.InputTokens, respuesta.Usage.OutputTokens);
         RespuestaExtraccion analizada;
         try
         {
+            if (respuesta.StopReason == StopReason.MaxTokens)
+            {
+                VolcarSalidaParaDepurar(texto, "max_tokens");
+                throw new ProcesamientoFallidoException("la salida del modelo se cortó por el límite de tokens (la nota es muy larga)");
+            }
+
             analizada = LectorDeRespuesta.Analizar(texto);
         }
-        catch (Exception) when (VolcarSalidaParaDepurar(texto, respuesta.StopReason?.ToString()))
+        catch (ProcesamientoFallidoException e)
         {
-            throw; // nunca se alcanza: el filtro solo sirve para volcar la salida sin atrapar la excepción
+            VolcarSalidaParaDepurar(texto, respuesta.StopReason?.ToString());
+            throw new ProcesamientoFallidoException(e.Message) { Uso = uso }; // la llamada ya se ha cobrado: el consumo se contabiliza
         }
 
         // El uso se informa aunque luego la salida no sea válida: la llamada ya se ha cobrado.
-        return analizada with { Uso = new UsoDeTokens(respuesta.Usage.InputTokens, respuesta.Usage.OutputTokens) };
+        return analizada with { Uso = uso };
     }
 
     /// <summary>
     /// Solo para depurar: si ORUMI_DEPURAR_DIR está definido, guarda en ese directorio la salida cruda del modelo cuando no se puede
     /// leer. Por defecto está apagado (la salida contiene texto del usuario y nunca se registra).
     /// </summary>
-    private static bool VolcarSalidaParaDepurar(string texto, string? motivoDeParada)
+    private static void VolcarSalidaParaDepurar(string texto, string? motivoDeParada)
     {
         var dir = Environment.GetEnvironmentVariable("ORUMI_DEPURAR_DIR");
         if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
@@ -69,7 +79,6 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
             File.WriteAllText(Path.Combine(dir, $"salida-{DateTime.UtcNow:HHmmssfff}.txt"), $"stop_reason: {motivoDeParada}\n{texto}");
         }
 
-        return false;
     }
 
     /// <summary>

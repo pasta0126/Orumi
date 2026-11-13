@@ -31,7 +31,8 @@ public sealed class ProveedorAnthropicLotes(string modelo, AnthropicClient? clie
                 Params = new Params
                 {
                     Model = modelo,
-                    MaxTokens = 8192,
+                    MaxTokens = ProveedorAnthropic.MaximoDeTokens,
+                    Thinking = new ThinkingConfigDisabled(),
                     System = ProveedorAnthropic.Instrucciones,
                     Messages = [new UserMessageParam { Content = ProveedorAnthropic.Mensaje(p.Solicitud) }],
                 },
