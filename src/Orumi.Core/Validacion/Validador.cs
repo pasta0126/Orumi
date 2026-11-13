@@ -242,7 +242,7 @@ public static partial class Validador
             var hasta = Texto(f, "hasta");
             if (desde is null || hasta is null || !FechaRx().IsMatch(desde) || !FechaRx().IsMatch(hasta))
             {
-                E("fecha: desde y hasta deben ser fechas ISO");
+                E($"fecha: desde y hasta deben ser fechas AAAA-MM-DD (recibido desde=«{desde}», hasta=«{hasta}»)");
             }
             else if (string.CompareOrdinal(desde, hasta) > 0)
             {
