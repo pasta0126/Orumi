@@ -26,7 +26,7 @@ Trabajamos con Spec-Driven Development. **No se escribe código sin una change a
 ## Estado actual
 
 - Fase: definición. **No hay tecnología ni arquitectura elegidas.** No introducir frameworks, bases de datos ni formatos sin una change que lo decida y justifique.
-- Orden previsto: (1) modelo de registro y procedencia (change `modelo-de-registro`, en curso), (2) flujo del agente (Mira), (3) elección de tecnologías, (4) captura y panel.
+- Orden previsto: (1) modelo de registro y procedencia (change `modelo-de-registro`, archivada el 2026-11-13), (2) flujo del agente (Mira), (3) elección de tecnologías, (4) captura y panel.
 
 ## Criterios de coste y reutilización
 
