@@ -174,6 +174,9 @@ public sealed class Procesador(
 
         public int PreguntasDescartadas { get; set; }
 
+        /// <summary>Hechos que coinciden con un registro eliminado, fusionado o separado por el usuario: no se escribieron.</summary>
+        public int Omitidos { get; set; }
+
         public string? Nota { get; set; }
 
         public long? TokensEntrada { get; set; }
@@ -206,9 +209,16 @@ public sealed class Procesador(
                 e["preguntas_descartadas"] = PreguntasDescartadas.ToString(CultureInfo.InvariantCulture);
             }
 
-            if (Nota is not null)
+            var nota = Nota;
+            if (Omitidos > 0)
             {
-                e["nota"] = Nota;
+                var omitidos = $"{Omitidos} hecho(s) omitido(s): registro eliminado, fusionado o separado por el usuario";
+                nota = nota is null ? omitidos : nota + "; " + omitidos;
+            }
+
+            if (nota is not null)
+            {
+                e["nota"] = nota;
             }
 
             return e;
@@ -231,7 +241,7 @@ public sealed class Procesador(
             comunicada,
             captura.Frontmatter.GetValueOrDefault("fecha_acontecimiento") as string,
             captura.Frontmatter.GetValueOrDefault("etiqueta") as string,
-            existentes.Select(r => (string)r.Frontmatter["clave_extraccion"]!).ToList(),
+            existentes.Where(r => !r.Frontmatter.ContainsKey("estado")).Select(r => (string)r.Frontmatter["clave_extraccion"]!).ToList(),
             relacionados);
         return (solicitud, existentes, relacionados);
     }
@@ -297,6 +307,12 @@ public sealed class Procesador(
         }
 
         ids.AddRange(acciones.Select(a => a.Id));
+        foreach (var omitida in acciones.Where(a => a.Omitir))
+        {
+            ctx.Omitidos.Add(omitida.Id);
+        }
+
+        res.Omitidos = acciones.Count(a => a.Omitir);
 
         // Pasada 2: construir o actualizar ficheros.
         var preguntasAuto = new List<(string RegistroId, string[] Otros, string Campo, string Texto)>();
@@ -304,6 +320,11 @@ public sealed class Procesador(
         {
             var r = respuesta.Registros[i];
             var a = acciones[i];
+            if (a.Omitir)
+            {
+                continue; // eliminado, fusionado o separado por el usuario: no se recrea ni se reactiva
+            }
+
             var rutaDoc = Identificadores.RutaRelativa(a.Id)!;
             var fm = a.Existente is null ? NuevoFrontmatter(ctx, r, a, ids) : Actualizar(ctx, r, a, ids);
             var cuerpo = a.Existente is null ? NuevoCuerpo(ctx, r, fm) : CuerpoActualizado(a.Existente.Cuerpo, r, capId, fm);
@@ -372,7 +393,8 @@ public sealed class Procesador(
 
     // ------------------------------------------------------------------ decisiones
 
-    private sealed record Accion(string Id, Documento? Existente, string Clave, int Desde, int Hasta, string Cita);
+    /// <summary><paramref name="Omitir"/>: el hecho coincide con un registro eliminado o fusionado (o con una ampliación que el usuario separó): no se escribe nada.</summary>
+    private sealed record Accion(string Id, Documento? Existente, string Clave, int Desde, int Hasta, string Cita, bool Omitir = false);
 
     private sealed class Contexto(
         Almacen almacen, Documento captura, DateTimeOffset comunicada, DateTimeOffset ahora, string ejecucion,
@@ -399,6 +421,9 @@ public sealed class Procesador(
             .ToHashSet();
 
         public HashSet<string> IdsUsados { get; } = [.. almacen.Documentos.Select(d => d.Id!).Where(i => i is not null)];
+
+        /// <summary>Ids de los registros cuyo hecho se omite en esta captura (tumbas).</summary>
+        public HashSet<string> Omitidos { get; } = [];
 
         public Dictionary<string, bool> PreguntaPrevista { get; } = [];
 
@@ -431,7 +456,9 @@ public sealed class Procesador(
         {
             ValidarOfrecido(ctx, amplia, "Amplia");
             var doc = ctx.Almacen.Documentos.First(d => d.Id == amplia);
-            return new Accion(amplia, doc, (string)doc.Frontmatter["clave_extraccion"]!, desde, hasta, cita);
+            var tumba = doc.Frontmatter.ContainsKey("estado");
+            var separada = (doc.Frontmatter.GetValueOrDefault("separados") as List<object?> ?? []).OfType<string>().Contains(ctx.Captura.Id!);
+            return new Accion(amplia, doc, (string)doc.Frontmatter["clave_extraccion"]!, desde, hasta, cita, tumba || separada);
         }
 
         // Reprocesado: reclama una clave existente de esta captura (o la reconoce por su fragmento y clase).
@@ -444,15 +471,22 @@ public sealed class Procesador(
         else if (r.Duda is null && r.EnConflictoCon is null)
         {
             var candidatos = ctx.ExistentesDeLaCaptura.Where(e => EsElMismo(e, r.Clase, desde, hasta)).ToList();
-            if (candidatos.Count == 1 && anteriores.All(a => a.Id != candidatos[0].Id))
+            var activos = candidatos.Where(e => !e.Frontmatter.ContainsKey("estado")).ToList();
+            if (activos.Count == 1 && anteriores.All(a => a.Id != activos[0].Id))
             {
-                existente = candidatos[0];
+                existente = activos[0];
+            }
+            else if (activos.Count == 0 && candidatos.Count > 0)
+            {
+                // Solo coincide con registros eliminados o fusionados: el usuario ya decidió sobre este hecho.
+                var tumba = candidatos[0];
+                return new Accion(tumba.Id!, tumba, (string)tumba.Frontmatter["clave_extraccion"]!, desde, hasta, cita, true);
             }
         }
 
         if (existente is not null)
         {
-            return new Accion(existente.Id!, existente, (string)existente.Frontmatter["clave_extraccion"]!, desde, hasta, cita);
+            return new Accion(existente.Id!, existente, (string)existente.Frontmatter["clave_extraccion"]!, desde, hasta, cita, existente.Frontmatter.ContainsKey("estado"));
         }
 
         // Nuevo registro: clave capturaId#f<n>:<clase>:<k>, asignada una sola vez.
@@ -650,6 +684,11 @@ public sealed class Procesador(
             if (destino is null)
             {
                 throw new ProcesamientoFallidoException("una relación no indica su destino");
+            }
+
+            if (ctx.Omitidos.Contains(destino))
+            {
+                continue; // el destino es un registro que el usuario eliminó o fusionó
             }
 
             lista.Add(new Dictionary<string, object?> { ["tipo"] = rel.Tipo, ["destino"] = destino, ["certeza"] = rel.Certeza });
@@ -883,7 +922,7 @@ public sealed class Procesador(
         foreach (var p in respuesta.Preguntas)
         {
             var registroId = p.RegistroId ?? (p.RegistroIndice is { } i && i >= 0 && i < ids.Count ? ids[i] : null);
-            if (registroId is null || fmDe(registroId) is not { } fm || !PuedePreguntarse(ctx, registroId, fm, p.Campo, res))
+            if (registroId is null || ctx.Omitidos.Contains(registroId) || fmDe(registroId) is not { } fm || !PuedePreguntarse(ctx, registroId, fm, p.Campo, res))
             {
                 res.PreguntasDescartadas++;
                 continue;
@@ -1414,6 +1453,11 @@ public static class SelectorDeRelacionados
         foreach (var r in almacen.DeTipo("registro"))
         {
             var fm = r.Frontmatter;
+            if (fm.ContainsKey("estado"))
+            {
+                continue; // eliminados y fusionados («tumbas»): nunca se ofrecen como contexto
+            }
+
             var clave = fm.GetValueOrDefault("clave_extraccion") as string;
             if (clave is not null && clave.StartsWith(capturaActualId + "#f", StringComparison.Ordinal))
             {

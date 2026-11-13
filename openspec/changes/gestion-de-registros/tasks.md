@@ -14,9 +14,9 @@
 
 ## 3. Mira respeta lo hecho
 
-- [ ] 3.1 Tumbas como existentes para claves pero no ofrecidas al modelo ni como relacionados
-- [ ] 3.2 Acción `Omitir` ante coincidencia con una tumba o ampliación de un registro del que se separó la captura; descartar relaciones hacia registros omitidos
-- [ ] 3.3 Pruebas de reprocesado tras eliminar, fusionar y separar (sin recrear, reactivar ni reunir)
+- [x] 3.1 Tumbas como existentes para claves pero no ofrecidas al modelo ni como relacionados
+- [x] 3.2 Acción `Omitir` ante coincidencia con una tumba o ampliación de un registro del que se separó la captura; descartar relaciones hacia registros omitidos
+- [x] 3.3 Pruebas de reprocesado tras eliminar, fusionar y separar (sin recrear, reactivar ni reunir)
 
 ## 4. Índice y consultas
 
