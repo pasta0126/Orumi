@@ -14,10 +14,10 @@
 
 ## 3. Índice
 
-- [ ] 3.1 Implementar el esquema de PostgreSQL de `docs/indice-derivado.md`
-- [ ] 3.2 Implementar `reindexar` (esquema nuevo, informe, sustitución al final, fichero dañado omitido)
-- [ ] 3.3 Implementar las consultas por fecha, hora, tipo, certeza, relación, proyecto, entidad y preguntas pendientes
-- [ ] 3.4 Pruebas: los ejemplos regeneran 5 capturas, 7 registros, 4 preguntas y 5 lotes, con un conflicto abierto y una pregunta pendiente; el procesamiento funciona sin base de datos
+- [x] 3.1 Implementar el esquema de PostgreSQL de `docs/indice-derivado.md`
+- [x] 3.2 Implementar `reindexar` (esquema nuevo, informe, sustitución al final, fichero dañado omitido)
+- [x] 3.3 Implementar las consultas por fecha, hora, tipo, certeza, relación, proyecto, entidad y preguntas pendientes
+- [x] 3.4 Pruebas: los ejemplos regeneran 5 capturas, 7 registros, 4 preguntas y 5 lotes, con un conflicto abierto y una pregunta pendiente; el procesamiento funciona sin base de datos
 
 ## 4. Procesamiento
 
@@ -36,9 +36,9 @@
 - [x] 5.3 ~~Crear el volumen cifrado~~ Creado, probado y eliminado el 2026-11-13: los datos van sin cifrar (X45)
 - [x] 5.4 Implementar la comprobación de montaje (exigencia de volumen opcional, desactivada por defecto) y sus pruebas
 - [x] 5.5 (Con confirmación del usuario) Directorios y permisos (700), base y rol de Postgres (tenant `orumi`) y unidades del temporizador escritas en `infra/orumi/` (sin instalar hasta contratar la IA). El usuario dedicado se descarta por ahora: pide sudo y queda anotado en `security/orumi.md`
-- [ ] 5.6 Probar `capturar`, `validar` y `reindexar` en el servidor con los ejemplos ficticios (hechos `capturar`, `validar`, el fallo cerrado sin volumen y la parada por privacidad; falta `reindexar`, que depende de la sección 3)
+- [x] 5.6 Probar `capturar`, `validar` y `reindexar` en el servidor con los ejemplos ficticios (hecho: las 128 pruebas pasan en el servidor contra la base `orumi`; `reindexar` regenera los ejemplos en 5 capturas, 7 registros, 4 preguntas y 5 lotes)
 
 ## 6. Cierre
 
-- [ ] 6.1 Actualizar `docs/decisiones.md` y `docs/privado/despliegue.md` con lo realizado
-- [ ] 6.2 Anotar lo pendiente para la contratación de la IA y la primera ejecución real
+- [x] 6.1 Actualizar `docs/decisiones.md` y `docs/privado/despliegue.md` con lo realizado
+- [x] 6.2 Anotar lo pendiente para la contratación de la IA y la primera ejecución real

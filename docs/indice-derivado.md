@@ -64,4 +64,4 @@ El índice se puede borrar (`orumi/.indice/`) y reconstruir sin pérdida.
 
 **Garantías:** la regeneración es de solo lectura sobre `orumi/`; dos ejecuciones sobre los mismos ficheros dan el mismo índice; el índice nunca corrige un fichero.
 
-**Verificación sugerida:** `docs/ejemplos/orumi/` debe regenerarse en un índice con 5 capturas, 7 registros, 4 preguntas y 5 lotes, con un conflicto abierto y una pregunta pendiente.
+**Verificación sugerida:** `docs/ejemplos/orumi/` debe regenerarse en un índice con 5 capturas, 7 registros, 4 preguntas y 5 lotes, con un conflicto abierto (dos filas en `conflicto`, una por cada lado) y una pregunta pendiente.
