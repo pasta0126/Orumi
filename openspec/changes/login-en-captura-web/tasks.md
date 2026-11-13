@@ -11,5 +11,5 @@
 
 ## 3. Despliegue y documentación
 
-- [ ] 3.1 Configuración en `infra` (lista de correos, GoTrue interno), eliminar el token, redesplegar
+- [x] 3.1 Configuración en `infra` (lista de correos, GoTrue interno), eliminar el token, redesplegar
 - [ ] 3.2 Documentar (X54, guía, seguridad, infra) y probar con inicio de sesión real
