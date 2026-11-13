@@ -64,7 +64,7 @@ public sealed class AccesoPorSesion
     private readonly Func<DateTimeOffset> _reloj;
     private readonly int _maxFallos;
     private readonly TimeSpan _bloqueo;
-    private readonly Dictionary<string, (int Fallos, DateTimeOffset? BloqueadoHasta)> _estado = [];
+    private readonly Dictionary<string, (int Fallos, DateTimeOffset? BloqueadoHasta, DateTimeOffset Ultimo)> _estado = [];
     private readonly Dictionary<string, (DateTimeOffset Hasta, string Correo)> _aceptadas = [];
     private readonly object _cerrojo = new();
 
@@ -123,15 +123,15 @@ public sealed class AccesoPorSesion
                 return new DecisionDeAcceso(ResultadoDeAcceso.Permitido, i.Correo.Trim().ToLowerInvariant());
             }
 
-            var (fallos, bloqueadoHasta) = _estado.GetValueOrDefault(origen);
-            if (bloqueadoHasta is not null)
+            var (fallos, bloqueadoHasta, ultimo) = _estado.GetValueOrDefault(origen);
+            if (bloqueadoHasta is not null || ahora - ultimo > _bloqueo)
             {
-                fallos = 0; // el bloqueo anterior ya terminó
+                fallos = 0; // el bloqueo anterior ya terminó, o los fallos son antiguos: los fallos solo cuentan dentro de una ventana
             }
 
             fallos++;
             var bloquear = fallos >= _maxFallos;
-            _estado[origen] = bloquear ? (0, ahora + _bloqueo) : (fallos, null);
+            _estado[origen] = bloquear ? (0, ahora + _bloqueo, ahora) : (fallos, null, ahora);
             return new DecisionDeAcceso(bloquear ? ResultadoDeAcceso.Bloqueado : identidad is null ? ResultadoDeAcceso.Denegado : ResultadoDeAcceso.NoAutorizado);
         }
     }

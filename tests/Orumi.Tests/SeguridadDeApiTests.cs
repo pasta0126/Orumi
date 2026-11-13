@@ -210,6 +210,19 @@ public class SeguridadDeApiTests
     }
 
     [Fact]
+    public async Task Los_fallos_antiguos_no_se_acumulan_con_los_nuevos()
+    {
+        var (g, _) = Montar(); // 3 fallos seguidos bloquean
+        Assert.Equal(401, (await Peticion(g, "GET", "/api/registros", bearer: "mal", ip: "6.6.6.6")).Estado);
+        Assert.Equal(401, (await Peticion(g, "GET", "/api/registros", bearer: "mal", ip: "6.6.6.6")).Estado);
+
+        _ahora = _ahora.AddMinutes(16); // pasa la ventana: esos dos fallos ya no cuentan
+        Assert.Equal(401, (await Peticion(g, "GET", "/api/registros", bearer: "mal", ip: "6.6.6.6")).Estado);
+        Assert.Equal(401, (await Peticion(g, "GET", "/api/registros", bearer: "mal", ip: "6.6.6.6")).Estado);
+        Assert.True((await Peticion(g, "GET", "/api/registros", bearer: "yo", ip: "6.6.6.6")).Sigue);
+    }
+
+    [Fact]
     public async Task Si_el_proveedor_de_identidad_cae_responde_503()
     {
         var (g, v) = Montar();
