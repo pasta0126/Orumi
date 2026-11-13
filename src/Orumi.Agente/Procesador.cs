@@ -682,8 +682,11 @@ public sealed class Procesador(
             return true;
         }
 
-        return fm.TryGetValue("historial", out var h) && h is List<object?> lista
-               && lista.OfType<Dictionary<string, object?>>().Any(x => x.GetValueOrDefault("origen") as string == "usuario" && x.GetValueOrDefault("campo") as string == campo);
+        // Cuenta la última entrada del usuario sobre el campo: si es una reversión (deshacer), el campo vuelve a ser de Mira.
+        var ultima = fm.TryGetValue("historial", out var h) && h is List<object?> lista
+            ? lista.OfType<Dictionary<string, object?>>().LastOrDefault(x => x.GetValueOrDefault("origen") as string == "usuario" && x.GetValueOrDefault("campo") as string == campo)
+            : null;
+        return ultima is not null && ultima.GetValueOrDefault("deshace") is null;
     }
 
     private Dictionary<string, object?> Actualizar(Contexto ctx, RegistroExtraido r, Accion a, List<string> ids)

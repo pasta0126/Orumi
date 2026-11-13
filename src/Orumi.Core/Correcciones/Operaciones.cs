@@ -10,7 +10,7 @@ public sealed record ResultadoOperacion(string Mensaje, IReadOnlyList<string> Fi
 /// Respuestas, correcciones y rechazos del usuario sobre los registros. Todo se valida antes de escribir; si algo falla,
 /// no se modifica ningún fichero. Las capturas nunca se tocan. El bloqueo frente a Mira lo toma quien llama.
 /// </summary>
-public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
+public sealed partial class Operaciones(string datos, Func<DateTimeOffset> ahora)
 {
     private string Instante => ahora().ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture);
 
@@ -20,6 +20,7 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
     {
         var almacen = Almacen.Cargar(datos);
         var registro = Buscar(almacen, registroId, "registro");
+        ExigirActivo(registro, "corregir");
         var fm = Clonar(registro.Frontmatter);
         AplicarCorreccion(fm, campo, texto, null);
         return Guardar(almacen, [registro with { Frontmatter = fm }], $"«{campo}» de {registroId} corregido y confirmado.");
@@ -33,6 +34,7 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
         }
 
         var anterior = fm.GetValueOrDefault(campo) ?? "desconocido";
+        var certezaAnterior = CertezaDe(fm, campo);
         var nuevo = ValoresDeCampo.Analizar(campo, texto, anterior);
         if (campo == "resultados" && anterior is List<object?> && nuevo is string s)
         {
@@ -54,7 +56,7 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
             certeza[campo] = "confirmado";
         }
 
-        Historial(fm, campo, anterior, nuevo, pregunta);
+        Historial(fm, campo, anterior, nuevo, pregunta, certezaAnterior);
     }
 
     // ------------------------------------------------------------------ rechazar
@@ -63,6 +65,7 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
     {
         var almacen = Almacen.Cargar(datos);
         var registro = Buscar(almacen, registroId, "registro");
+        ExigirActivo(registro, "rechazar interpretaciones de");
         var fm = Clonar(registro.Frontmatter);
         if (!ValoresDeCampo.EsCorregible(campo) || campo == "entidades" || campo == "titulo")
         {
@@ -87,7 +90,7 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
         });
         fm[campo] = "desconocido";
         certeza.Remove(campo);
-        Historial(fm, campo, actual, "desconocido", null);
+        Historial(fm, campo, actual, "desconocido", null, original);
         return Guardar(almacen, [registro with { Frontmatter = fm }], $"Interpretación de «{campo}» de {registroId} rechazada; el campo queda desconocido.");
     }
 
@@ -151,6 +154,7 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
             }
 
             var reg = Buscar(almacen, destino, "registro");
+            ExigirActivo(reg, "responder sobre");
             var fm = Clonar(reg.Frontmatter);
             AplicarCorreccion(fm, campo, texto, preguntaId);
             var cambiosPorRuta = new Dictionary<string, Documento> { [reg.Ruta] = reg with { Frontmatter = fm } };
@@ -206,7 +210,24 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
 
     // ------------------------------------------------------------------ utilidades
 
-    private void Historial(Dictionary<string, object?> fm, string campo, object? anterior, object? nuevo, string? pregunta)
+    /// <summary>Certeza que tiene un campo ahora: la del mapa o, en las entidades, la común a todas si cada una lleva la suya.</summary>
+    private static string? CertezaDe(Dictionary<string, object?> fm, string campo)
+    {
+        if (fm.GetValueOrDefault("certeza") is Dictionary<string, object?> mapa && mapa.GetValueOrDefault(campo) is string c)
+        {
+            return c;
+        }
+
+        if (campo == "entidades" && fm.GetValueOrDefault("entidades") is List<object?> lista)
+        {
+            var propias = lista.OfType<Dictionary<string, object?>>().Select(e => e.GetValueOrDefault("certeza") as string).Distinct().ToList();
+            return propias.Count == 1 ? propias[0] : null;
+        }
+
+        return null;
+    }
+
+    private void Historial(Dictionary<string, object?> fm, string campo, object? anterior, object? nuevo, string? pregunta, string? certezaAnterior = null)
     {
         var entrada = new Dictionary<string, object?>
         {
@@ -219,6 +240,11 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
         if (pregunta is not null)
         {
             entrada["pregunta"] = pregunta;
+        }
+
+        if (certezaAnterior is not null)
+        {
+            entrada["certeza_anterior"] = certezaAnterior; // permite deshacer devolviendo también la certeza
         }
 
         Lista(fm, "historial").Add(entrada);
@@ -271,12 +297,50 @@ public sealed class Operaciones(string datos, Func<DateTimeOffset> ahora)
             throw new OperacionInvalidaException("El cambio dejaría los ficheros inválidos y no se ha aplicado:\n  " + string.Join("\n  ", nuevas));
         }
 
+        // Varios ficheros: si una escritura falla se devuelve todo a como estaba (los nuevos se borran, los existentes se restauran).
         var rutas = new List<string>();
-        foreach (var d in cambios)
+        var originales = new Dictionary<string, string?>();
+        try
         {
-            var contenido = FrontmatterCanonico.Escribir(d.Frontmatter, d.Cuerpo, d.Tipo!);
-            EscrituraAtomica.Reemplazar(Path.Combine(almacen.Raiz, d.Ruta), contenido);
-            rutas.Add(d.Ruta);
+            foreach (var d in cambios)
+            {
+                var completa = Path.Combine(almacen.Raiz, d.Ruta);
+                originales[completa] = File.Exists(completa) ? File.ReadAllText(completa, System.Text.Encoding.UTF8) : null;
+                var contenido = FrontmatterCanonico.Escribir(d.Frontmatter, d.Cuerpo, d.Tipo!);
+                if (originales[completa] is null)
+                {
+                    EscrituraAtomica.EscribirNuevo(completa, contenido);
+                }
+                else
+                {
+                    EscrituraAtomica.Reemplazar(completa, contenido);
+                }
+
+                rutas.Add(d.Ruta);
+            }
+        }
+        catch (Exception)
+        {
+            foreach (var (ruta, contenidoAnterior) in originales)
+            {
+                try
+                {
+                    if (contenidoAnterior is null)
+                    {
+                        File.Delete(ruta);
+                    }
+                    else
+                    {
+                        EscrituraAtomica.Reemplazar(ruta, contenidoAnterior);
+                    }
+                }
+                catch (Exception)
+                {
+                    // Se sigue restaurando el resto; el validador detectará cualquier incoherencia que quedara.
+                }
+            }
+
+            throw;
         }
 
         return new ResultadoOperacion(mensaje, rutas);

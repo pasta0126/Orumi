@@ -12,7 +12,7 @@ public static partial class FrontmatterCanonico
 {
     private static readonly string[] OrdenRegistro =
     [
-        "id", "tipo", "clase", "titulo", "comunicada_el", "fuentes", "fecha", "hora", "duracion", "herramientas", "personas",
+        "id", "tipo", "clase", "titulo", "estado", "eliminado_el", "fusionado_en", "fusionado_el", "separados", "comunicada_el", "fuentes", "fecha", "hora", "duracion", "herramientas", "personas",
         "entidades", "lugares", "proyectos", "contexto", "acciones", "resultados", "problemas", "ideas", "multidia", "entradas",
         "relaciones", "conflictos", "rechazos", "historial", "certeza", "procedencia", "clave_extraccion",
     ];

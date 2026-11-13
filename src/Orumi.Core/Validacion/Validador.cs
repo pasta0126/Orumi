@@ -111,7 +111,12 @@ public static partial class Validador
             errores.Add(new Incidencia(c.Ruta, "captura sin lote"));
         }
 
-        foreach (var r in registros.Where(r => !creados.Contains(r.Id!)))
+        // Los registros creados a mano por el usuario (al separar una captura) no vienen de un lote: se identifican por su procedencia.
+        static bool DelUsuario(Documento r) =>
+            r.Frontmatter.GetValueOrDefault("procedencia") is Dictionary<string, object?> p
+            && p.GetValueOrDefault("generado_por") is Dictionary<string, object?> g && g.GetValueOrDefault("agente") as string == "usuario";
+
+        foreach (var r in registros.Where(r => !creados.Contains(r.Id!) && !DelUsuario(r)))
         {
             errores.Add(new Incidencia(r.Ruta, "registro no creado por ningún lote"));
         }
@@ -203,6 +208,45 @@ public static partial class Validador
         if (string.IsNullOrWhiteSpace(d.Cuerpo))
         {
             E("sin descripción");
+        }
+
+        // estado: ausente = activo; eliminado o fusionado son «tumbas» (el fichero y su clave se conservan)
+        if (fm.TryGetValue("estado", out var estadoObj))
+        {
+            var estado = estadoObj as string;
+            if (estado is not ("eliminado" or "fusionado"))
+            {
+                E($"estado inválido ({estado}): solo eliminado o fusionado");
+            }
+            else if (estado == "eliminado" && !TryInstante(Texto(fm, "eliminado_el"), out _))
+            {
+                E("registro eliminado sin eliminado_el válido");
+            }
+            else if (estado == "fusionado")
+            {
+                var destino = Texto(fm, "fusionado_en");
+                if (!TryInstante(Texto(fm, "fusionado_el"), out _))
+                {
+                    E("registro fusionado sin fusionado_el válido");
+                }
+
+                if (destino is null || destino == id || doc("registro", destino) is not { } dest)
+                {
+                    E($"fusionado_en inválido ({destino}): debe ser otro registro existente");
+                }
+                else if (Texto(dest.Frontmatter, "estado") == "fusionado")
+                {
+                    E($"fusionado_en apunta a otro registro fusionado ({destino}): no se encadenan");
+                }
+            }
+        }
+
+        foreach (var s in (fm.GetValueOrDefault("separados") as List<object?> ?? []).Select(x => x as string))
+        {
+            if (s is null || !Identificadores.Captura.IsMatch(s) || doc("captura", s) is null)
+            {
+                E($"separados contiene una captura inválida o inexistente ({s})");
+            }
         }
 
         var certeza = fm.TryGetValue("certeza", out var cz) && cz is Dictionary<string, object?> cm ? cm : new Dictionary<string, object?>();
@@ -416,10 +460,30 @@ public static partial class Validador
             {
                 E("historial: pregunta inexistente");
             }
+
+            if (Texto(h, "certeza_anterior") is { } ca && !Certezas.Contains(ca))
+            {
+                E($"historial: certeza_anterior inválida ({ca})");
+            }
+
+            if (Texto(h, "deshace") is { } dh)
+            {
+                var propia = historial.IndexOf(h);
+                if (!int.TryParse(dh, NumberStyles.None, CultureInfo.InvariantCulture, out var destino) || destino < 0 || destino >= propia
+                    || Texto(historial[destino], "campo") != Texto(h, "campo"))
+                {
+                    E("historial: deshace una entrada que no existe o de otro campo");
+                }
+            }
         }
 
-        // lo corregido por el usuario queda confirmado (o desconocido)
-        foreach (var h in historial.Where(h => Texto(h, "origen") == "usuario"))
+        // lo corregido por el usuario queda confirmado (o desconocido). Cuenta la última entrada de cada campo de datos,
+        // salvo que sea una reversión (deshacer), que devuelve el valor y la certeza anteriores. Los campos estructurales
+        // (estado, fuentes, fusión…) no llevan certeza.
+        string[] estructurales = ["estado", "fuentes", "fusion", "separados", "conflictos", "relaciones"];
+        var ultimasDelUsuario = historial.Where(h => Texto(h, "origen") == "usuario" && Texto(h, "campo") is { } c0 && !estructurales.Contains(c0))
+            .GroupBy(h => Texto(h, "campo")!).Select(g => g.Last()).Where(h => Texto(h, "deshace") is null);
+        foreach (var h in ultimasDelUsuario)
         {
             var campo = Texto(h, "campo");
             if (campo is null)
