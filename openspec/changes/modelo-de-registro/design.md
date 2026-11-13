@@ -20,10 +20,10 @@
 2. **Certeza en el frontmatter, por dato** (X11). Cada campo relevante lleva su categoría. Permite filtrar en el índice. *Alternativa:* en prosa; no es consultable.
 3. **Identificadores estables y no derivados del contenido** (p. ej. fecha + sufijo), de modo que renombrar o corregir no rompe enlaces. El formato exacto se fija en la implementación.
 4. **Enlaces por identificador** entre registros y capturas, además de wikilinks legibles para compatibilidad con Atlas.
-5. **Historial de correcciones dentro del propio registro**, y git como respaldo adicional. *Alternativa:* solo git; no es consultable desde el panel.
+5. **Historial de correcciones dentro del propio registro**, además de un posible versionado con git local (no es respaldo). *Alternativa:* solo git; no es consultable desde el panel.
 6. **Reprocesado idempotente:** cada registro guarda la captura de origen y una clave de extracción estable, de modo que regenerar actualiza en lugar de duplicar. Se registra versión de Mira y modelo.
 7. **Índice derivado reconstruible** (X3). El motor concreto (SQLite o el Postgres existente) se decide en una change posterior.
-8. **Sin respaldo en vedlvm** (X12, sustituye a X2 en ese punto): los datos de ORUMI no salen hacia vedlvm ni GitHub por privacidad. El respaldo de `orumi/` se decidirá aparte. *Alternativa descartada:* copia de informes en vedlvm.
+8. **Sin respaldo en vedlvm** (X12, sustituye a X2 en ese punto): los datos de ORUMI no salen hacia vedlvm ni GitHub por privacidad. No hay respaldo de `orumi/` (X27). *Alternativa descartada:* copia de informes en vedlvm.
 9. **Información imperfecta** (X16–X19): conflictos marcados sin ganador, un registro multi-día con entradas fechadas, rango estimado para fechas imprecisas y completitud no bloqueante. *Alternativas descartadas:* prevalece lo más reciente, un registro por día, no estimar fechas, estado «completo» explícito.
 10. **Capturas multitema y aportaciones** (X24–X26): la captura no se divide; los registros referencian fragmentos de origen. La coincidencia con un registro existente se decide por la clave de extracción (decisión 6) y, ante duda, se pregunta. Metadatos opcionales sin ubicación.
 
@@ -33,4 +33,4 @@
 - **Corrección manual y regeneración de Mira se pisan** → los datos confirmados o corregidos por el usuario no los sobrescribe una regeneración.
 - **Frontmatter con certeza por campo se vuelve verboso** → limitar la certeza a los datos relevantes, no a todos.
 - **Sin audio, un error de STT es irrecuperable** → verificar la transcripción antes de borrar y reabrir X5 si la calidad es insuficiente.
-- **Único respaldo es el disco del servidor** → decidir cómo respaldar `orumi/` (repo propio con remoto privado, copia local en otro equipo) en una change posterior.
+- **Sin respaldo: un fallo del disco del servidor pierde todo, incluidas las transcripciones** → riesgo aceptado explícitamente (X27); reabrible.

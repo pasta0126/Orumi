@@ -2,7 +2,7 @@
 
 - [ ] 1.1 Redactar la especificación de campos de `captura` (identificador, fechas, origen) con ejemplo completo
 - [ ] 1.2 Redactar la especificación de campos de `registro` (tipos, fechas imprecisas, relaciones, certeza por dato, procedencia, historial) con ejemplos
-- [ ] 1.3 Fijar el formato de identificadores y la clave de extracción para reprocesado idempotente
+- [ ] 1.3 Fijar el formato de identificadores y la clave de extracción para reprocesado idempotente, respetando X30 (no pisar lo aportado por el usuario)
 - [ ] 1.4 Definir la estructura de directorios de `orumi/` (capturas, registros, informes, preguntas pendientes)
 
 ## 2. Ejemplos y validación
@@ -16,7 +16,7 @@
 ## 3. Índice y respaldo
 
 - [ ] 3.1 Definir el esquema lógico del índice derivado (campos consultables) sin fijar motor
-- [ ] 3.2 Definir la estrategia de respaldo de `orumi/` (sin vedlvm) o registrarla como dependencia de otra change
+- [x] 3.2 Respaldo de `orumi/`: decidido que no hay (X27); riesgo documentado en design.md
 - [ ] 3.3 Documentar el procedimiento de regeneración del índice
 
 ## 4. Cierre

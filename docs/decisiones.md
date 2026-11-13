@@ -95,14 +95,14 @@ Además de los criterios rectores (C1–C5):
 | # | Decisión | Fecha | Resuelve |
 |---|----------|-------|----------|
 | X1 | **Acceso del agente a los ficheros:** ambas vías válidas, por SSH directo al servidor o por la API de Atlas. Se elegirá según el caso; por defecto la más simple. | 2026-11-12 | G3 (parcial), G5 |
-| X2 | **Datos de ORUMI en `orumi/`** (separados de las notas personales). **Los análisis y las revisiones generan además un duplicado `.md` que se copia a vedlvm como backup.** | 2026-11-12 | G4 |
+| X2 | **Datos de ORUMI en `orumi/`** (separados de las notas personales). *(La parte de duplicado en vedlvm quedó sustituida por X12.)* | 2026-11-12 | G4 |
 | X3 | **Índice derivado y reconstruible** (SQLite o Postgres existente) generado desde los ficheros para consultas estructuradas; los ficheros siguen siendo la fuente de verdad. Atlas queda como visor/editor de ficheros crudos. | 2026-11-12 | G6, D5 |
 | X7 | **Entrada de la captura:** API propia de ORUMI como destino final (la usará la app Flutter, con token propio). **En el MVP se empieza dejando ficheros directamente en `orumi/` (SSH/sincronización)** y se añade la API al llegar la app móvil. | 2026-11-12 | entrada de captura |
 | X8 | **El agente se llama Mira.** | 2026-11-12 | D9 |
 | X9 | **Proveedores de IA (provisional):** Gemini Flash-Lite de pago para transcribir y limpiar; modelo más capaz solo para análisis de patrones por lotes. Precios y calidad se verifican en detalle antes de contratar. | 2026-11-12 | D1, D2 |
 | X10 | **Granularidad:** cada captura se guarda cruda (original) y cada registro que extrae Mira (evento, idea, decisión…) es su propio `.md` enlazado a su captura. | 2026-11-12 | D7 |
 | X11 | **Certeza** (dicho, confirmado, interpretado, hipótesis, recomendación) como campo en el frontmatter de cada registro. | 2026-11-12 | D7 |
-| X12 | **Sin respaldo de ORUMI en vedlvm** (D17): ningún dato de ORUMI sale hacia vedlvm/GitHub. **Sustituye la parte de copia en vedlvm de X2.** El respaldo de `orumi/` queda por definir (ver nota). | 2026-11-12 | D17, X2 |
+| X12 | **Sin respaldo de ORUMI en vedlvm** (D17): ningún dato de ORUMI sale hacia vedlvm/GitHub. **Sustituye la parte de copia en vedlvm de X2.** El respaldo de `orumi/` se resuelve en X27. | 2026-11-12 | D17, X2 |
 | X13 | **Preguntas de Mira:** siempre pendientes (nunca interrumpen), ordenadas por valor y con un máximo N por revisión. | 2026-11-12 | D11 |
 | X14 | **App Android offline:** cola local y sincronización posterior; el audio local solo se borra tras confirmación del servidor. | 2026-11-12 | D14 |
 | X15 | **Pantalla principal del panel:** cronología reciente + preguntas pendientes; descubrimientos en sección aparte; sin métricas de productividad. | 2026-11-12 | D18 |
@@ -117,15 +117,20 @@ Además de los criterios rectores (C1–C5):
 | X24 | **Capturas con varios temas:** la captura se guarda entera e inmutable; Mira la divide en registros durante el lote, y cada registro referencia el fragmento de origen. El usuario puede fusionar o separar después. | 2026-11-12 | D16 |
 | X25 | **Metadatos opcionales de una captura:** fecha del acontecimiento (si no es hoy), etiqueta o proyecto, y contexto automático (hora y dispositivo, sin ubicación ni monitorización). Los aportados por el usuario cuentan como «dicho por el usuario». | 2026-11-12 | D16 |
 | X26 | **Aportación a registros existentes:** una captura nueva que amplía algo ya registrado se añade como nueva fuente/entrada al mismo registro; ante la duda, Mira pregunta. | 2026-11-12 | D16 |
+| X27 | **Sin respaldo de `orumi/`:** los ficheros viven solo en el servidor. Riesgo aceptado conscientemente: si falla el disco, se pierde todo (incluidas las transcripciones, que son el único original). Reabrible si cambia la tolerancia al riesgo. | 2026-11-13 | X12 |
+| X28 | **Audio y STT (confirma X5):** se mantiene el borrado del audio tras transcribir y verificar que la transcripción se guardó. Solo se reabre si las pruebas de STT en español salen insuficientes. | 2026-11-13 | X5 |
+| X29 | **Autenticación y datos a terceros (D17):** token propio por cliente (app, panel) con alcance mínimo; en el MVP por ficheros no hay API que autenticar. Solo salen a terceros los datos que Mira envía al proveedor de IA de pago (X9), y esto se registra en una spec antes de implementar la API. | 2026-11-13 | D17 |
+| X30 | **Reprocesado y aportaciones del usuario (D10):** lo que el usuario corrige o completa se asume válido y acertado. Mira lo tiene en cuenta, puede preguntar si necesita más información y puede adaptarlo o adecuarlo (p. ej. formato, relaciones), pero **nunca lo elimina ni lo sustituye por su propia interpretación.** Un reprocesado actualiza solo lo no tocado por el usuario. | 2026-11-13 | D10 |
+| X31 | **Correcciones en el panel (D18):** mismo criterio que X30. Cualquier campo es corregible en línea, queda en el historial, pasa a «confirmado» y lo dicho por el usuario prevalece sobre cualquier interpretación de Mira. | 2026-11-13 | D18 |
+| X32 | **Despliegue (D3):** la aplicación se despliega en el servidor propio por SSH, usando su infraestructura compartida. Las tecnologías concretas (API, índice, panel) quedan pendientes de definir en una change posterior. | 2026-11-13 | D3 |
 | X4 | **Agente por lotes nocturno + a petición.** Las preguntas se acumulan para revisarlas cuando el usuario quiera. | 2026-11-12 | D8 |
 | X5 | **El audio se borra tras transcribirlo.** La transcripción cruda se conserva siempre y pasa a ser el «original» del sistema. | 2026-11-12 | D6, G1 |
 | X6 | **Orden de construcción:** texto (entrada propia de ORUMI, no el inbox de Atlas) + agente + modelo de registro primero; voz (Flutter) y dashboard después. | 2026-11-12 | D15, D19 |
 
 Notas abiertas derivadas:
 - **X20–X23 (patrones):** se implementarán en una change posterior de análisis (no en `modelo-de-registro`). El modelo de registro ya admite hipótesis con evidencia enlazada y rechazo de interpretaciones.
-- **X12, respaldo de `orumi/` (abierta):** al descartar vedlvm, hace falta decidir cómo se respalda `orumi/` (p. ej. repo git propio con remoto privado o copia local en otro disco/equipo). Hasta entonces el único respaldo es el disco del servidor.
-- **X5 y principio 3.2:** al borrar el audio, la transcripción cruda es el original. Mitigación acordada de facto: no pasarla por ningún LLM antes de guardarla (el STT no «limpia»), y verificar que la transcripción se guardó antes de borrar. Si la calidad del STT en español resulta insuficiente en las pruebas, se reabre (p. ej. con caducidad de N días).
-- **X2, ubicación de `orumi/`:** confirmado 2026-11-12: ORUMI tiene sus propios ficheros, en un directorio/repo propio en el servidor, distinto de vedlvm. **No se usa el `/api/inbox` de Atlas.** El agente crea los ficheros en `orumi/` y después, por SSH, genera la copia `.md` en vedlvm (backup).
-- **X2, alcance del duplicado:** «análisis y revisiones» = informes de patrones y revisiones del agente. Falta decidir si los registros/eventos individuales también se duplican y cómo se evita que el duplicado diverja del original (se propone: el duplicado es de solo lectura/generado, nunca se edita).
+- **X5 y principio 3.2:** al borrar el audio, la transcripción cruda es el original. Mitigación acordada de facto: no pasarla por ningún LLM antes de guardarla (el STT no «limpia»), y verificar que la transcripción se guardó antes de borrar. Si la calidad del STT en español resulta insuficiente en las pruebas, se reabre (p. ej. con caducidad de N días). Ver X28.
+- **X2, ubicación de `orumi/`:** confirmado 2026-11-12: ORUMI tiene sus propios ficheros, en un directorio/repo propio en el servidor, distinto de vedlvm. **No se usa el `/api/inbox` de Atlas.** El agente crea los ficheros en `orumi/`; no se copia nada a vedlvm (X12).
 - **X1:** si el agente usa la API de Atlas sigue haciendo falta un token con permiso de lectura (G3).
-- **G2** (no usar el cifrado de Atlas para ORUMI) se da por aceptado al validar el punto 2 de la propuesta; el duplicado en vedlvm queda en claro.
+- **G2** (no usar el cifrado de Atlas para ORUMI) aceptado: ORUMI no usa Atlas para cifrar ni guarda copias fuera de `orumi/`.
+- **D4 (aplazada):** revisar otros proyectos propios reutilizables (Kanban JSON, monitor de logs, Postgres `platform-*`); se retoma cuando haga falta elegir tecnologías (X32).

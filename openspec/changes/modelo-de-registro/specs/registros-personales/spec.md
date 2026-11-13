@@ -63,6 +63,17 @@ Todo registro generado por el agente MUST indicar qué versión de Mira, modelo 
 - **WHEN** una nueva versión de Mira regenera un registro
 - **THEN** el registro indica la nueva versión y se conserva el historial de la anterior
 
+### Requirement: Las aportaciones del usuario se respetan al reprocesar
+Lo que el usuario corrige o completa MUST considerarse válido y acertado. Mira MAY adaptarlo o adecuarlo y MAY preguntar si necesita más información, pero MUST NOT eliminarlo ni sustituirlo por su propia interpretación; un reprocesado MUST actualizar solo lo no tocado por el usuario.
+
+#### Scenario: Reprocesado con datos corregidos
+- **WHEN** Mira regenera un registro que el usuario había corregido
+- **THEN** conserva los valores del usuario, actualiza únicamente el resto y, si lo necesita, deja una pregunta pendiente
+
+#### Scenario: Dato del usuario que choca con una interpretación
+- **WHEN** una interpretación de Mira difiere de un dato aportado por el usuario
+- **THEN** prevalece el dato del usuario y la interpretación no sustituye ni oculta ese dato
+
 ### Requirement: Control del usuario e historial de correcciones
 El usuario MUST poder corregir, completar, fusionar, separar o eliminar registros, y cada cambio MUST quedar en un historial de correcciones sin alterar la captura original.
 
