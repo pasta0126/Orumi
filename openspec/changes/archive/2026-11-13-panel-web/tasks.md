@@ -12,7 +12,7 @@
 ## 2. Página
 
 - [x] 2.1 Vistas Día, Pendientes, Buscar y Ficha (texto siempre como texto, móvil, tema, teclado)
-- [ ] 2.2 Probar en Chrome contra datos de ejemplo
+- [x] 2.2 Probar en Chrome contra datos de ejemplo
 
 ## 2b. Direcciones separadas (página en /panel, API en orumi-api)
 
@@ -24,4 +24,4 @@
 
 - [x] 3.1 `Dockerfile.panel` y servicio en `infra` (Traefik con `ratelimit`, `inflightreq` y límite de cuerpo, `capturas/` en solo lectura)
 - [x] 3.1b Enrutado: página en `orumi.northernarchive.com/panel` (redirección de `/panel`, prefijo quitado) y API solo en `orumi-api.northernarchive.com/api`
-- [ ] 3.2 Documentar (X56, guía, seguridad, infra) y probar con datos reales
+- [x] 3.2 Documentar (X56, guía, seguridad, infra) y probar con datos reales
