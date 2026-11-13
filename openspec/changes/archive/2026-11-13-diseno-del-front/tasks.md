@@ -15,4 +15,4 @@
 
 ## 4. Despliegue
 
-- [ ] 4.1 Reconstruir imágenes, desplegar y comprobar; documentar (X57) y archivar
+- [x] 4.1 Reconstruir imágenes, desplegar y comprobar; documentar (X57) y archivar
