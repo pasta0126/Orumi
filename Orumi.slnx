@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Orumi.Agente/Orumi.Agente.csproj" />
+    <Project Path="src/Orumi.Cli/Orumi.Cli.csproj" />
+    <Project Path="src/Orumi.Core/Orumi.Core.csproj" />
+    <Project Path="src/Orumi.Indice/Orumi.Indice.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Orumi.Tests/Orumi.Tests.csproj" />
+  </Folder>
+</Solution>

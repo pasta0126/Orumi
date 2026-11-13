@@ -68,3 +68,10 @@ temp/
 
 # Volcado de sesión local (puede contener datos personales)
 session.txt
+
+# .NET
+bin/
+obj/
+*.user
+.vs/
+TestResults/
