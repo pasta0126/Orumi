@@ -4,6 +4,7 @@
     <Project Path="src/Orumi.Cli/Orumi.Cli.csproj" />
     <Project Path="src/Orumi.Core/Orumi.Core.csproj" />
     <Project Path="src/Orumi.Indice/Orumi.Indice.csproj" />
+    <Project Path="src/Orumi.Web/Orumi.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Orumi.Tests/Orumi.Tests.csproj" />

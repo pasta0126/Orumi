@@ -23,8 +23,14 @@ public static class CreadorDeCapturas
         string dispositivo = "terminal",
         string? fechaAcontecimiento = null,
         string? etiqueta = null,
-        Func<DateTimeOffset, string>? generadorId = null)
+        Func<DateTimeOffset, string>? generadorId = null,
+        string origen = "texto")
     {
+        if (origen is not ("texto" or "voz"))
+        {
+            throw new CapturaInvalidaException("El origen debe ser texto o voz.");
+        }
+
         if (string.IsNullOrWhiteSpace(texto))
         {
             throw new CapturaInvalidaException("El texto está vacío: no se crea ninguna captura.");
@@ -55,7 +61,7 @@ public static class CreadorDeCapturas
                 continue;
             }
 
-            var contenido = Contenido(id, texto, comunicadaEl, dispositivo, fechaAcontecimiento, etiqueta);
+            var contenido = Contenido(id, texto, comunicadaEl, dispositivo, fechaAcontecimiento, etiqueta, origen);
             try
             {
                 EscrituraAtomica.EscribirNuevo(ruta, contenido);
@@ -72,14 +78,14 @@ public static class CreadorDeCapturas
     }
 
     internal static string Contenido(
-        string id, string texto, DateTimeOffset comunicadaEl, string dispositivo, string? fechaAcontecimiento, string? etiqueta)
+        string id, string texto, DateTimeOffset comunicadaEl, string dispositivo, string? fechaAcontecimiento, string? etiqueta, string origen = "texto")
     {
         var pares = new List<(string, YNodo)>
         {
             ("id", new YLiteral(id)),
             ("tipo", new YLiteral("captura")),
             ("comunicada_el", new YInstante(comunicadaEl.ToString("yyyy-MM-dd'T'HH:mm:sszzz", CultureInfo.InvariantCulture))),
-            ("origen", new YLiteral("texto")),
+            ("origen", new YLiteral(origen)),
             ("huella", new YLiteral(Huella.De(texto))),
             ("contexto_automatico", YMapa.De(("dispositivo", new YTexto(dispositivo)))),
         };

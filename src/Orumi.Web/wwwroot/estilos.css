@@ -1,0 +1,32 @@
+:root {
+  color-scheme: light dark;
+  --fondo: #f7f7f5; --texto: #1d1d1f; --suave: #6b7280; --borde: #d4d4d8; --campo: #fff;
+  --acento: #1f6feb; --acento-texto: #fff; --error: #b42318; --ok: #1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --fondo: #15171a; --texto: #ececec; --suave: #9aa0a6; --borde: #3a3f45; --campo: #1e2125; --acento: #4c8dff; --acento-texto: #0b0d10; --error: #ff8a80; --ok: #56d364; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); color: var(--texto); font: 17px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 42rem; margin: 0 auto; padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom)); }
+header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+h1 { margin: 0; font-size: 1.15rem; letter-spacing: .12em; }
+#estado { font-size: .85rem; color: var(--suave); }
+textarea, input[type=text], input[type=date], input[type=password] {
+  width: 100%; padding: 12px; border: 1px solid var(--borde); border-radius: 10px; background: var(--campo); color: inherit; font: inherit;
+}
+textarea { min-height: 40vh; resize: vertical; }
+label { display: block; margin-top: 12px; font-size: .95rem; }
+small, .nota { color: var(--suave); font-size: .85rem; }
+.fila { display: flex; gap: 10px; margin-top: 12px; }
+button { padding: 12px 16px; border-radius: 10px; border: 1px solid var(--borde); background: var(--campo); color: inherit; font: inherit; cursor: pointer; min-height: 48px; }
+button.principal { flex: 1; background: var(--acento); color: var(--acento-texto); border-color: var(--acento); font-weight: 600; }
+button[aria-pressed=true] { border-color: var(--error); color: var(--error); }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--acento); outline-offset: 2px; }
+button.enlace { border: 0; background: none; color: var(--suave); text-decoration: underline; min-height: 0; padding: 8px 0; font-size: .85rem; }
+details { margin-top: 14px; }
+summary { cursor: pointer; color: var(--suave); }
+.mensaje { min-height: 1.5em; margin: 12px 0 0; }
+.mensaje.ok { color: var(--ok); }
+.mensaje.mal, .error { color: var(--error); }

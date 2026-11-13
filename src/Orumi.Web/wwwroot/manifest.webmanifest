@@ -1,0 +1,12 @@
+{
+  "name": "ORUMI · Captura",
+  "short_name": "ORUMI",
+  "description": "Captura de notas por texto o voz",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#15171a",
+  "theme_color": "#1f2937",
+  "lang": "es",
+  "icons": [{ "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

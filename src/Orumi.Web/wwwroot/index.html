@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f2937">
+<title>ORUMI · Captura</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icono.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icono.svg">
+<link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>ORUMI</h1>
+    <span id="estado" role="status" aria-live="polite"></span>
+  </header>
+
+  <section id="acceso" hidden>
+    <p>Introduce el token de acceso (solo se guarda en este dispositivo).</p>
+    <input id="token" type="password" autocomplete="off" placeholder="Token de acceso" aria-label="Token de acceso">
+    <button id="guardar-token" type="button">Entrar</button>
+    <p id="error-acceso" class="error" role="alert"></p>
+  </section>
+
+  <section id="captura" hidden>
+    <textarea id="texto" rows="10" placeholder="Cuenta lo que quieras: qué pasó, con quién, cuándo, cuánto duró…" aria-label="Nota"></textarea>
+
+    <div class="fila">
+      <button id="dictar" type="button" aria-pressed="false" hidden>🎙 Dictar</button>
+      <button id="enviar" type="button" class="principal">Enviar nota</button>
+    </div>
+    <p id="aviso-voz" class="nota" hidden>El dictado lo procesa el navegador (Google en Chrome/Edge, Apple en Safari): el audio sale de tu dispositivo. Si prefieres que no, escribe la nota.</p>
+
+    <details>
+      <summary>Más opciones</summary>
+      <label>Fecha del acontecimiento <small>(si hablas de otro día y no lo dices en el texto)</small>
+        <input id="fecha" type="date">
+      </label>
+      <label>Etiqueta <small>(proyecto o tema, opcional)</small>
+        <input id="etiqueta" type="text" maxlength="60" autocomplete="off">
+      </label>
+    </details>
+
+    <p id="mensaje" class="mensaje" role="status" aria-live="polite"></p>
+    <p id="pendientes" class="nota" hidden></p>
+    <button id="cambiar-token" type="button" class="enlace">Cambiar token</button>
+  </section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

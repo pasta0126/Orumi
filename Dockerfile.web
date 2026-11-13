@@ -1,0 +1,15 @@
+# ORUMI — servicio web de captura (linux/arm64 para la Raspberry Pi; también construye en x64).
+# Solo crea capturas. El token de acceso y los datos NO van en la imagen: entorno y montajes.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS construccion
+WORKDIR /origen
+COPY Orumi.slnx ./
+COPY src/ src/
+RUN dotnet publish src/Orumi.Web -c Release -o /publicado --no-self-contained
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=construccion /publicado ./
+USER app
+ENV ORUMI_DATOS=/datos
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "orumi-web.dll"]
