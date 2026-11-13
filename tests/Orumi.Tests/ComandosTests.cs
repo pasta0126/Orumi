@@ -346,3 +346,28 @@ public class VolumenTests : IDisposable
         Assert.Equal(0, codigo);
     }
 }
+
+public class ErroresInesperadosTests
+{
+    [Fact]
+    public void Un_error_de_ficheros_da_un_mensaje_breve_y_codigo_70_sin_traza()
+    {
+        var fichero = Path.GetTempFileName(); // una ruta de datos que es un fichero, no un directorio
+        var salida = new StringWriter();
+        var error = new StringWriter();
+        try
+        {
+            var codigo = new Comandos(() => new MemoryStream(), salida, error, () => DateTimeOffset.Now, _ => null)
+                .Ejecutar(["capturar", "--datos", fichero, "--texto", "contenido secreto de la nota"]);
+
+            Assert.Equal(70, codigo);
+            Assert.StartsWith("Error:", error.ToString());
+            Assert.DoesNotContain("   at ", error.ToString());
+            Assert.DoesNotContain("contenido secreto", error.ToString());
+        }
+        finally
+        {
+            File.Delete(fichero);
+        }
+    }
+}

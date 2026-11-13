@@ -32,9 +32,9 @@
 ## 5. Contenedor y servidor
 
 - [x] 5.1 Construir la imagen ARM64, sin puertos publicados y con usuario no raíz (construida en el servidor el 2026-11-13: `orumi:latest`, 344 MB)
-- [ ] 5.2 (Con confirmación del usuario) Medir en el servidor el benchmark de `cryptsetup` y elegir el algoritmo del volumen cifrado (`crear-volumen.sh` lo mide; requiere sudo: lo ejecuta el usuario)
-- [ ] 5.3 (Con confirmación del usuario) Crear el volumen cifrado, su montaje, la clave recuperable fuera del servidor y la copia de la cabecera (`sudo ~/infra/orumi/crear-volumen.sh`: lo ejecuta el usuario)
-- [x] 5.4 Implementar la comprobación de montaje y las pruebas del fallo cerrado con el volumen bloqueado
+- [x] 5.2 ~~Medir el cifrado en el servidor~~ Medido (AES-XTS 53/71 MiB/s, Adiantum 204/220 MiB/s) y descartado el cifrado (X45)
+- [x] 5.3 ~~Crear el volumen cifrado~~ Creado, probado y eliminado el 2026-11-13: los datos van sin cifrar (X45)
+- [x] 5.4 Implementar la comprobación de montaje (exigencia de volumen opcional, desactivada por defecto) y sus pruebas
 - [x] 5.5 (Con confirmación del usuario) Directorios y permisos (700), base y rol de Postgres (tenant `orumi`) y unidades del temporizador escritas en `infra/orumi/` (sin instalar hasta contratar la IA). El usuario dedicado se descarta por ahora: pide sudo y queda anotado en `security/orumi.md`
 - [ ] 5.6 Probar `capturar`, `validar` y `reindexar` en el servidor con los ejemplos ficticios (hechos `capturar`, `validar`, el fallo cerrado sin volumen y la parada por privacidad; falta `reindexar`, que depende de la sección 3)
 

@@ -63,6 +63,12 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
             error.WriteLine($"No se creó la captura: {e.Message}");
             return 1;
         }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or FormatException)
+        {
+            // Error inesperado: mensaje breve (tipo y texto del error, nunca contenido de las notas) y salida limpia; sin trazas ni procesos colgados.
+            error.WriteLine($"Error: {e.GetType().Name}: {e.Message}");
+            return 70;
+        }
     }
 
     private int Capturar(Opciones o)
