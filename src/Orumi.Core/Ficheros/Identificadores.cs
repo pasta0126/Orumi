@@ -12,11 +12,13 @@ public static partial class Identificadores
     public static readonly Regex Registro = RegistroRx();
     public static readonly Regex Pregunta = PreguntaRx();
     public static readonly Regex Lote = LoteRx();
+    public static readonly Regex Envio = EnvioRx();
 
     [GeneratedRegex(@"^cap-(\d{4})(\d{2})\d{2}-\d{4}-[a-z0-9]{3}$")] private static partial Regex CapturaRx();
     [GeneratedRegex(@"^reg-(\d{4})(\d{2})\d{2}-[a-z0-9]{4}$")] private static partial Regex RegistroRx();
     [GeneratedRegex(@"^preg-(\d{4})(\d{2})\d{2}-[a-z0-9]{4}$")] private static partial Regex PreguntaRx();
     [GeneratedRegex(@"^lote-(\d{4})(\d{2})\d{2}-\d{4}$")] private static partial Regex LoteRx();
+    [GeneratedRegex(@"^envio-(\d{4})(\d{2})\d{2}-\d{4}$")] private static partial Regex EnvioRx();
 
     /// <summary><c>cap-AAAAMMDD-HHMM-xxx</c> con la hora local de la comunicación.</summary>
     public static string NuevaCaptura(DateTimeOffset comunicadaEl) =>
@@ -36,7 +38,7 @@ public static partial class Identificadores
     /// <summary>Directorio relativo a <c>orumi/</c> que corresponde a un identificador (<c>capturas/AAAA/MM</c>…), o null si el formato no es válido.</summary>
     public static string? DirectorioDe(string id)
     {
-        foreach (var (rx, carpeta) in new[] { (Captura, "capturas"), (Registro, "registros"), (Pregunta, "preguntas"), (Lote, "lotes") })
+        foreach (var (rx, carpeta) in new[] { (Captura, "capturas"), (Registro, "registros"), (Pregunta, "preguntas"), (Lote, "lotes"), (Envio, "envios") })
         {
             var m = rx.Match(id);
             if (m.Success)

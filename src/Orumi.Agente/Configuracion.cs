@@ -3,6 +3,12 @@ using Orumi.Core.Yaml;
 
 namespace Orumi.Agente;
 
+/// <summary>Modo de procesamiento: <c>lotes</c> (diferido, con descuento) o <c>inmediato</c>; espera máxima e intervalo de consulta del lote.</summary>
+public sealed record Procesamiento(string Modo = "inmediato", int EsperaMaximaMinutos = 90, int IntervaloSegundos = 60)
+{
+    public bool PorLotes => Modo == "lotes";
+}
+
 public sealed record GarantiaDePrivacidad(bool Declarada, DateOnly? VerificadaEl, string? Fuente, int CaducidadDias);
 
 public sealed record Configuracion(
@@ -15,7 +21,8 @@ public sealed record Configuracion(
     int MaximoPendientes,
     bool ExigirVolumen = false,
     Precios? Precios = null,
-    Presupuesto? Presupuesto = null)
+    Presupuesto? Presupuesto = null,
+    Procesamiento? Procesamiento = null)
 {
     public const int CaducidadPorDefecto = 180;
 
@@ -49,12 +56,20 @@ public sealed record Configuracion(
             Entero(preguntas, "maximo_pendientes", 5),
             Texto(Mapa(raiz, "volumen"), "exigir") == "true",
             LeerPrecios(Mapa(raiz, "precios")),
-            LeerPresupuesto(Mapa(raiz, "presupuesto")));
+            LeerPresupuesto(Mapa(raiz, "presupuesto")),
+            LeerProcesamiento(Mapa(raiz, "procesamiento")));
     }
 
     private static Precios? LeerPrecios(Dictionary<string, object?> m)
     {
-        return Decimal(m, "entrada_por_millon_usd") is { } e && Decimal(m, "salida_por_millon_usd") is { } s ? new Precios(e, s) : null;
+        return Decimal(m, "entrada_por_millon_usd") is { } e && Decimal(m, "salida_por_millon_usd") is { } s ? new Precios(e, s, Decimal(m, "factor_lote") ?? 0.5m) : null;
+    }
+
+    private static Procesamiento LeerProcesamiento(Dictionary<string, object?> m)
+    {
+        var modo = m.GetValueOrDefault("modo") as string is "lotes" ? "lotes" : "inmediato";
+        int Entero(string k, int d) => int.TryParse(m.GetValueOrDefault(k) as string, CultureInfo.InvariantCulture, out var v) && v > 0 ? v : d;
+        return new Procesamiento(modo, Entero("espera_maxima_minutos", 90), Entero("intervalo_segundos", 60));
     }
 
     private static Presupuesto? LeerPresupuesto(Dictionary<string, object?> m)

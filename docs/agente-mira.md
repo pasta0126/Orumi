@@ -162,3 +162,13 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 - **Dónde se ve:** `orumi estado` (pendientes, último lote, gasto estimado, avisos) y una línea `⚠ Mira: …` por la salida de error al ejecutar `capturar` o `validar`. Se deriva de los lotes, sin estado propio, y desaparece cuando un lote posterior termina bien.
 - **Limitaciones:** la API de Claude no expone el saldo real a cuentas individuales (el uso y el coste solo están en una API de administración que requiere una organización y una clave de administrador, y que no devuelve el saldo restante); no hay avisos por correo o móvil hasta que exista el panel o la app.
 
+## 11. Procesamiento diferido por lotes (change `procesar-con-descuento-por-lotes`)
+
+- **Modo por lotes** (`procesamiento.modo: lotes` en la configuración, por defecto en el lote nocturno): cada ejecución (1) recoge los envíos abiertos que el proveedor ya haya terminado, (2) envía como **un único lote** las pendientes que no estén en un envío abierto, (3) espera hasta `espera_maxima_minutos` (90 por defecto), consultando cada `intervalo_segundos`, y (4) escribe el lote de Mira y marca los envíos como recogidos. Lo que no termine queda abierto y se recoge en la siguiente ejecución.
+- **Mismas reglas:** cada resultado correcto pasa por la misma validación, claves, protegidos, aportaciones, conflictos y preguntas que el modo inmediato. Un resultado con error, cancelado, expirado, ausente o con formato inválido deja pendiente solo esa captura; el consumo de las llamadas ya hechas se contabiliza igualmente.
+- **Recuperación:** el envío se escribe justo después de crear el lote en el proveedor. Una interrupción tras enviar se recoge sin reenviar; una interrupción antes de escribir el lote de Mira se recoge otra vez sin duplicar (los registros guardados se reclaman por fragmento y clase y se adoptan). Único hueco: si el proceso muere entre crear el lote en el proveedor y escribir el fichero, el lote queda huérfano (solo cuesta si termina) y la captura se reenvía.
+- **Saldo, límite y clave** siguen cortando la ejecución, al enviar o al recoger; un error de saldo al recoger deja el envío abierto.
+- **Coste:** `precios.factor_lote` (0,5 por defecto) se aplica al estimar el coste del lote diferido.
+- **Modo inmediato:** `orumi procesar --inmediato si` procesa nota a nota con la API normal y a precio completo, para ver el resultado en el momento.
+- **Privacidad:** igual que el modo inmediato (garantía declarada y vigente), con una salvedad: la API de lotes retiene los datos del lote **29 días** y no admite retención cero; las Condiciones Comerciales siguen prohibiendo entrenar con ellos.
+

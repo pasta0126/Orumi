@@ -37,22 +37,26 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         {
             respuesta = await _cliente.Value.Messages.Create(parametros, ct);
         }
-        catch (AnthropicApiException e)
+        catch (AnthropicApiException e) when (Traducir(e) is { } traducida)
         {
-            var (tipo, codigo, mensaje) = LeerError(e.ResponseBody, e.Message);
-            var categoria = ClasificadorDeErrores.Clasificar((int)e.StatusCode, tipo, codigo, mensaje);
-            if (categoria == CategoriaError.Otro)
-            {
-                throw; // un error puntual: solo esa captura queda pendiente
-            }
-
-            throw new ProveedorException(categoria, ClasificadorDeErrores.Explicacion(categoria));
+            throw traducida;
         }
 
         var texto = string.Concat(respuesta.Content.Select(b => b.TryPickText(out var t) ? t.Text : string.Empty));
         var analizada = LectorDeRespuesta.Analizar(texto);
         // El uso se informa aunque luego la salida no sea válida: la llamada ya se ha cobrado.
         return analizada with { Uso = new UsoDeTokens(respuesta.Usage.InputTokens, respuesta.Usage.OutputTokens) };
+    }
+
+    /// <summary>
+    /// Traduce un error de la API a <see cref="ProveedorException"/> si corta la ejecución (saldo, límite de gasto o clave); null para un
+    /// error puntual, que se relanza tal cual y solo deja pendiente esa captura.
+    /// </summary>
+    internal static ProveedorException? Traducir(AnthropicApiException e)
+    {
+        var (tipo, codigo, mensaje) = LeerError(e.ResponseBody, e.Message);
+        var categoria = ClasificadorDeErrores.Clasificar((int)e.StatusCode, tipo, codigo, mensaje);
+        return categoria == CategoriaError.Otro ? null : new ProveedorException(categoria, ClasificadorDeErrores.Explicacion(categoria));
     }
 
     /// <summary>Tipo, código y mensaje del cuerpo de error de la API (<c>{"error": {"type", "message", "details": {"error_code"}}}</c>).</summary>

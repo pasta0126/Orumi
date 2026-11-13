@@ -22,8 +22,11 @@ public static partial class FrontmatterCanonico
         "id", "tipo", "registro", "otros_registros", "campo", "texto", "estado", "valor", "creada_el", "generada_por", "cerrada_el", "respuesta",
     ];
 
+    private static readonly string[] OrdenEnvio =
+        ["id", "tipo", "creado_el", "estado", "modo", "proveedor", "modelo", "lote_proveedor", "capturas", "recogido_el", "lote"];
+
     private static readonly string[] OrdenLote =
-        ["id", "tipo", "ejecutado_el", "ejecucion", "agente", "proveedor", "capturas", "uso", "avisos", "problemas"];
+        ["id", "tipo", "ejecutado_el", "ejecucion", "modo", "agente", "proveedor", "envios", "capturas", "uso", "avisos", "problemas"];
 
     /// <summary>Mapas que se escriben en línea: <c>{a: 1, b: 2}</c>.</summary>
     private static readonly HashSet<string> MapasEnLinea =
@@ -35,7 +38,7 @@ public static partial class FrontmatterCanonico
     /// <summary>Listas en línea (<c>[a, b]</c>).</summary>
     private static readonly HashSet<string> ListasEnLinea =
     [
-        "herramientas", "personas", "lugares", "proyectos", "acciones", "resultados", "problemas", "ideas", "otros_registros", "avisos",
+        "herramientas", "personas", "lugares", "proyectos", "acciones", "resultados", "problemas", "ideas", "otros_registros", "avisos", "envios",
     ];
 
     /// <summary>Listas en bloque cuyos elementos son mapas en línea.</summary>
@@ -61,6 +64,7 @@ public static partial class FrontmatterCanonico
             "registro" => OrdenRegistro,
             "pregunta" => OrdenPregunta,
             "lote" => OrdenLote,
+            "envio" => OrdenEnvio,
             _ => throw new ArgumentException($"Tipo sin formato canónico: {tipo}"),
         };
 

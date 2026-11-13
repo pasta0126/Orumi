@@ -71,8 +71,9 @@ public static partial class Validador
         var registros = almacen.DeTipo("registro").Where(d => d.Id is not null).ToList();
         var preguntas = almacen.DeTipo("pregunta").Where(d => d.Id is not null).ToList();
         var lotes = almacen.DeTipo("lote").Where(d => d.Id is not null).ToList();
+        var envios = almacen.DeTipo("envio").Where(d => d.Id is not null).ToList();
 
-        foreach (var d in almacen.Documentos.Where(d => d.Tipo is not ("captura" or "registro" or "pregunta" or "lote")))
+        foreach (var d in almacen.Documentos.Where(d => d.Tipo is not ("captura" or "registro" or "pregunta" or "lote" or "envio")))
         {
             errores.Add(new Incidencia(d.Ruta, $"tipo desconocido '{d.Tipo}'"));
         }
@@ -91,6 +92,11 @@ public static partial class Validador
         foreach (var p in preguntas)
         {
             ValidarPregunta(p, Doc, errores);
+        }
+
+        foreach (var en in envios)
+        {
+            ValidarEnvio(en, Doc, errores);
         }
 
         var procesadas = new HashSet<string>();
@@ -651,6 +657,63 @@ public static partial class Validador
             {
                 E($"otro registro inexistente {otro}");
             }
+        }
+    }
+
+    private static void ValidarEnvio(Documento d, Func<string, string?, Documento?> doc, List<Incidencia> errores)
+    {
+        void E(string m) => errores.Add(new Incidencia(d.Ruta, m));
+        var fm = d.Frontmatter;
+        if (!Identificadores.Envio.IsMatch(d.Id!))
+        {
+            E("id de envío mal formado");
+        }
+
+        var estado = Texto(fm, "estado");
+        if (estado is not ("abierto" or "recogido"))
+        {
+            E("estado inválido (abierto | recogido)");
+        }
+
+        if (string.IsNullOrWhiteSpace(Texto(fm, "lote_proveedor")))
+        {
+            E("el envío no indica el lote del proveedor");
+        }
+
+        if (!TryInstante(Texto(fm, "creado_el"), out _))
+        {
+            E("creado_el no es un instante ISO");
+        }
+
+        var capturas = Lista(fm, "capturas");
+        if (capturas.Count == 0)
+        {
+            E("el envío no incluye capturas");
+        }
+
+        foreach (var c in capturas)
+        {
+            if (doc("captura", Texto(c, "captura")) is null)
+            {
+                E($"captura inexistente {Texto(c, "captura")}");
+            }
+        }
+
+        if (estado == "recogido")
+        {
+            if (doc("lote", Texto(fm, "lote")) is null)
+            {
+                E("envío recogido sin lote existente");
+            }
+
+            if (!TryInstante(Texto(fm, "recogido_el"), out _))
+            {
+                E("envío recogido sin recogido_el");
+            }
+        }
+        else if (fm.ContainsKey("lote") || fm.ContainsKey("recogido_el"))
+        {
+            E("un envío abierto no lleva lote ni recogido_el");
         }
     }
 

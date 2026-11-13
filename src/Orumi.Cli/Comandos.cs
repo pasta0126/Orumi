@@ -12,7 +12,8 @@ namespace Orumi.Cli;
 /// <summary>Comandos del MVP. Separados de <c>Main</c> para poder probarlos sin proceso.</summary>
 public sealed class Comandos(
     Func<Stream> entrada, TextWriter salida, TextWriter error, Func<DateTimeOffset> reloj, Func<string, string?> entorno,
-    Func<IProveedorIA?>? proveedorDePrueba = null)
+    Func<IProveedorIA?>? proveedorDePrueba = null,
+    Func<IProveedorPorLotes?>? proveedorPorLotesDePrueba = null)
 {
     public const string VariableDatos = "ORUMI_DATOS";
     public const string VariableConfiguracion = "ORUMI_CONFIG";
@@ -145,8 +146,21 @@ public sealed class Comandos(
             throw new ArgumentException($"Indica el directorio de datos con --datos, en la configuración o con la variable {VariableDatos}.");
         }
 
+        // Modo de procesamiento: por lotes diferidos (con descuento) o inmediato. `--inmediato si` fuerza el inmediato.
+        var inmediato = o.Valor("inmediato") is "si" or "true";
+        IProveedorPorLotes? porLotes = null;
+        if (!inmediato && config?.Procesamiento is { PorLotes: true } && o.Valor("simulado") is null)
+        {
+            porLotes = proveedorPorLotesDePrueba?.Invoke()
+                       ?? (proveedorDePrueba is null && config is { Proveedor: "anthropic" } ? new ProveedorAnthropicLotes(config.Modelo) : null);
+        }
+
         IProveedorIA proveedor;
-        if (proveedorDePrueba?.Invoke() is { } inyectado)
+        if (porLotes is not null)
+        {
+            proveedor = new DescriptorDeProveedor(porLotes);
+        }
+        else if (proveedorDePrueba?.Invoke() is { } inyectado)
         {
             proveedor = inyectado;
         }
@@ -190,8 +204,19 @@ public sealed class Comandos(
             Precios: config?.Precios,
             Presupuesto: config?.Presupuesto);
         var reprocesar = o.Valor("reprocesar") is { } id ? new[] { id } : null;
-        var resultado = new Procesador(datos, proveedor, opciones, reloj, config, entorno)
-            .EjecutarAsync(ejecucion, reprocesar: reprocesar).GetAwaiter().GetResult();
+        var procesador = new Procesador(datos, proveedor, opciones, reloj, config, entorno);
+        ResultadoEjecucion resultado;
+        if (porLotes is not null)
+        {
+            var minutos = int.TryParse(o.Valor("espera-maxima"), out var m) && m >= 0 ? m : config?.Procesamiento?.EsperaMaximaMinutos ?? 90;
+            var intervalo = TimeSpan.FromSeconds(config?.Procesamiento?.IntervaloSegundos ?? 60);
+            resultado = procesador.EjecutarPorLotesAsync(ejecucion, porLotes, TimeSpan.FromMinutes(minutos), intervalo).GetAwaiter().GetResult();
+        }
+        else
+        {
+            resultado = procesador.EjecutarAsync(ejecucion, reprocesar: reprocesar).GetAwaiter().GetResult();
+        }
+
 
         if (resultado.Detenida)
         {
@@ -212,7 +237,7 @@ public sealed class Comandos(
             return fatal == CategoriaError.ClaveInvalida ? 8 : 7;
         }
 
-        if (resultado.Pendientes == 0)
+        if (resultado.Pendientes == 0 && resultado.Envios.Count == 0 && resultado.EnviosAbiertos == 0 && resultado.LoteId is null)
         {
             salida.WriteLine("No hay capturas pendientes.");
             return 0;
@@ -224,6 +249,11 @@ public sealed class Comandos(
         if (resultado.LoteId is not null)
         {
             salida.WriteLine($"Lote: {resultado.LoteId}");
+        }
+
+        if (porLotes is not null)
+        {
+            salida.WriteLine($"Modo por lotes (con descuento): {resultado.Envios.Count} envío(s) creado(s); {resultado.EnviosAbiertos} sigue(n) abierto(s) y se recogerá(n) en la siguiente ejecución.");
         }
 
         if (resultado.TokensEntrada + resultado.TokensSalida > 0)
@@ -398,6 +428,11 @@ public sealed class Comandos(
         ExigirVolumenSiProcede(o, datos, config);
         var e = ServicioDeEstado.Calcular(datos, config);
         salida.WriteLine($"Capturas pendientes de procesar: {e.Pendientes}");
+        if (e.EnviosAbiertos > 0)
+        {
+            salida.WriteLine($"En {e.EnviosAbiertos} envío(s) abierto(s) al proveedor: {e.CapturasEnEnvio} captura(s); se recogerán en la siguiente ejecución.");
+        }
+
         if (e.UltimoLote is { } l)
         {
             salida.WriteLine($"Último lote: {l.Id} ({l.EjecutadoEl:yyyy-MM-dd HH:mm}): {l.Procesadas} captura(s) procesada(s), {l.Problemas} problema(s)");
@@ -506,6 +541,7 @@ public sealed class Comandos(
           orumi estado    [--config FICHERO] [--datos RUTA]   (pendientes, último lote, gasto estimado y avisos)
           orumi preparar-volumen [--datos RUTA]   (una vez, con el volumen cifrado ya montado)
           orumi procesar  [--config FICHERO] [--datos RUTA] [--ejecucion lote|peticion] [--reprocesar CAPTURA]
+                          [--inmediato si] [--espera-maxima MINUTOS]   (por defecto, por lotes diferidos si la configuración lo indica)
                           [--simulado RESPUESTAS.json]   (prueba sin enviar nada al proveedor)
 
         El directorio de datos también puede indicarse con la variable ORUMI_DATOS.
@@ -517,7 +553,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima"];
 
     private readonly Dictionary<string, string> _valores = [];
 

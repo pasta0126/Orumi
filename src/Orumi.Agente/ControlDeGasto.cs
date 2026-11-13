@@ -69,8 +69,11 @@ public static class ClasificadorDeErrores
 public sealed record UsoDeTokens(long Entrada, long Salida);
 
 /// <summary>Precios por millón de tokens, de la configuración (nunca inventados: sin ellos el coste es desconocido).</summary>
-public sealed record Precios(decimal EntradaPorMillonUsd, decimal SalidaPorMillonUsd)
+public sealed record Precios(decimal EntradaPorMillonUsd, decimal SalidaPorMillonUsd, decimal FactorLote = 0.5m)
 {
+    /// <summary>Precios efectivos con el descuento del procesamiento diferido (50 % por defecto).</summary>
+    public Precios ConDescuentoDeLote() => this with { EntradaPorMillonUsd = EntradaPorMillonUsd * FactorLote, SalidaPorMillonUsd = SalidaPorMillonUsd * FactorLote };
+
     public decimal Coste(long entrada, long salida) =>
         (entrada * EntradaPorMillonUsd + salida * SalidaPorMillonUsd) / 1_000_000m;
 }
@@ -136,7 +139,8 @@ public static class ControlDeGasto
 public sealed record InfoLote(string Id, DateTimeOffset? EjecutadoEl, int Procesadas, int Problemas, string? TipoFatal);
 
 public sealed record EstadoMira(
-    int Pendientes, InfoLote? UltimoLote, decimal? GastoEstimado, Presupuesto? Presupuesto, IReadOnlyList<string> Avisos);
+    int Pendientes, InfoLote? UltimoLote, decimal? GastoEstimado, Presupuesto? Presupuesto, IReadOnlyList<string> Avisos,
+    int EnviosAbiertos = 0, int CapturasEnEnvio = 0);
 
 /// <summary>Estado de Mira derivado de los ficheros (sin estado propio): lee solo los lotes y los nombres de las capturas.</summary>
 public static class ServicioDeEstado
@@ -171,11 +175,45 @@ public static class ServicioDeEstado
             .Select(c => c.GetValueOrDefault("captura") as string)
             .OfType<string>()
             .ToHashSet();
+        // Envíos abiertos: capturas enviadas al proveedor cuyo lote aún no se ha recogido.
+        var enEnvio = new HashSet<string>();
+        var enviosAbiertos = 0;
+        var dirEnvios = Path.Combine(datos, "envios");
+        if (Directory.Exists(dirEnvios))
+        {
+            foreach (var f in Directory.EnumerateFiles(dirEnvios, "*.md", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+            {
+                try
+                {
+                    var envio = Documento.Analizar(Path.GetRelativePath(datos, f), File.ReadAllText(f));
+                    if (envio.Frontmatter.GetValueOrDefault("estado") as string != "abierto")
+                    {
+                        continue;
+                    }
+
+                    enviosAbiertos++;
+                    foreach (var c in envio.Frontmatter.GetValueOrDefault("capturas") as List<object?> ?? [])
+                    {
+                        if (c is Dictionary<string, object?> m && m.GetValueOrDefault("captura") is string id)
+                        {
+                            enEnvio.Add(id);
+                        }
+                    }
+                }
+                catch (Exception e) when (e is FormatException or YamlDotNet.Core.YamlException or IOException)
+                {
+                    // un envío ilegible no impide mostrar el estado
+                }
+            }
+        }
+
         var dirCapturas = Path.Combine(datos, "capturas");
-        var pendientes = Directory.Exists(dirCapturas)
+        var sinLote = Directory.Exists(dirCapturas)
             ? Directory.EnumerateFiles(dirCapturas, "cap-*.md", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true })
-                .Select(f => Path.GetFileNameWithoutExtension(f)).Count(id => !procesadas.Contains(id))
-            : 0;
+                .Select(f => Path.GetFileNameWithoutExtension(f)).Where(id => !procesadas.Contains(id)).ToList()
+            : [];
+        var pendientes = sinLote.Count(id => !enEnvio.Contains(id));
+        var capturasEnEnvio = sinLote.Count(id => enEnvio.Contains(id));
 
         InfoLote? ultimo = null;
         var avisos = new List<string>();
@@ -202,6 +240,6 @@ public static class ServicioDeEstado
             }
         }
 
-        return new EstadoMira(pendientes, ultimo, gastado, config?.Presupuesto, avisos);
+        return new EstadoMira(pendientes, ultimo, gastado, config?.Presupuesto, avisos, enviosAbiertos, capturasEnEnvio);
     }
 }

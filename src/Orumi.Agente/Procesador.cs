@@ -29,6 +29,12 @@ public sealed class ResultadoEjecucion
 
     public List<string> Avisos { get; } = [];
 
+    /// <summary>Envíos creados en esta ejecución (modo por lotes).</summary>
+    public List<string> Envios { get; } = [];
+
+    /// <summary>Envíos que siguen abiertos (el proveedor aún no ha terminado el lote).</summary>
+    public int EnviosAbiertos { get; set; }
+
     public long TokensEntrada { get; set; }
 
     public long TokensSalida { get; set; }
@@ -104,7 +110,7 @@ public sealed class Procesador(
                 resultado.RegistrosActualizados.AddRange(r.Actualizados);
                 resultado.PreguntasCreadas.AddRange(r.PreguntasCreadas);
                 resultado.PreguntasCerradasPorLimite.AddRange(r.CerradasPorLimite);
-                _entradas.Add(r.Entrada(captura.Id!, opciones.Precios));
+                _entradas.Add(r.Entrada(captura.Id!, PreciosEfectivos()));
                 almacen = Almacen.Cargar(datos);
             }
             catch (ProveedorException e)
@@ -134,6 +140,11 @@ public sealed class Procesador(
     private long _tokensEntrada;
     private long _tokensSalida;
     private bool _hayUso;
+    private bool _modoLotes;
+    private readonly List<string> _enviosDelLote = [];
+
+    /// <summary>Precios con el descuento del procesamiento diferido cuando se procesa por lotes.</summary>
+    private Precios? PreciosEfectivos() => opciones.Precios is { } p && _modoLotes ? p.ConDescuentoDeLote() : opciones.Precios;
 
     private static List<Documento> Pendientes(Almacen almacen, IReadOnlyCollection<string>? reprocesar)
     {
@@ -204,13 +215,11 @@ public sealed class Procesador(
         }
     }
 
-    private async Task<ResultadoCaptura> ProcesarCapturaAsync(Almacen almacen, Documento captura, string ejecucion, CancellationToken ct)
+    private (SolicitudExtraccion Solicitud, List<Documento> Existentes, IReadOnlyList<RegistroRelacionado> Relacionados) Preparar(Almacen almacen, Documento captura)
     {
-        var res = new ResultadoCaptura();
         var capId = captura.Id!;
         var texto = captura.Cuerpo;
         var comunicada = DateTimeOffset.Parse((string)captura.Frontmatter["comunicada_el"]!, CultureInfo.InvariantCulture);
-        var ahora = reloj();
 
         var existentes = almacen.DeTipo("registro")
             .Where(r => ((string?)r.Frontmatter.GetValueOrDefault("clave_extraccion"))?.StartsWith(capId + "#f", StringComparison.Ordinal) == true)
@@ -224,17 +233,41 @@ public sealed class Procesador(
             captura.Frontmatter.GetValueOrDefault("etiqueta") as string,
             existentes.Select(r => (string)r.Frontmatter["clave_extraccion"]!).ToList(),
             relacionados);
+        return (solicitud, existentes, relacionados);
+    }
 
-        var respuesta = await proveedor.ExtraerAsync(solicitud, ct);
-        if (respuesta.Uso is { } uso)
+    private void ContarUso(UsoDeTokens? uso, ResultadoCaptura res)
+    {
+        if (uso is null)
         {
-            // El consumo cuenta aunque la captura luego no se pueda guardar: la llamada ya se hizo y se cobra.
-            _tokensEntrada += uso.Entrada;
-            _tokensSalida += uso.Salida;
-            _hayUso = true;
-            res.TokensEntrada = uso.Entrada;
-            res.TokensSalida = uso.Salida;
+            return;
         }
+
+        // El consumo cuenta aunque la captura luego no se pueda guardar: la llamada ya se hizo y se cobra.
+        _tokensEntrada += uso.Entrada;
+        _tokensSalida += uso.Salida;
+        _hayUso = true;
+        res.TokensEntrada = uso.Entrada;
+        res.TokensSalida = uso.Salida;
+    }
+
+    private async Task<ResultadoCaptura> ProcesarCapturaAsync(Almacen almacen, Documento captura, string ejecucion, CancellationToken ct)
+    {
+        var res = new ResultadoCaptura();
+        var (solicitud, existentes, relacionados) = Preparar(almacen, captura);
+        var respuesta = await proveedor.ExtraerAsync(solicitud, ct);
+        ContarUso(respuesta.Uso, res);
+        return AplicarRespuesta(almacen, captura, ejecucion, respuesta, existentes, relacionados.Select(r => r.Id).ToHashSet(), res);
+    }
+
+    /// <summary>Convierte la respuesta del proveedor (inmediata o recogida de un lote) en registros, preguntas y ficheros.</summary>
+    private ResultadoCaptura AplicarRespuesta(
+        Almacen almacen, Documento captura, string ejecucion, RespuestaExtraccion respuesta,
+        List<Documento> existentes, HashSet<string> ofrecidos, ResultadoCaptura res)
+    {
+        var capId = captura.Id!;
+        var comunicada = DateTimeOffset.Parse((string)captura.Frontmatter["comunicada_el"]!, CultureInfo.InvariantCulture);
+        var ahora = reloj();
 
         if (respuesta.Registros.Count == 0)
         {
@@ -242,7 +275,7 @@ public sealed class Procesador(
             return res;
         }
 
-        var ctx = new Contexto(almacen, captura, comunicada, ahora, ejecucion, existentes, relacionados.Select(r => r.Id).ToHashSet());
+        var ctx = new Contexto(almacen, captura, comunicada, ahora, ejecucion, existentes, ofrecidos);
         var cambios = new Dictionary<string, (Documento Doc, string Texto, bool Nuevo)>();
         var ids = new List<string>(); // id por índice de respuesta
         var acciones = new List<Accion>();
@@ -958,6 +991,253 @@ public sealed class Procesador(
         return true;
     }
 
+    // ------------------------------------------------------------------ procesamiento diferido (lotes del proveedor)
+
+    private sealed record EntradaDeEnvio(string Captura, List<string> Claves, HashSet<string> Ofrecidos);
+
+    private static List<Documento> EnviosAbiertos(Almacen almacen) =>
+        almacen.DeTipo("envio").Where(e => e.Id is not null && e.Frontmatter.GetValueOrDefault("estado") as string == "abierto")
+            .OrderBy(e => e.Id, StringComparer.Ordinal).ToList();
+
+    private static List<EntradaDeEnvio> EntradasDe(Documento envio) =>
+        (envio.Frontmatter.GetValueOrDefault("capturas") as List<object?> ?? [])
+            .OfType<Dictionary<string, object?>>()
+            .Select(c => new EntradaDeEnvio(
+                (string)c["captura"]!,
+                (c.GetValueOrDefault("claves_existentes") as List<object?> ?? []).OfType<string>().ToList(),
+                (c.GetValueOrDefault("ofrecidos") as List<object?> ?? []).OfType<string>().ToHashSet()))
+            .ToList();
+
+    private static HashSet<string> CapturasEnLotes(Almacen almacen) =>
+        almacen.DeTipo("lote")
+            .SelectMany(l => l.Frontmatter.GetValueOrDefault("capturas") as List<object?> ?? [])
+            .OfType<Dictionary<string, object?>>()
+            .Select(c => c.GetValueOrDefault("captura") as string)
+            .OfType<string>()
+            .ToHashSet();
+
+    /// <summary>Capturas pendientes que no están ya en un envío abierto (una captura no se envía dos veces).</summary>
+    private static List<Documento> PendientesSinEnvio(Almacen almacen)
+    {
+        var enEnvio = EnviosAbiertos(almacen).SelectMany(e => EntradasDe(e).Select(x => x.Captura)).ToHashSet();
+        return Pendientes(almacen, null).Where(c => !enEnvio.Contains(c.Id!)).ToList();
+    }
+
+    /// <summary>
+    /// Procesa por lotes diferidos (con descuento): recoge los envíos terminados, envía las pendientes como un único lote, espera hasta
+    /// el máximo indicado y deja abierto lo que no termine. Cada resultado pasa por la misma validación que el modo inmediato.
+    /// </summary>
+    public async Task<ResultadoEjecucion> EjecutarPorLotesAsync(
+        string ejecucion, IProveedorPorLotes lotes, TimeSpan esperaMaxima, TimeSpan intervalo,
+        CancellationToken ct = default, Action<string>? hito = null)
+    {
+        _modoLotes = true;
+        var resultado = new ResultadoEjecucion();
+        var almacen = Almacen.Cargar(datos);
+        var abiertos = EnviosAbiertos(almacen);
+        resultado.Pendientes = PendientesSinEnvio(almacen).Count;
+        if (abiertos.Count == 0 && resultado.Pendientes == 0)
+        {
+            return resultado;
+        }
+
+        // Privacidad: antes de enviar nada (fallo cerrado), igual que en el modo inmediato.
+        if (configuracion is not null)
+        {
+            var motivos = ComprobadorDePrivacidad.Comprobar(lotes.Nombre, lotes.EnviaDatosAFuera, configuracion, DateOnly.FromDateTime(reloj().DateTime), entorno ?? (_ => null));
+            if (motivos.Count > 0)
+            {
+                resultado.Detenida = true;
+                resultado.Problemas.AddRange(motivos.Select(m => new ProblemaDeLote("-", m)));
+                EscribirLote(almacen, ejecucion, resultado);
+                return resultado;
+            }
+        }
+
+        var recogidos = new List<Documento>();
+        try
+        {
+            // 1. Recoger los envíos abiertos que ya hayan terminado.
+            foreach (var envio in abiertos)
+            {
+                ct.ThrowIfCancellationRequested();
+                var loteProveedor = (string)envio.Frontmatter["lote_proveedor"]!;
+                if (!(await lotes.ConsultarAsync(loteProveedor, ct)).Terminado)
+                {
+                    resultado.EnviosAbiertos++;
+                    continue;
+                }
+
+                await RecogerEnvioAsync(envio, lotes, ejecucion, resultado, ct);
+                recogidos.Add(envio);
+            }
+
+            // 2. Enviar las pendientes que no estén ya en un envío (ni acaben de recogerse).
+            almacen = Almacen.Cargar(datos);
+            var gestionadas = recogidos.SelectMany(e => EntradasDe(e).Select(x => x.Captura)).ToHashSet();
+            var aEnviar = PendientesSinEnvio(almacen).Where(c => !gestionadas.Contains(c.Id!)).ToList();
+            if (aEnviar.Count > 0)
+            {
+                var preparadas = aEnviar.Select(c => (Captura: c, Datos: Preparar(almacen, c))).ToList();
+                var loteProveedor = await lotes.EnviarAsync(preparadas.Select(x => (x.Captura.Id!, x.Datos.Solicitud)).ToList(), ct);
+
+                // El envío se registra inmediatamente después de crear el lote en el proveedor.
+                var envio = EscribirEnvio(lotes, loteProveedor, preparadas.Select(x => new EntradaDeEnvio(
+                    x.Captura.Id!, x.Datos.Solicitud.ClavesExistentes.ToList(), x.Datos.Relacionados.Select(r => r.Id).ToHashSet())).ToList());
+                resultado.Envios.Add(envio.Id!);
+                hito?.Invoke("enviado");
+
+                // 3. Esperar (acotado) a que termine; si no, queda abierto para la siguiente ejecución.
+                var iteraciones = Math.Max(1, (int)Math.Ceiling(esperaMaxima.TotalMilliseconds / Math.Max(intervalo.TotalMilliseconds, 1)));
+                var terminado = false;
+                for (var i = 0; i < iteraciones && !terminado; i++)
+                {
+                    terminado = (await lotes.ConsultarAsync(loteProveedor, ct)).Terminado;
+                    if (!terminado && i < iteraciones - 1)
+                    {
+                        await Task.Delay(intervalo, ct);
+                    }
+                }
+
+                if (terminado)
+                {
+                    await RecogerEnvioAsync(envio, lotes, ejecucion, resultado, ct);
+                    recogidos.Add(envio);
+                }
+                else
+                {
+                    resultado.EnviosAbiertos++;
+                }
+            }
+        }
+        catch (ProveedorException e)
+        {
+            // Saldo agotado, límite de gasto o clave inválida: se corta; lo no recogido queda abierto o pendiente.
+            resultado.Problemas.Add(new ProblemaDeLote("-", ClasificadorDeErrores.Explicacion(e.Categoria), ClasificadorDeErrores.Etiqueta(e.Categoria)));
+            resultado.Fatal = e.Categoria;
+        }
+
+        hito?.Invoke("antes_del_lote");
+        _enviosDelLote.AddRange(recogidos.Select(e => e.Id!).Concat(resultado.Envios).Distinct());
+        EscribirLote(Almacen.Cargar(datos), ejecucion, resultado);
+
+        // 4. Marcar como recogidos los envíos cuyo resultado ya está en un lote de Mira.
+        var tras = Almacen.Cargar(datos);
+        foreach (var envio in recogidos)
+        {
+            var primera = EntradasDe(envio).FirstOrDefault()?.Captura;
+            var lote = resultado.LoteId ?? tras.DeTipo("lote").FirstOrDefault(l =>
+                (l.Frontmatter.GetValueOrDefault("capturas") as List<object?> ?? []).OfType<Dictionary<string, object?>>().Any(c => c.GetValueOrDefault("captura") as string == primera))?.Id;
+            if (lote is null)
+            {
+                continue; // sin lote al que enlazar (no debería ocurrir): queda abierto y se reintenta
+            }
+
+            var fm = Clonar(envio.Frontmatter);
+            fm["estado"] = "recogido";
+            fm["recogido_el"] = reloj().ToString(Iso, CultureInfo.InvariantCulture);
+            fm["lote"] = lote;
+            EscrituraAtomica.Reemplazar(Path.Combine(datos, envio.Ruta), FrontmatterCanonico.Escribir(fm, envio.Cuerpo, "envio"));
+        }
+
+        return resultado;
+    }
+
+    private Documento EscribirEnvio(IProveedorPorLotes lotes, string loteProveedor, List<EntradaDeEnvio> capturas)
+    {
+        var momento = reloj();
+        string id;
+        do
+        {
+            id = $"envio-{momento:yyyyMMdd}-{momento:HHmm}";
+            momento = momento.AddMinutes(1);
+        }
+        while (File.Exists(Path.Combine(datos, Identificadores.RutaRelativa(id)!)));
+
+        var fm = new Dictionary<string, object?>
+        {
+            ["id"] = id,
+            ["tipo"] = "envio",
+            ["creado_el"] = reloj().ToString(Iso, CultureInfo.InvariantCulture),
+            ["estado"] = "abierto",
+            ["modo"] = "lotes",
+            ["proveedor"] = lotes.Nombre,
+            ["modelo"] = lotes.Modelo,
+            ["lote_proveedor"] = loteProveedor,
+            ["capturas"] = capturas.Select(c => (object?)new Dictionary<string, object?>
+            {
+                ["captura"] = c.Captura,
+                ["claves_existentes"] = c.Claves.Cast<object?>().ToList(),
+                ["ofrecidos"] = c.Ofrecidos.Order(StringComparer.Ordinal).Cast<object?>().ToList(),
+            }).ToList(),
+        };
+        var ruta = Identificadores.RutaRelativa(id)!;
+        var cuerpo = $"Envío diferido de {capturas.Count} captura(s) al proveedor. Los resultados se recogen cuando el proveedor termina el lote.\n";
+        var texto = FrontmatterCanonico.Escribir(fm, cuerpo, "envio");
+        EscrituraAtomica.EscribirNuevo(Path.Combine(datos, ruta), texto);
+        return Documento.Analizar(ruta, texto);
+    }
+
+    private async Task RecogerEnvioAsync(
+        Documento envio, IProveedorPorLotes lotes, string ejecucion, ResultadoEjecucion resultado, CancellationToken ct)
+    {
+        var porId = (await lotes.RecogerAsync((string)envio.Frontmatter["lote_proveedor"]!, ct)).ToDictionary(r => r.Id);
+        foreach (var entrada in EntradasDe(envio))
+        {
+            var almacen = Almacen.Cargar(datos);
+            var captura = almacen.DeTipo("captura").FirstOrDefault(c => c.Id == entrada.Captura);
+            if (captura is null)
+            {
+                resultado.Problemas.Add(new ProblemaDeLote(entrada.Captura, "la captura del envío ya no existe"));
+                continue;
+            }
+
+            if (CapturasEnLotes(almacen).Contains(entrada.Captura))
+            {
+                continue; // ya recogida en una ejecución anterior que se interrumpió antes de marcar el envío
+            }
+
+            var res = new ResultadoCaptura();
+            if (!porId.TryGetValue(entrada.Captura, out var r) || r.Tipo != TipoResultado.Correcto)
+            {
+                if (r is { Tipo: TipoResultado.Error, Categoria: not CategoriaError.Otro })
+                {
+                    throw new ProveedorException(r.Categoria, ClasificadorDeErrores.Explicacion(r.Categoria));
+                }
+
+                var motivo = r?.Tipo switch
+                {
+                    TipoResultado.Error => "el proveedor devolvió un error para esta captura",
+                    TipoResultado.Cancelado => "el proveedor canceló esta captura",
+                    TipoResultado.Expirado => "el lote expiró antes de procesar esta captura",
+                    _ => "el proveedor no devolvió resultado para esta captura",
+                };
+                resultado.Problemas.Add(new ProblemaDeLote(entrada.Captura, $"{motivo}; queda pendiente"));
+                continue;
+            }
+
+            ContarUso(r.Uso, res);
+            try
+            {
+                var respuesta = Proveedores.LectorDeRespuesta.Analizar(r.Texto ?? string.Empty);
+                var existentes = almacen.DeTipo("registro")
+                    .Where(x => ((string?)x.Frontmatter.GetValueOrDefault("clave_extraccion"))?.StartsWith(entrada.Captura + "#f", StringComparison.Ordinal) == true)
+                    .ToList();
+                var aplicada = AplicarRespuesta(almacen, captura, ejecucion, respuesta, existentes, entrada.Ofrecidos, res);
+                resultado.Procesadas.Add(entrada.Captura);
+                resultado.RegistrosCreados.AddRange(aplicada.Creados);
+                resultado.RegistrosActualizados.AddRange(aplicada.Actualizados);
+                resultado.PreguntasCreadas.AddRange(aplicada.PreguntasCreadas);
+                resultado.PreguntasCerradasPorLimite.AddRange(aplicada.CerradasPorLimite);
+                _entradas.Add(aplicada.Entrada(entrada.Captura, PreciosEfectivos()));
+            }
+            catch (ProcesamientoFallidoException e)
+            {
+                resultado.Problemas.Add(new ProblemaDeLote(entrada.Captura, e.Message));
+            }
+        }
+    }
+
     // ------------------------------------------------------------------ lote
 
     private void EscribirLote(Almacen almacen, string ejecucion, ResultadoEjecucion res)
@@ -982,6 +1262,7 @@ public sealed class Procesador(
             ["tipo"] = "lote",
             ["ejecutado_el"] = reloj().ToString(Iso, CultureInfo.InvariantCulture),
             ["ejecucion"] = ejecucion,
+            ["modo"] = _modoLotes ? "lotes" : "inmediato",
             ["agente"] = new Dictionary<string, object?> { ["agente"] = "Mira", ["version"] = opciones.VersionMira, ["modelo"] = proveedor.Modelo },
             ["proveedor"] = proveedor.Nombre,
             ["capturas"] = _entradas.Cast<object?>().ToList(),
@@ -1001,10 +1282,15 @@ public sealed class Procesador(
                 }).ToList();
         }
 
+        if (_enviosDelLote.Count > 0)
+        {
+            fm["envios"] = _enviosDelLote.Cast<object?>().ToList();
+        }
+
         decimal? coste = null;
         if (_hayUso)
         {
-            coste = opciones.Precios?.Coste(_tokensEntrada, _tokensSalida);
+            coste = PreciosEfectivos()?.Coste(_tokensEntrada, _tokensSalida);
             res.TokensEntrada = _tokensEntrada;
             res.TokensSalida = _tokensSalida;
             res.CosteEstimadoUsd = coste;

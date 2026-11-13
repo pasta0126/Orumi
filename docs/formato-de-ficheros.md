@@ -199,6 +199,7 @@ orumi/
 ├── registros/AAAA/MM/reg-….md
 ├── preguntas/AAAA/MM/preg-….md
 ├── lotes/AAAA/MM/lote-….md         # bitácora de ejecuciones de Mira
+├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
 └── .indice/                         # índice derivado, desechable (ver docs/indice-derivado.md)
@@ -246,6 +247,25 @@ problemas: []                   # opcional: [{captura, motivo, tipo}], sin repro
 ```
 
 Cada entrada de `capturas` puede añadir `preguntas_cerradas_por_limite`, `preguntas_descartadas` (número), `nota` (p. ej. `sin hechos registrables`) y el uso de esa captura (`tokens_entrada`, `tokens_salida`, `coste_estimado_usd`; el coste es `desconocido` si la configuración no tiene precios: nunca se inventa). En `problemas`, `tipo` es `saldo_agotado`, `limite_de_gasto` o `clave_invalida` cuando el proveedor cortó la ejecución (lo que deja el lote como el «aviso vigente» hasta que un lote posterior termine sin ese problema); los avisos y los problemas nunca contienen texto de las notas ni la clave. Los registros que una ejecución interrumpida dejó guardados sin lote se adoptan como `registros_creados` en el siguiente lote.
+
+**Envío** (procesamiento diferido con la API de lotes del proveedor, 50 % de descuento): registra un lote enviado para que **una captura no se envíe dos veces** y para recogerlo cuando termine, también tras un reinicio. Es, junto con las preguntas, el único fichero que cambia de estado:
+
+```yaml
+id: envio-20261114-0300
+tipo: envio
+creado_el: 2026-11-14T03:00:00+00:00
+estado: abierto                 # abierto | recogido
+modo: lotes
+proveedor: anthropic
+modelo: claude-sonnet-5-5
+lote_proveedor: msgbatch_…      # identificador del lote en el proveedor
+capturas:
+  - {captura: cap-20261113-1733-aev, claves_existentes: [], ofrecidos: [reg-20261112-ab12]}   # ofrecidos: ids de registros que se enviaron como contexto
+recogido_el: 2026-11-14T03:20:00+00:00   # solo si está recogido
+lote: lote-20261114-0320                 # lote de Mira donde quedó el resultado (solo si está recogido)
+```
+
+Los `ofrecidos` se guardan para comprobar, al recoger, que el proveedor solo cita registros que se le enviaron. El proveedor retiene los datos de un lote 29 días y no admite retención cero. El lote de Mira lleva `modo` (`lotes` | `inmediato`) y, si procede, `envios`.
 
 ## 7. Lectura sin herramientas
 

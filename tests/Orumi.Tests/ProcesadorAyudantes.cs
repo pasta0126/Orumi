@@ -33,6 +33,11 @@ internal sealed class EntornoMira : IDisposable
     public Task<ResultadoEjecucion> Procesar(Action<string>? hito = null, Configuracion? configuracion = null, IProveedorIA? proveedor = null, string ejecucion = "peticion", IReadOnlyCollection<string>? reprocesar = null) =>
         new Procesador(Datos, proveedor ?? Proveedor, Opciones, () => Ahora, configuracion).EjecutarAsync(ejecucion, hito: hito, reprocesar: reprocesar);
 
+    public Task<ResultadoEjecucion> ProcesarPorLotes(
+        IProveedorPorLotes lotes, TimeSpan? espera = null, Action<string>? hito = null, Configuracion? configuracion = null) =>
+        new Procesador(Datos, new DescriptorDeProveedor(lotes), Opciones, () => Ahora, configuracion)
+            .EjecutarPorLotesAsync("lote", lotes, espera ?? TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(1), hito: hito);
+
     public Almacen Cargar() => Almacen.Cargar(Datos);
 
     public IReadOnlyList<Incidencia> Validar() => Validador.Validar(Cargar());

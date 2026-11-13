@@ -15,12 +15,18 @@ public static class ComprobadorDePrivacidad
 
     /// <summary>Devuelve los motivos por los que NO se puede enviar nada; vacío si se puede continuar.</summary>
     public static IReadOnlyList<string> Comprobar(
-        IProveedorIA proveedor, Configuracion configuracion, DateOnly hoy, Func<string, string?> entorno)
+        IProveedorIA proveedor, Configuracion configuracion, DateOnly hoy, Func<string, string?> entorno) =>
+        Comprobar(proveedor.Nombre, proveedor.EnviaDatosAFuera, configuracion, hoy, entorno);
+
+    public static IReadOnlyList<string> Comprobar(
+        string nombreDelProveedor, bool enviaDatosAFuera, Configuracion configuracion, DateOnly hoy, Func<string, string?> entorno)
     {
-        if (!proveedor.EnviaDatosAFuera)
+        if (!enviaDatosAFuera)
         {
             return [];
         }
+
+        var proveedor = new { Nombre = nombreDelProveedor };
 
         var motivos = new List<string>();
         if (!string.Equals(proveedor.Nombre, configuracion.Proveedor, StringComparison.OrdinalIgnoreCase))
