@@ -12,7 +12,7 @@ namespace Orumi.Agente.Proveedores;
 /// </summary>
 public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente = null) : IProveedorIA
 {
-    /// <summary>Holgura para notas largas. El razonamiento interno está desactivado (la extracción no lo necesita y encarece cada nota).</summary>
+    /// <summary>Límite de salida con holgura para notas largas (con 8192 se cortaba el JSON de una nota de unas 300 palabras).</summary>
     internal const int MaximoDeTokens = 16000;
 
     private readonly Lazy<AnthropicClient> _cliente = new(() => cliente ?? new AnthropicClient());
@@ -29,7 +29,6 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         {
             Model = modelo,
             MaxTokens = MaximoDeTokens,
-            Thinking = new ThinkingConfigDisabled(),
             System = Instrucciones,
             Messages = [new UserMessageParam { Content = Mensaje(solicitud) }],
         };

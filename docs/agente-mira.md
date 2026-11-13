@@ -182,7 +182,7 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 
 ## 13. Robustez ante la salida del modelo (primeras notas reales, 2026-11-13)
 
-- **Razonamiento interno desactivado** (`thinking` desactivado) y límite de salida de 16 000 tokens: con Sonnet 5.5 el razonamiento oculto consumía el límite de 8192 y cortaba el JSON en las notas largas (`stop_reason: max_tokens`). Una salida cortada deja la captura pendiente con el motivo «la salida del modelo se cortó por el límite de tokens» y **su consumo se contabiliza** (también el de cualquier salida inservible, que antes no se sumaba).
+- **Límite de salida de 16 000 tokens** (antes 8192): con Sonnet 5.5 el JSON de una nota larga (unas 300 palabras, muchos hechos) llegó a cortarse (`stop_reason: max_tokens`). El modelo no razona antes de responder y la API rechaza `thinking: disabled` con él. Una salida cortada deja la captura pendiente con el motivo «la salida del modelo se cortó por el límite de tokens» y **su consumo se contabiliza** (también el de cualquier salida inservible, que antes no se sumaba).
 - **Certeza omitida:** si el modelo da un valor sin certeza, se anota `interpretado` (la más débil; nunca se supone `dicho`), en lugar de rechazar el registro entero. Mismo criterio que para relaciones y estados.
 - **Depuración:** con `ORUMI_DEPURAR_DIR` definido, la salida cruda no legible se vuelca en ese directorio. Está apagado por defecto: esa salida contiene texto del usuario y nunca se registra.
 
