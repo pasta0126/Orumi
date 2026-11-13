@@ -21,20 +21,20 @@
 
 ## 4. Procesamiento
 
-- [ ] 4.1 Definir la interfaz del proveedor de IA y el contrato de entrada y salida (§7.1 del contrato)
-- [ ] 4.2 Implementar el cliente simulado con las respuestas esperadas de los casos de `docs/evaluacion-mira.md`
-- [ ] 4.3 Implementar `procesar`: selección de capturas, entrada mínima, extracción, validación previa, escritura, preguntas con máximo y valor, claves reclamadas, protegidos, aportaciones y conflictos, y lote con bitácora
-- [ ] 4.4 Implementar la comprobación de configuración y privacidad con fallo cerrado (garantía declarada, vigente y clave presente)
-- [ ] 4.5 Implementar la exclusión mutua y la recuperación tras interrupción
-- [ ] 4.6 Pruebas con el cliente simulado: C1–C12 de la evaluación revisadas contra sus resultados esperados
-- [ ] 4.7 Implementar el cliente real de Anthropic con el SDK oficial, sin ejercitarlo ni enviar nada
+- [x] 4.1 Definir la interfaz del proveedor de IA y el contrato de entrada y salida (§7.1 del contrato)
+- [x] 4.2 Implementar el cliente simulado con las respuestas esperadas de los casos de `docs/evaluacion-mira.md`
+- [x] 4.3 Implementar `procesar`: selección de capturas, entrada mínima, extracción, validación previa, escritura, preguntas con máximo y valor, claves reclamadas, protegidos, aportaciones y conflictos, y lote con bitácora
+- [x] 4.4 Implementar la comprobación de configuración y privacidad con fallo cerrado (garantía declarada, vigente y clave presente)
+- [x] 4.5 Implementar la exclusión mutua y la recuperación tras interrupción
+- [x] 4.6 Pruebas con el cliente simulado: C1–C12 de la evaluación revisadas contra sus resultados esperados
+- [x] 4.7 Implementar el cliente real de Anthropic con el SDK oficial, sin ejercitarlo ni enviar nada
 
 ## 5. Contenedor y servidor
 
-- [ ] 5.1 Construir la imagen ARM64, sin puertos publicados y con usuario no raíz
+- [ ] 5.1 Construir la imagen ARM64, sin puertos publicados y con usuario no raíz (`Dockerfile` y `.dockerignore` escritos; el publicado y su ejecución se comprobaron en local, pero la imagen no se ha construido porque el Mac no tiene Docker: se construye en el servidor)
 - [ ] 5.2 (Con confirmación del usuario) Medir en el servidor el benchmark de `cryptsetup` y elegir el algoritmo del volumen cifrado
 - [ ] 5.3 (Con confirmación del usuario) Crear el volumen cifrado, su montaje, la clave recuperable fuera del servidor y la copia de la cabecera
-- [ ] 5.4 Implementar la comprobación de montaje y las pruebas del fallo cerrado con el volumen bloqueado
+- [x] 5.4 Implementar la comprobación de montaje y las pruebas del fallo cerrado con el volumen bloqueado
 - [ ] 5.5 (Con confirmación del usuario) Crear usuario, directorios, permisos, base y rol de Postgres y el temporizador, desactivado hasta contratar la IA
 - [ ] 5.6 Probar `capturar`, `validar` y `reindexar` en el servidor con los ejemplos ficticios
 

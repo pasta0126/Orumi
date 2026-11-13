@@ -27,6 +27,8 @@ public static partial class Validador
     [GeneratedRegex(@"\[\[([^\]]+)\]\]")] private static partial Regex WikilinkRx();
     [GeneratedRegex(@"^(cap-[a-z0-9-]+)#f\d+:([a-z]+):\d+$")] private static partial Regex ClaveRx();
 
+    public static bool EsClaseValida(string clase) => Clases.Contains(clase);
+
     public static IReadOnlyList<Incidencia> Validar(Almacen almacen)
     {
         var errores = new List<Incidencia>(almacen.Problemas);
@@ -664,6 +666,16 @@ public static partial class Validador
         if (Texto(d.Frontmatter, "ejecucion") is not ("lote" or "peticion"))
         {
             E("ejecucion inválida (lote | peticion)");
+        }
+
+        if (string.IsNullOrWhiteSpace(Texto(d.Frontmatter, "proveedor")))
+        {
+            E("el lote no indica el proveedor");
+        }
+
+        if (!(d.Frontmatter.TryGetValue("agente", out var ag) && ag is Dictionary<string, object?> agente && !string.IsNullOrWhiteSpace(Texto(agente, "modelo"))))
+        {
+            E("el lote no indica el modelo");
         }
 
         foreach (var c in Lista(d.Frontmatter, "capturas"))

@@ -13,6 +13,43 @@ public static class EscrituraAtomica
 {
     private static readonly UTF8Encoding Utf8SinBom = new(false);
 
+    /// <summary>Reemplaza un fichero existente de forma atómica (temporal + renombrado); si algo falla el original queda intacto.</summary>
+    public static void Reemplazar(string ruta, string contenido)
+    {
+        var directorio = Path.GetDirectoryName(ruta) ?? throw new ArgumentException("Ruta sin directorio.", nameof(ruta));
+        var temporal = Path.Combine(directorio, "." + Path.GetFileName(ruta) + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp");
+        try
+        {
+            var bytes = Utf8SinBom.GetBytes(contenido);
+            using (var flujo = new FileStream(temporal, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                flujo.Write(bytes);
+                flujo.Flush(true);
+            }
+
+            File.Move(temporal, ruta, overwrite: true);
+            if (!File.ReadAllBytes(ruta).AsSpan().SequenceEqual(bytes))
+            {
+                throw new EscrituraFallidaException($"La verificación de {ruta} falló: el contenido leído no coincide.");
+            }
+        }
+        catch (EscrituraFallidaException)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            throw new EscrituraFallidaException($"No se pudo reemplazar {ruta}: {e.Message}", e);
+        }
+        finally
+        {
+            if (File.Exists(temporal))
+            {
+                File.Delete(temporal);
+            }
+        }
+    }
+
     public static void EscribirNuevo(string ruta, string contenido)
     {
         var directorio = Path.GetDirectoryName(ruta) ?? throw new ArgumentException("Ruta sin directorio.", nameof(ruta));

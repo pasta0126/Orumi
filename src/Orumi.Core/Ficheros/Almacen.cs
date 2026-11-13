@@ -40,5 +40,20 @@ public sealed class Almacen
         return almacen;
     }
 
+    /// <summary>Copia del almacén con documentos añadidos o sustituidos (por ruta), sin tocar el disco.</summary>
+    public Almacen Con(IEnumerable<Documento> cambios)
+    {
+        var copia = new Almacen(Raiz);
+        var porRuta = Documentos.ToDictionary(d => d.Ruta);
+        foreach (var c in cambios)
+        {
+            porRuta[c.Ruta] = c;
+        }
+
+        copia.Documentos.AddRange(porRuta.Values.OrderBy(d => d.Ruta, StringComparer.Ordinal));
+        copia.Problemas.AddRange(Problemas);
+        return copia;
+    }
+
     public IEnumerable<Documento> DeTipo(string tipo) => Documentos.Where(d => d.Tipo == tipo);
 }

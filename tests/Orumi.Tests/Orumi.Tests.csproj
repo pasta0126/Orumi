@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Orumi.Core\Orumi.Core.csproj" />
     <ProjectReference Include="..\..\src\Orumi.Cli\Orumi.Cli.csproj" />
+    <ProjectReference Include="..\..\src\Orumi.Agente\Orumi.Agente.csproj" />
   </ItemGroup>
 
 </Project>

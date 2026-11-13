@@ -140,3 +140,16 @@ Cada lote indica el proveedor y el modelo usados. Cambiar de proveedor requiere 
 ## 8. Fuera de alcance
 
 Detección de patrones, hipótesis e informes (change posterior, X20–X23); transcripción de voz; API de entrada; app; panel; notificación de preguntas pendientes; elección de proveedor, modelo, lenguaje y planificador (X32).
+
+## 9. Notas de implementación del MVP (change `mvp-mira`)
+
+Decisiones de detalle tomadas al implementar, coherentes con las specs:
+
+- **Fragmento localizado por el código.** El proveedor devuelve el texto literal del fragmento y Mira calcula su posición (caracteres Unicode) y la cita; si no está en la captura, la captura no se procesa.
+- **Solo se citan registros ofrecidos.** `amplia`, `duda`, `en_conflicto_con` y las relaciones solo pueden apuntar a los registros que se enviaron al proveedor; cualquier otra referencia se rechaza.
+- **Preguntas filtradas por campo.** Solo se admiten fecha, hora, duración, personas, lugares, proyectos, entidades, herramientas, estado/resultado y coincidencia. Por `resultados` solo se pregunta en actividades y problemas (¿se resolvió?); en un evento o una decisión el resultado es contenido y no se pregunta. Los conflictos y las coincidencias dudosas generan siempre su pregunta automática, de valor alta.
+- **No relevante desalienta lo equivalente:** mismo campo y misma clase de registro. «No lo recuerdo» o una respuesta cierran el dato para ese registro.
+- **Un conflicto nunca queda sin pregunta:** si el cupo no permite crearla, la captura no se procesa.
+- **Reprocesado.** Es siempre explícito (`--reprocesar CAPTURA`). Si el proveedor no reclama la clave, Mira reconoce el registro por su fragmento de origen y su clase; nunca pierde un dato conocido por recibir «desconocido».
+- **Recuperación.** Los registros que una ejecución interrumpida dejó guardados sin lote se adoptan como creados en el siguiente lote.
+- **El lote indica el proveedor y el modelo** (`proveedor`, `agente.modelo`) y los problemas sin reproducir contenido.

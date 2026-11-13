@@ -12,6 +12,9 @@ public sealed record YLiteral(string Texto) : YNodo;
 /// <summary>Texto libre: se entrecomilla solo si hace falta para que sea YAML válido y no ambiguo.</summary>
 public sealed record YTexto(string Texto) : YNodo;
 
+/// <summary>Texto que se escribe siempre entre comillas dobles (títulos, preguntas, resúmenes, versiones…).</summary>
+public sealed record YCitado(string Texto) : YNodo;
+
 /// <summary>Instante con hora: entre comillas dentro de mapas y listas en línea, sin ellas en el resto.</summary>
 public sealed record YInstante(string Texto) : YNodo;
 
@@ -114,6 +117,8 @@ public static class YamlEscritor
                 return l.Texto;
             case YTexto t:
                 return Texto(t.Texto, enLinea);
+            case YCitado c:
+                return Entrecomillar(c.Texto);
             case YInstante i:
                 return enLinea ? "\"" + i.Texto + "\"" : i.Texto;
             case YMapa m:

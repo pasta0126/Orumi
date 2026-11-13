@@ -237,9 +237,13 @@ tipo: lote
 ejecutado_el: 2026-11-10T03:00:00+01:00
 ejecucion: lote                 # lote | peticion
 agente: {agente: Mira, version: "…", modelo: "…"}
+proveedor: anthropic            # obligatorio: a quién se enviaron los datos (o `simulado`/`manual`)
 capturas:
   - {captura: cap-20261109-0815-m4k, registros_creados: [reg-…], registros_actualizados: [], preguntas_creadas: []}
+problemas: []                   # opcional: [{captura, motivo}], sin reproducir contenido
 ```
+
+Cada entrada de `capturas` puede añadir `preguntas_cerradas_por_limite`, `preguntas_descartadas` (número) y `nota` (p. ej. `sin hechos registrables`). Los registros que una ejecución interrumpida dejó guardados sin lote se adoptan como `registros_creados` en el siguiente lote.
 
 ## 7. Lectura sin herramientas
 
