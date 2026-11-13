@@ -4,6 +4,8 @@ using Orumi.Agente.Proveedores;
 using Orumi.Core.Capturas;
 using Orumi.Core.Ficheros;
 using Orumi.Core.Validacion;
+using Orumi.Indice;
+using Npgsql;
 
 namespace Orumi.Cli;
 
@@ -24,6 +26,11 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
 
         try
         {
+            if (args[0] == "consultar")
+            {
+                return Consultar(args.Skip(1).ToArray());
+            }
+
             var opciones = Opciones.Analizar(args.Skip(1).ToArray());
             return args[0] switch
             {
@@ -31,6 +38,7 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
                 "validar" => Validar(opciones),
                 "procesar" => Procesar(opciones),
                 "preparar-volumen" => PrepararVolumen(opciones),
+                "reindexar" => Reindexar(opciones),
                 _ => Uso($"Comando desconocido: {args[0]}"),
             };
         }
@@ -47,6 +55,12 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
         {
             error.WriteLine($"No se encuentra el fichero: {e.FileName}");
             return 2;
+        }
+        catch (NpgsqlException)
+        {
+            // Sin credenciales ni detalles de conexión en el mensaje.
+            error.WriteLine("No se pudo usar la base de datos del índice (¿está en marcha y es correcta ORUMI_DATABASE_URL?). Los ficheros no se han tocado.");
+            return 6;
         }
         catch (VolumenNoDisponibleException e)
         {
@@ -200,6 +214,116 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
         return resultado.Problemas.Count == 0 ? 0 : 1;
     }
 
+    private string CadenaDeConexion()
+    {
+        var url = entorno(Conexion.Variable);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            throw new ArgumentException($"Indica la base de datos del índice con la variable {Conexion.Variable}.");
+        }
+
+        return Conexion.DesdeUrl(url);
+    }
+
+    private int Reindexar(Opciones o)
+    {
+        var datos = DirectorioDatos(o);
+        ExigirVolumenSiProcede(o, datos, null);
+        if (!Directory.Exists(datos))
+        {
+            error.WriteLine($"No existe el directorio de datos: {datos}");
+            return 2;
+        }
+
+        var informe = Indexador.ReindexarAsync(datos, CadenaDeConexion(), o.Valor("esquema") ?? Esquema.Vivo, o.Valor("forzar") is "si" or "true")
+            .GetAwaiter().GetResult();
+
+        foreach (var i in informe.Omitidos)
+        {
+            error.WriteLine($"  Omitido (ilegible): {i}");
+        }
+
+        foreach (var i in informe.Graves)
+        {
+            error.WriteLine($"  Grave: {i}");
+        }
+
+        if (informe.Referencias.Count > 0)
+        {
+            error.WriteLine($"  {informe.Referencias.Count} aviso(s) de referencias o formato (usa 'validar' para verlos).");
+        }
+
+        if (!informe.Sustituido)
+        {
+            error.WriteLine(informe.Motivo);
+            return 1;
+        }
+
+        salida.WriteLine("Índice regenerado: " + string.Join(", ", informe.Filas.Where(f => f.Key is "captura" or "registro" or "pregunta" or "lote").Select(f => $"{f.Value} {f.Key}")) + ".");
+        return informe.Omitidos.Count == 0 ? 0 : 1;
+    }
+
+    private int Consultar(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | relacion ID | pendientes | sin-procesar | conflictos");
+        }
+
+        var c = new Consultas(CadenaDeConexion());
+        void Registros(IEnumerable<FilaRegistro> filas)
+        {
+            var n = 0;
+            foreach (var f in filas)
+            {
+                n++;
+                salida.WriteLine($"{f.Id}  {f.FechaDesde:yyyy-MM-dd}{(f.FechaHasta != f.FechaDesde ? " → " + f.FechaHasta?.ToString("yyyy-MM-dd") : "")}  [{f.Clase}] {f.Titulo}");
+            }
+
+            salida.WriteLine(n == 0 ? "Sin resultados." : $"{n} registro(s).");
+        }
+
+        var valor = args.Length > 1 ? string.Join(' ', args.Skip(1)) : string.Empty;
+        switch (args[0])
+        {
+            case "entidad" when valor != "": Registros(c.PorEntidad(valor).GetAwaiter().GetResult()); break;
+            case "proyecto" when valor != "": Registros(c.PorProyecto(valor).GetAwaiter().GetResult()); break;
+            case "clase" when valor != "": Registros(c.PorClase(valor).GetAwaiter().GetResult()); break;
+            case "certeza" when args.Length > 1: Registros(c.PorCerteza(args[1], args.Length > 2 ? args[2] : null).GetAwaiter().GetResult()); break;
+            case "relacion" when valor != "": Registros(c.PorRelacion(valor).GetAwaiter().GetResult()); break;
+            case "fecha" when args.Length == 3 && DateOnly.TryParse(args[1], out var d) && DateOnly.TryParse(args[2], out var h):
+                Registros(c.PorFecha(d, h).GetAwaiter().GetResult());
+                break;
+            case "pendientes":
+                var preguntas = c.PreguntasPendientes().GetAwaiter().GetResult();
+                foreach (var p in preguntas)
+                {
+                    salida.WriteLine($"{p.Id}  [{p.Valor}] {p.Texto}");
+                }
+
+                salida.WriteLine(preguntas.Count == 0 ? "Sin preguntas pendientes." : $"{preguntas.Count} pregunta(s) pendiente(s).");
+                break;
+            case "sin-procesar":
+                var sin = c.CapturasSinProcesar().GetAwaiter().GetResult();
+                sin.ForEach(salida.WriteLine);
+                salida.WriteLine(sin.Count == 0 ? "No hay capturas sin procesar." : $"{sin.Count} captura(s) sin procesar.");
+                break;
+            case "conflictos":
+                var conflictos = c.ConflictosAbiertos().GetAwaiter().GetResult();
+                foreach (var f in conflictos)
+                {
+                    salida.WriteLine($"{f.RegistroId} ↔ {f.ConRegistroId}  ({f.Campo})  pregunta {f.PreguntaId}");
+                }
+
+                salida.WriteLine(conflictos.Count == 0 ? "Sin conflictos abiertos." : $"{conflictos.Count} fila(s) de conflicto abierto.");
+                break;
+            default:
+                return Uso($"Consulta no reconocida o incompleta: {args[0]}");
+        }
+
+        return 0;
+    }
+
     private int PrepararVolumen(Opciones o)
     {
         var datos = DirectorioDatos(o);
@@ -271,6 +395,8 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
           orumi capturar  [--datos RUTA] [--texto "…" | --archivo FICHERO]   (o el texto por entrada estándar)
                           [--fecha-acontecimiento AAAA-MM-DD] [--etiqueta TEXTO] [--dispositivo TEXTO]
           orumi validar   [--datos RUTA]
+          orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
+          orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
           orumi preparar-volumen [--datos RUTA]   (una vez, con el volumen cifrado ya montado)
           orumi procesar  [--config FICHERO] [--datos RUTA] [--ejecucion lote|peticion] [--reprocesar CAPTURA]
                           [--simulado RESPUESTAS.json]   (prueba sin enviar nada al proveedor)
@@ -284,7 +410,7 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar"];
 
     private readonly Dictionary<string, string> _valores = [];
 

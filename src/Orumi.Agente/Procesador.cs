@@ -1050,15 +1050,5 @@ public static class SelectorDeRelacionados
         fm.GetValueOrDefault(clave) is List<object?> l ? l.OfType<string>().ToList() : [];
 
     /// <summary>Minúsculas y sin acentos, para comparar nombres.</summary>
-    public static string Normalizar(string s)
-    {
-        var d = s.Normalize(NormalizationForm.FormD);
-        var sb = new StringBuilder();
-        foreach (var c in d.Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark))
-        {
-            sb.Append(char.ToLowerInvariant(c));
-        }
-
-        return sb.ToString().Normalize(NormalizationForm.FormC);
-    }
+    public static string Normalizar(string s) => Orumi.Core.Texto.Normalizacion.SinAcentos(s);
 }
