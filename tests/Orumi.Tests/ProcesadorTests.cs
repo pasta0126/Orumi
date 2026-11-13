@@ -94,6 +94,27 @@ public class ProcesadorTests
         Assert.Empty(e.Validar());
     }
 
+    [Fact]
+    public async Task Un_campo_desconocido_o_ausente_no_conserva_la_certeza_que_el_modelo_le_puso()
+    {
+        using var e = new EntornoMira();
+        e.Capturar("Hoy he llamado a Marta.");
+        e.Respuesta = _ => Resp([Registro("Hoy he llamado a Marta.", "evento", "Llamada a Marta",
+            campos: new() { ["duracion"] = "desconocido", ["personas"] = new List<object?> { "Marta" } },
+            certeza: new() { ["duracion"] = "dicho", ["personas"] = "dicho", ["lugares"] = "interpretado" })]);
+
+        var r = await e.Procesar();
+
+        var fm = e.Registros().Single().Frontmatter;
+        var certeza = Mapa(fm["certeza"]);
+        Assert.False(certeza.ContainsKey("duracion")); // desconocido: sin certeza
+        Assert.False(certeza.ContainsKey("lugares")); // ausente: sin certeza
+        Assert.Equal("dicho", certeza["personas"]); // lo real se conserva
+        Assert.Equal("desconocido", fm["duracion"]); // el dato no se rellena ni se inventa
+        Assert.Single(r.RegistrosCreados);
+        Assert.Empty(e.Validar());
+    }
+
     // ---------------------------------------------------------------- C3 preguntas estructurales
 
     [Fact]

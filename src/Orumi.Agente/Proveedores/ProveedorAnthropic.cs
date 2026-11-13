@@ -104,6 +104,7 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         - hora: {"expresion", "valor": "HH:MM" solo si hay hora explícita, "aproximada": "true" si dice "sobre las"}. Si solo hay franja (por la mañana), solo "expresion" y sin "valor".
         - duracion: {"expresion", "minutos"} solo si el usuario dio una cifra; si es vaga, solo "expresion". Si no la dijo, "desconocido".
         - entidades: [{"nombre", "tipo"}] de organizaciones, clientes, sistemas o productos nombrados (tipo: organizacion | sistema | producto | otro, solo si está claro). herramientas: con qué se hace algo.
+        - No pongas certeza a un campo que vale "desconocido" ni a uno que no incluyas: la certeza solo va con datos reales.
         - Campos permitidos: fecha, hora, duracion, herramientas, personas, entidades, lugares, proyectos, contexto, acciones, resultados, problemas, ideas. "fecha" = {"expresion", "desde": "AAAA-MM-DD", "hasta": "AAAA-MM-DD"}: SOLO el día, sin hora (la hora va en el campo "hora"), y siempre con desde y hasta (iguales si es un solo día). Si el hecho aún no ha ocurrido (p. ej. «mañana tengo que…»), usa igualmente la fecha futura resuelta desde comunicada_el.
         - contexto solo contiene lo dicho; no generes motivos ni causas. Si se dice que hubo acuerdos sin detallarlos, registra que los hubo y que no se indican.
         - Una actividad que el usuario deja abierta ("sigo mañana") lleva "multidia" con estado "abierto".

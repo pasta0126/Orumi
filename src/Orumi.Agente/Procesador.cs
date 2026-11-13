@@ -499,7 +499,11 @@ public sealed class Procesador(
 
         foreach (var (campo, c) in r.Certeza)
         {
-            certeza[campo] = c;
+            // Un campo desconocido o ausente no lleva certeza (los modelos la ponen a veces): se descarta sin inventar nada.
+            if (campo.Contains('.') || (fm.TryGetValue(campo, out var valorCampo) && valorCampo as string != "desconocido"))
+            {
+                certeza[campo] = c;
+            }
         }
 
         if (r.Multidia is { } m)
