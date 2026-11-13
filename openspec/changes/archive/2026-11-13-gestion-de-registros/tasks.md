@@ -32,4 +32,4 @@
 ## 6. Documentación y despliegue
 
 - [x] 6.1 Documentar (`formato-de-ficheros`, `agente-mira`, guía, X58) y actualizar `infra`
-- [ ] 6.2 Reconstruir imágenes, desplegar y probar con datos ficticios (incluido reprocesado con Mira real)
+- [x] 6.2 Reconstruir imágenes, desplegar y probar con datos ficticios (incluido reprocesado con Mira real)
