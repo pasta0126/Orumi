@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Orumi.Core\Orumi.Core.csproj" />
+    <ProjectReference Include="..\Orumi.Acceso\Orumi.Acceso.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

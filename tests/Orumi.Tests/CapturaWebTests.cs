@@ -1,5 +1,6 @@
 using Orumi.Core.Capturas;
 using Orumi.Core.Ficheros;
+using Orumi.Acceso;
 using Orumi.Web;
 
 namespace Orumi.Tests;

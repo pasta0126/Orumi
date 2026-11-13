@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Orumi.Acceso/Orumi.Acceso.csproj" />
     <Project Path="src/Orumi.Agente/Orumi.Agente.csproj" />
     <Project Path="src/Orumi.Cli/Orumi.Cli.csproj" />
     <Project Path="src/Orumi.Core/Orumi.Core.csproj" />

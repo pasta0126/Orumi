@@ -1,0 +1,35 @@
+## Context
+
+Existen: operaciones deterministas de responder, corregir y rechazar (`Operaciones`), el almacén de ficheros con validador (`Almacen`, `Validador`), el bloqueo frente a Mira, el acceso por sesión de Google con lista de correos (en `Orumi.Web`) y el patrón de despliegue (contenedor sin privilegios, solo lectura, Traefik). El dominio `orumi-api.northernarchive.com` está reservado.
+
+## Goals / Non-Goals
+
+**Goals:** ver, buscar, responder y corregir con trazabilidad, de forma segura y con muy poco mantenimiento; dejar una API limpia sobre la que construir MCP, consulta en lenguaje natural y bot.
+**Non-Goals:** fusionar/separar/eliminar/deshacer, análisis, lenguaje natural, multiusuario.
+
+## Decisions
+
+1. **Servicio separado `orumi-panel`** (no ampliar `orumi-web`): el de captura solo puede escribir capturas y es un riesgo mínimo; el panel lee todo. Mantenerlos separados conserva el menor privilegio por servicio. API y página comparten origen (`orumi-api.northernarchive.com`), sin CORS. *Alternativa:* un único servicio; descartada porque ampliaría el alcance de la superficie de captura.
+2. **Librería `Orumi.Acceso`** con `AccesoPorSesion`, `VerificadorGoTrue` y la lectura de configuración, extraída de `Orumi.Web` y usada por ambos servicios. Mismo login, misma lista de correos.
+3. **Lectura directa de ficheros** con `Almacen` en memoria, recargada cuando cambian los ficheros (huella de nombres y fechas de modificación, comprobada como mucho cada pocos segundos). Con miles de ficheros pequeños es viable en la Raspberry Pi y evita depender de PostgreSQL y de su regeneración nocturna (el índice sigue sirviendo a la línea de comandos). La búsqueda es en memoria sobre los documentos cargados. *Alternativa:* usar el índice; descartada porque queda desactualizado tras cada corrección. *Escalado:* si se llega a decenas de miles de registros, se pasa a un índice incremental.
+4. **Escritura solo con `Operaciones`** (responder, corregir, rechazar), con el bloqueo de Mira (409 y «reintenta» si está procesando). El contenedor monta `~/orumi-datos` en lectura y escritura **y `capturas/` encima en solo lectura** (`:ro`), de modo que ni un fallo del código pueda modificar un original.
+5. **Autenticación por cabecera `Authorization: Bearer`** (no cookies), lo que evita CSRF. Respuestas con `Cache-Control: no-store`; la página no usa *service worker* que guarde datos (solo puede cachear la carcasa sin datos).
+6. **API REST pequeña:** `GET /api/estado`, `/api/dias?desde&hasta` (recuento por día), `/api/registros?…filtros` (paginado), `/api/registros/{id}`, `/api/capturas/{id}` (solo lectura), `/api/preguntas?estado=pendiente`, y `POST` para `responder`, `cerrar`, `corregir` y `rechazar`. No hay `PUT` ni `DELETE`. Los errores de valor son 400 con el mensaje de formato esperado; 409 si Mira procesa; 404 si no existe.
+7. **Página de una sola vista** (HTML, CSS y JS sin dependencias): Hoy/día con navegación, Pendientes, Buscar y Ficha; adaptada a móvil, con tema claro y oscuro y accesible por teclado. Los textos del usuario se insertan siempre como texto (nunca como HTML) para evitar XSS; CSP estricta.
+8. **Sin registro de contenido:** los registros del servicio no incluyen texto de notas ni valores de campos.
+
+9. **Autenticación en todas las rutas de datos** mediante un filtro único aplicado al grupo `/api` (lista blanca explícita: `/api/config` y la carcasa estática). Una prueba recorre todas las rutas registradas y comprueba que devuelven 401 sin sesión, para que una ruta nueva sin protección rompa las pruebas.
+10. **Limitación de peticiones propia** (`LimitadorDePeticiones`, ventana deslizante por clave, con reloj inyectable, probada con tiempo simulado) en `Orumi.Acceso`, aplicada **antes** de la autenticación para que el tráfico rechazado no llegue a GoTrue: por IP (120/min en general y 20/min en escrituras), global (600/min), por usuario tras autenticar (240/min lecturas y 30/min escrituras) y el bloqueo de 15 min tras 5 fallos de acceso ya existente. Respuesta 429 con `Retry-After`. Los límites son configurables por entorno. La IP es la última de `X-Forwarded-For` (la que ve Traefik; se limita a un salto de proxy). *Alternativa:* el limitador integrado de ASP.NET; descartado por probar peor con tiempo simulado.
+11. **Segunda capa en Traefik** (middlewares `ratelimit` y `inflightreq` y límite de tamaño de cuerpo) en las etiquetas del servicio, de modo que el exceso se corta antes de llegar al contenedor.
+12. **Endurecimiento:** `Strict-Transport-Security`, CSP con `script-src 'self'` (sin scripts en línea) y `frame-ancestors 'none'`, `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `Permissions-Policy` vacía, `Cross-Origin-Opener-Policy` y `Cross-Origin-Resource-Policy` en `same-origin`; escrituras solo `POST` con `application/json` y `Origin` propio (defensa en profundidad frente a CSRF, ya cubierto por usar `Bearer`); cuerpo máximo de 64 KB; búsqueda ≤ 200 caracteres; página ≤ 100 resultados; identificadores validados con las expresiones de `Identificadores`; manejador de errores genérico (500 sin detalles); auditoría de escrituras a la salida estándar (operación, identificador, resultado, usuario enmascarado), nunca valores ni textos de notas.
+13. **El mismo conjunto** (limitación, cabeceras, límites) se aplica al servicio de captura mediante la librería compartida.
+
+## Risks / Trade-offs
+
+- **Superficie pública que sirve todo el contenido** → misma lista de correos y login de Google, bloqueo por intentos, HTTPS, CSP, `no-store`, y opcionalmente exigir segundo factor en la cuenta de Google; una cuenta comprometida de la lista expone todo (mayor que en la captura, aceptado y documentado).
+- **XSS** → todo texto se pinta con `textContent`; CSP sin `unsafe-inline` para scripts.
+- **Escrituras concurrentes con el CLI** → mismo bloqueo y escritura atómica.
+- **Rendimiento con muchos ficheros** → recarga por huella; revisable.
+- **Los límites pueden estorbar en un uso normal intenso** → son configurables y por defecto holgados para una sola persona; un 429 muestra «espera N segundos» en la página.
+- **Estado de limitación en memoria** → se reinicia con el contenedor; el bloqueo por fallos y los límites de Traefik acotan el riesgo.
+- **Dependencia de GoTrue** → si cae, el panel no entra; los datos siguen accesibles por SSH.

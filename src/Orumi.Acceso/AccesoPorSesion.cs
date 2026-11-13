@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-namespace Orumi.Web;
+namespace Orumi.Acceso;
 
 public enum ResultadoDeAcceso
 {
@@ -13,6 +13,9 @@ public enum ResultadoDeAcceso
     NoAutorizado,
     Bloqueado,
 }
+
+/// <summary>Resultado de comprobar una sesión; <see cref="Correo"/> solo viene informado si el acceso está permitido.</summary>
+public sealed record DecisionDeAcceso(ResultadoDeAcceso Resultado, string? Correo = null);
 
 /// <summary>Quién es el dueño de una sesión, según el proveedor de identidad.</summary>
 public sealed record IdentidadDeSesion(string Correo, bool Verificado);
@@ -62,7 +65,7 @@ public sealed class AccesoPorSesion
     private readonly int _maxFallos;
     private readonly TimeSpan _bloqueo;
     private readonly Dictionary<string, (int Fallos, DateTimeOffset? BloqueadoHasta)> _estado = [];
-    private readonly Dictionary<string, DateTimeOffset> _aceptadas = [];
+    private readonly Dictionary<string, (DateTimeOffset Hasta, string Correo)> _aceptadas = [];
     private readonly object _cerrojo = new();
 
     public AccesoPorSesion(IVerificadorDeSesion verificador, IEnumerable<string> correosPermitidos, Func<DateTimeOffset> reloj, int maxFallos = 5, TimeSpan? bloqueo = null)
@@ -80,19 +83,22 @@ public sealed class AccesoPorSesion
     }
 
     /// <summary>Lanza la excepción del verificador si el proveedor no responde (no cuenta como intento fallido).</summary>
-    public async Task<ResultadoDeAcceso> ComprobarAsync(string? token, string origen, CancellationToken ct = default)
+    public async Task<ResultadoDeAcceso> ComprobarAsync(string? token, string origen, CancellationToken ct = default) =>
+        (await ComprobarConIdentidadAsync(token, origen, ct)).Resultado;
+
+    public async Task<DecisionDeAcceso> ComprobarConIdentidadAsync(string? token, string origen, CancellationToken ct = default)
     {
         lock (_cerrojo)
         {
             if (_estado.GetValueOrDefault(origen).BloqueadoHasta is { } h && h > _reloj())
             {
-                return ResultadoDeAcceso.Bloqueado;
+                return new DecisionDeAcceso(ResultadoDeAcceso.Bloqueado);
             }
 
-            if (token is not null && _aceptadas.TryGetValue(Huella(token), out var hasta) && hasta > _reloj())
+            if (token is not null && _aceptadas.TryGetValue(Huella(token), out var aceptada) && aceptada.Hasta > _reloj())
             {
                 _estado.Remove(origen);
-                return ResultadoDeAcceso.Permitido;
+                return new DecisionDeAcceso(ResultadoDeAcceso.Permitido, aceptada.Correo);
             }
         }
 
@@ -108,13 +114,13 @@ public sealed class AccesoPorSesion
             if (identidad is { Verificado: true } i && _permitidos.Contains(i.Correo.Trim().ToLowerInvariant()))
             {
                 _estado.Remove(origen);
-                foreach (var vencida in _aceptadas.Where(x => x.Value <= ahora).Select(x => x.Key).ToList())
+                foreach (var vencida in _aceptadas.Where(x => x.Value.Hasta <= ahora).Select(x => x.Key).ToList())
                 {
                     _aceptadas.Remove(vencida);
                 }
 
-                _aceptadas[Huella(token!)] = ahora + VidaDeCache;
-                return ResultadoDeAcceso.Permitido;
+                _aceptadas[Huella(token!)] = (ahora + VidaDeCache, i.Correo.Trim().ToLowerInvariant());
+                return new DecisionDeAcceso(ResultadoDeAcceso.Permitido, i.Correo.Trim().ToLowerInvariant());
             }
 
             var (fallos, bloqueadoHasta) = _estado.GetValueOrDefault(origen);
@@ -126,7 +132,7 @@ public sealed class AccesoPorSesion
             fallos++;
             var bloquear = fallos >= _maxFallos;
             _estado[origen] = bloquear ? (0, ahora + _bloqueo) : (fallos, null);
-            return bloquear ? ResultadoDeAcceso.Bloqueado : identidad is null ? ResultadoDeAcceso.Denegado : ResultadoDeAcceso.NoAutorizado;
+            return new DecisionDeAcceso(bloquear ? ResultadoDeAcceso.Bloqueado : identidad is null ? ResultadoDeAcceso.Denegado : ResultadoDeAcceso.NoAutorizado);
         }
     }
 

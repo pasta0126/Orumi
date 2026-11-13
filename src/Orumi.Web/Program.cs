@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Orumi.Core.Capturas;
 using Orumi.Core.Ficheros;
+using Orumi.Acceso;
 using Orumi.Web;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,15 +32,18 @@ var origenAuth = new Uri(authPublico).GetLeftPart(UriPartial.Authority);
 
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
-    // Solo se alcanza a través de Traefik (red interna de Docker): se confía en su cabecera X-Forwarded-For.
+    // Solo se alcanza a través de Traefik (red interna de Docker): se confía en su cabecera X-Forwarded-For (un único salto).
     o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.ForwardLimit = 1;
     o.KnownIPNetworks.Clear();
     o.KnownProxies.Clear();
 });
+builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = 64 * 1024);
 builder.Logging.SetMinimumLevel(LogLevel.Warning); // nunca se registra el contenido de las notas
 
 var app = builder.Build();
 app.UseForwardedHeaders();
+app.UsarErroresGenericos();
 TimeZoneInfo zona;
 try
 {
@@ -49,51 +53,23 @@ catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneExcep
 {
     zona = TimeZoneInfo.Local; // sin datos de zona horaria en la imagen: hora local del contenedor
 }
+
 var servicio = new ServicioDeCaptura(datos, () => TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, zona));
-
-app.Use(async (contexto, siguiente) =>
-{
-    contexto.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    contexto.Response.Headers["Referrer-Policy"] = "no-referrer";
-    contexto.Response.Headers["Content-Security-Policy"] = $"default-src 'self'; connect-src 'self' {origenAuth}; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'";
-    await siguiente();
-});
-
-async Task<IResult?> Rechazo(HttpContext c)
-{
-    var cabecera = c.Request.Headers.Authorization.ToString();
-    var presentado = cabecera.StartsWith("Bearer ", StringComparison.Ordinal) ? cabecera["Bearer ".Length..] : null;
-    try
-    {
-        return await acceso.ComprobarAsync(presentado, c.Connection.RemoteIpAddress?.ToString() ?? "desconocido", c.RequestAborted) switch
-        {
-            ResultadoDeAcceso.Permitido => null,
-            ResultadoDeAcceso.Bloqueado => Results.StatusCode(StatusCodes.Status429TooManyRequests),
-            ResultadoDeAcceso.NoAutorizado => Results.StatusCode(StatusCodes.Status403Forbidden),
-            _ => Results.Unauthorized(),
-        };
-    }
-    catch (Exception e) when (e is HttpRequestException or TaskCanceledException or OperationCanceledException)
-    {
-        return Results.Problem("El servicio de acceso no responde. Reinténtalo en unos minutos.", statusCode: 503);
-    }
-}
+var limites = new PoliticaDeLimites(LimitesDePeticiones.DesdeEntorno(Environment.GetEnvironmentVariable), () => DateTimeOffset.UtcNow);
+app.UsarCabecerasDeSeguridad(origenAuth);
+app.UsarGuardianDeApi(new GuardianDeApi(acceso, limites, ["/api/config"]));
 
 // Pública: solo dice dónde está el proveedor de identidad (el navegador la necesita para iniciar y renovar la sesión).
 app.MapGet("/api/config", () => Results.Json(new { auth = authPublico }));
 
-app.MapGet("/api/comprobar", async (HttpContext c) => await Rechazo(c) ?? Results.NoContent());
+app.MapGet("/api/comprobar", () => Results.NoContent());
 
-app.MapPost("/api/capturas", async (HttpContext c, SolicitudDeCaptura solicitud) =>
+app.MapPost("/api/capturas", (HttpContext c, SolicitudDeCaptura solicitud) =>
 {
-    if (await Rechazo(c) is { } rechazo)
-    {
-        return rechazo;
-    }
-
     try
     {
         var r = servicio.Crear(solicitud);
+        Console.WriteLine(Auditoria.Linea(DateTimeOffset.Now, c.Items[GuardianDeApiExtensiones.ClaveDeCorreo] as string, "crear-captura", r.Id, r.Repetida ? "repetida" : "creada"));
         return r.Repetida ? Results.Ok(r) : Results.Created($"/api/capturas/{r.Id}", r);
     }
     catch (CapturaInvalidaException e)
