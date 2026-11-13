@@ -56,7 +56,7 @@ Documento vivo. Aquí se aglutinan todas las dudas; se resuelven una a una. Al c
 Los detalles de la infraestructura propia (servidor, dominios, servicios y huecos de seguridad detectados) están en `docs/privado/infraestructura.md`, **fuera de git** porque el repositorio puede ser público. Resumen no sensible:
 
 - El servidor de despliegue es una máquina pequeña propia con Docker y proxy inverso con TLS.
-- **Atlas** (gestor de ficheros `.md`, sin BD) y **vedlvm** (repo de contenido) son reutilizables; la filosofía ficheros + git coincide con D5/D6.
+- **Atlas** y **vedlvm** quedan fuera de ORUMI (X34); solo se aprovecha la filosofía ficheros + git (D5/D6).
 - Huecos a resolver (G1–G9): audio fuera de git, no usar el cifrado de Atlas para ORUMI, tokens con alcance, separación de datos, índice derivado, concurrencia, cómputo limitado, y endurecimiento de acceso. Resueltos o aceptados en X1–X15.
 
 ## Investigación de costes D1/D2 (2026-11-12)
@@ -94,9 +94,9 @@ Además de los criterios rectores (C1–C5):
 
 | # | Decisión | Fecha | Resuelve |
 |---|----------|-------|----------|
-| X1 | **Acceso del agente a los ficheros:** ambas vías válidas, por SSH directo al servidor o por la API de Atlas. Se elegirá según el caso; por defecto la más simple. | 2026-11-12 | G3 (parcial), G5 |
+| X1 | **Acceso del agente a los ficheros:** ~~por SSH o por la API de Atlas~~ → solo acceso directo al servidor (X34 descarta Atlas). | 2026-11-12 | G3 (parcial), G5 |
 | X2 | **Datos de ORUMI en `orumi/`** (separados de las notas personales). *(La parte de duplicado en vedlvm quedó sustituida por X12.)* | 2026-11-12 | G4 |
-| X3 | **Índice derivado y reconstruible** (SQLite o Postgres existente) generado desde los ficheros para consultas estructuradas; los ficheros siguen siendo la fuente de verdad. Atlas queda como visor/editor de ficheros crudos. | 2026-11-12 | G6, D5 |
+| X3 | **Índice derivado y reconstruible** (SQLite o Postgres existente) generado desde los ficheros para consultas estructuradas; los ficheros siguen siendo la fuente de verdad. ~~Atlas como visor/editor de ficheros crudos~~ (descartado por X34). | 2026-11-12 | G6, D5 |
 | X7 | **Entrada de la captura:** API propia de ORUMI como destino final (la usará la app Flutter, con token propio). **En el MVP se empieza dejando ficheros directamente en `orumi/` (SSH/sincronización)** y se añade la API al llegar la app móvil. | 2026-11-12 | entrada de captura |
 | X8 | **El agente se llama Mira.** | 2026-11-12 | D9 |
 | X9 | **Proveedores de IA (provisional):** Gemini Flash-Lite de pago para transcribir y limpiar; modelo más capaz solo para análisis de patrones por lotes. Precios y calidad se verifican en detalle antes de contratar. | 2026-11-12 | D1, D2 |
@@ -123,6 +123,8 @@ Además de los criterios rectores (C1–C5):
 | X30 | **Reprocesado y aportaciones del usuario (D10):** lo que el usuario corrige o completa se asume válido y acertado. Mira lo tiene en cuenta, puede preguntar si necesita más información y puede adaptarlo o adecuarlo (p. ej. formato, relaciones), pero **nunca lo elimina ni lo sustituye por su propia interpretación.** Un reprocesado actualiza solo lo no tocado por el usuario. | 2026-11-13 | D10 |
 | X31 | **Correcciones en el panel (D18):** mismo criterio que X30. Cualquier campo es corregible en línea, queda en el historial, pasa a «confirmado» y lo dicho por el usuario prevalece sobre cualquier interpretación de Mira. | 2026-11-13 | D18 |
 | X32 | **Despliegue (D3):** la aplicación se despliega en el servidor propio por SSH, usando su infraestructura compartida. Las tecnologías concretas (API, índice, panel) quedan pendientes de definir en una change posterior. | 2026-11-13 | D3 |
+| X33 | **Formato de ficheros (propuesto, pendiente de tu revisión):** ids `cap-`/`reg-`/`preg-`/`lote-` con fecha y sufijo aleatorio; clave de extracción `captura#f<n>:<clase>:<k>` asignada una vez y nunca recalculada; fragmentos por posición en el cuerpo inmutable; `huella` SHA-256 en las capturas; bitácora de lotes de Mira (las capturas no llevan estado); directorios `AAAA/MM`; certeza por campo. Detalle en `docs/formato-de-ficheros.md`, ejemplos en `docs/ejemplos/` e índice en `docs/indice-derivado.md`. | 2026-11-13 | D7, D10 |
+| X34 | **ORUMI es autónomo:** no se integra con ningún otro software (Atlas, vedlvm u otros) por el momento. Sus ficheros, su índice, su agente y su panel son propios. Se revisará solo si surge una necesidad real. | 2026-11-13 | X1, X3, D4 |
 | X4 | **Agente por lotes nocturno + a petición.** Las preguntas se acumulan para revisarlas cuando el usuario quiera. | 2026-11-12 | D8 |
 | X5 | **El audio se borra tras transcribirlo.** La transcripción cruda se conserva siempre y pasa a ser el «original» del sistema. | 2026-11-12 | D6, G1 |
 | X6 | **Orden de construcción:** texto (entrada propia de ORUMI, no el inbox de Atlas) + agente + modelo de registro primero; voz (Flutter) y dashboard después. | 2026-11-12 | D15, D19 |
@@ -131,6 +133,5 @@ Notas abiertas derivadas:
 - **X20–X23 (patrones):** se implementarán en una change posterior de análisis (no en `modelo-de-registro`). El modelo de registro ya admite hipótesis con evidencia enlazada y rechazo de interpretaciones.
 - **X5 y principio 3.2:** al borrar el audio, la transcripción cruda es el original. Mitigación acordada de facto: no pasarla por ningún LLM antes de guardarla (el STT no «limpia»), y verificar que la transcripción se guardó antes de borrar. Si la calidad del STT en español resulta insuficiente en las pruebas, se reabre (p. ej. con caducidad de N días). Ver X28.
 - **X2, ubicación de `orumi/`:** confirmado 2026-11-12: ORUMI tiene sus propios ficheros, en un directorio/repo propio en el servidor, distinto de vedlvm. **No se usa el `/api/inbox` de Atlas.** El agente crea los ficheros en `orumi/`; no se copia nada a vedlvm (X12).
-- **X1:** si el agente usa la API de Atlas sigue haciendo falta un token con permiso de lectura (G3).
-- **G2** (no usar el cifrado de Atlas para ORUMI) aceptado: ORUMI no usa Atlas para cifrar ni guarda copias fuera de `orumi/`.
-- **D4 (aplazada):** revisar otros proyectos propios reutilizables (Kanban JSON, monitor de logs, Postgres `platform-*`); se retoma cuando haga falta elegir tecnologías (X32).
+- **G2** (no usar el cifrado de Atlas para ORUMI) aceptado, y queda sin objeto: ORUMI no usa Atlas (X34).
+- **D4 (aplazada):** otros proyectos propios (Kanban JSON, monitor de logs, Postgres `platform-*`) solo se miran como referencia o librería, sin integrarlos (X34); se retoma al elegir tecnologías (X32).

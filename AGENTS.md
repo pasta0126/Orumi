@@ -12,7 +12,7 @@ Tres componentes con responsabilidades separadas:
 2. **Agente de seguimiento** — núcleo del sistema. Interpreta documentos, los descompone en registros, los relaciona con el historial, formula preguntas y detecta patrones.
 3. **Panel web** — consulta, corrección, respuesta a preguntas pendientes, relaciones, análisis y consulta en lenguaje natural.
 
-Se reutilizará un repositorio de ficheros ya existente del fundador como almacén (pendiente de estudiar sus capacidades).
+ORUMI es autónomo: sus ficheros viven en su propio directorio y, por ahora, **no se integra con ningún otro software** (ni Atlas ni otros repositorios del fundador; ver X34 en `docs/decisiones.md`).
 
 ## Metodología: SDD con OpenSpec
 
@@ -26,12 +26,12 @@ Trabajamos con Spec-Driven Development. **No se escribe código sin una change a
 ## Estado actual
 
 - Fase: definición. **No hay tecnología ni arquitectura elegidas.** No introducir frameworks, bases de datos ni formatos sin una change que lo decida y justifique.
-- Orden previsto: (1) estudiar el repositorio de ficheros existente, (2) modelo de registro y procedencia, (3) flujo del agente, (4) captura y panel.
+- Orden previsto: (1) modelo de registro y procedencia (change `modelo-de-registro`, en curso), (2) flujo del agente (Mira), (3) elección de tecnologías, (4) captura y panel.
 
 ## Criterios de coste y reutilización
 
 - Minimizar coste, idealmente gratis. Antes de elegir un servicio, comparar precios y capas gratuitas.
-- Reutilizar software propio del fundador siempre que sea viable, aunque requiera ajustes.
+- Reutilizar software propio del fundador solo si no implica integración con otros sistemas (X34): como librería o idea, no como dependencia en ejecución.
 - Preferir el ecosistema Google y similares cuando reduzcan coste o fricción.
 - Dudas y decisiones pendientes: `docs/decisiones.md` (documento vivo; mantenerlo al día).
 
