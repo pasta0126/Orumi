@@ -43,9 +43,33 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         }
 
         var texto = string.Concat(respuesta.Content.Select(b => b.TryPickText(out var t) ? t.Text : string.Empty));
-        var analizada = LectorDeRespuesta.Analizar(texto);
+        RespuestaExtraccion analizada;
+        try
+        {
+            analizada = LectorDeRespuesta.Analizar(texto);
+        }
+        catch (Exception) when (VolcarSalidaParaDepurar(texto, respuesta.StopReason?.ToString()))
+        {
+            throw; // nunca se alcanza: el filtro solo sirve para volcar la salida sin atrapar la excepción
+        }
+
         // El uso se informa aunque luego la salida no sea válida: la llamada ya se ha cobrado.
         return analizada with { Uso = new UsoDeTokens(respuesta.Usage.InputTokens, respuesta.Usage.OutputTokens) };
+    }
+
+    /// <summary>
+    /// Solo para depurar: si ORUMI_DEPURAR_DIR está definido, guarda en ese directorio la salida cruda del modelo cuando no se puede
+    /// leer. Por defecto está apagado (la salida contiene texto del usuario y nunca se registra).
+    /// </summary>
+    private static bool VolcarSalidaParaDepurar(string texto, string? motivoDeParada)
+    {
+        var dir = Environment.GetEnvironmentVariable("ORUMI_DEPURAR_DIR");
+        if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+        {
+            File.WriteAllText(Path.Combine(dir, $"salida-{DateTime.UtcNow:HHmmssfff}.txt"), $"stop_reason: {motivoDeParada}\n{texto}");
+        }
+
+        return false;
     }
 
     /// <summary>
