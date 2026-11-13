@@ -21,9 +21,9 @@
 ## 4. Estado y despliegue
 
 - [x] 4.1 `orumi estado` muestra los envíos abiertos y el modo
-- [ ] 4.2 Unidad systemd con tiempo máximo de servicio; configuración del servidor (`procesamiento`, `factor_lote`)
-- [ ] 4.3 Prueba real mínima con una captura ficticia (modo lotes) y comprobación del coste
+- [x] 4.2 Unidad systemd con tiempo máximo de servicio; configuración del servidor (`procesamiento`, `factor_lote`)
+- [x] 4.3 Prueba real mínima con una captura ficticia (modo lotes) y comprobación del coste
 
 ## 5. Cierre
 
-- [ ] 5.1 Documentar en `docs/agente-mira.md`, `docs/decisiones.md`, `infra` (README, ROADMAP, `security/orumi.md` con la retención de 29 días) y la guía de notas
+- [x] 5.1 Documentar en `docs/agente-mira.md`, `docs/decisiones.md`, `infra` (README, ROADMAP, `security/orumi.md` con la retención de 29 días) y la guía de notas
