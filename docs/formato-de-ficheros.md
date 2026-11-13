@@ -95,8 +95,11 @@ fecha:                         # fecha del acontecimiento (o su imprecisión)
   expresion: esta mañana       # expresión literal del usuario, si la hubo
   desde: 2026-11-09
   hasta: 2026-11-09
+hora: {expresion: por la mañana, valor: "09:30", aproximada: true}   # opcional; ver §4.1
 duracion: {expresion: unas seis horas en total, minutos: 360}
 herramientas: [Python]
+entidades:                     # opcional; ver §4.1
+  - {nombre: Gullón, tipo: organizacion}
 proyectos: [mantenimiento-servidor]
 multidia:                      # solo en actividades de varios días
   estado: cerrado              # abierto | cerrado
@@ -133,9 +136,12 @@ historial: []                  # §4.6
 ### 4.1 Campos
 
 - **Obligatorios:** `id`, `tipo`, `clase`, `titulo`, `comunicada_el`, `fuentes` (con un `origen`), `fecha` (o `desconocido`), `procedencia`, `clave_extraccion`, `certeza`, y una descripción en el cuerpo.
-- **Opcionales:** `duracion`, `herramientas`, `contexto`, `personas`, `lugares`, `proyectos`, `acciones`, `resultados`, `problemas`, `ideas`, `relaciones`, `multidia`, `entradas`. Su ausencia no invalida el registro.
+- **Compatibilidad:** `hora` y `entidades` se añadieron después de la primera versión; los registros que no los tienen siguen siendo válidos y no se migran.
+- **Opcionales:** `hora`, `duracion`, `herramientas`, `contexto`, `personas`, `entidades`, `lugares`, `proyectos`, `acciones`, `resultados`, `problemas`, `ideas`, `relaciones`, `multidia`, `entradas`. Su ausencia no invalida el registro.
 - **Clases:** `actividad`, `evento`, `idea`, `decision`, `problema`, `otro`. La lista se amplía solo mediante una change.
 - **`fecha`:** `desde` y `hasta` son siempre un rango (iguales si el día es exacto). `expresion` conserva lo que dijo el usuario. Un rango o un día **deducido de una expresión relativa** («ayer», «la semana pasada») es `interpretado`; solo es `dicho` si el usuario dio la fecha explícita (por texto o como metadato) y `confirmado` si la aclaró.
+- **`hora`:** hora del acontecimiento, **campo aparte de `fecha` y con su propia certeza** (el día puede ser `interpretado` y la hora `dicho`). Forma: `{expresion, valor, aproximada}`. `valor` es `HH:MM` en hora local, sin zona horaria, y se refiere al **inicio** del acontecimiento; `aproximada: true` cuando el usuario dijo «sobre las…». Si el usuario solo dio una franja («por la mañana», «por la tarde»), se guarda solo `expresion` y **no se inventa un `valor`**. Si Mira deduce la hora, es `interpretado`.
+- **`entidades`:** organizaciones, clientes, proveedores, sistemas o productos **nombrados** en el registro, como lista de `{nombre, tipo}`. `tipo` es opcional: `organizacion`, `sistema`, `producto`, `otro`. El `nombre` se guarda con la ortografía normalizada (la captura conserva la errata: «gullon» → «Gullón») y se compara sin distinguir mayúsculas ni acentos. No hay catálogo de entidades. Si en un mismo registro hay entidades de distinta certeza, cada elemento lleva `certeza` propia y el campo no aparece en el mapa `certeza`. Una entidad es **a qué se refiere** el registro (un cliente, un sistema con una incidencia); una herramienta es **con qué se hace** algo (Excel, Teams); una misma cosa puede ir en ambos campos. Nunca se añade una entidad que el usuario no mencionó salvo como `interpretado`.
 - **`duracion`:** `expresion` literal y, solo si el usuario dio una cifra, `minutos`. Si dijo algo vago («toda la tarde») se guarda solo la expresión. Nunca se estima sin marcarla `interpretado`.
 - **Actividades de varios días:** un único registro; `fecha` es el inicio; `multidia` guarda estado y fin; `entradas` guarda una entrada fechada por captura que la menciona.
 - **Fragmentos de origen:** `fragmento` en cada fuente que proceda de una parte de la captura. `cita` es opcional (primeros ≤80 caracteres del fragmento) y existe para leerlo sin herramientas.
@@ -213,7 +219,7 @@ registro: reg-20261110-t5k8
 otros_registros: []             # p. ej. conflictos
 campo: contexto
 texto: "¿Qué te llevó a dejar la automatización para más adelante?"
-estado: no_recuerda             # pendiente | respondida | no_recuerda | cerrada_por_limite
+estado: no_recuerda             # pendiente | respondida | no_recuerda | no_relevante | cerrada_por_limite
 valor: media                    # alta | media | baja
 creada_el: 2026-11-13T03:00:00+01:00
 generada_por: {agente: Mira, version: "…", modelo: "…"}
@@ -221,7 +227,7 @@ cerrada_el: 2026-11-13T08:30:00+01:00     # al cerrarse
 respuesta: {texto: "No lo recuerdo.", respondida_el: 2026-11-13T08:30:00+01:00}
 ```
 
-Una pregunta `no_recuerda` no se repite. Si es `respondida`, el registro afectado pasa el campo a `confirmado` y su `historial` enlaza con la pregunta (la respuesta es la evidencia).
+Las preguntas completan **datos estructurales** del registro (cuándo, duración, personas, lugar, estado o resultado), no su contenido sustantivo (X36). Una pregunta `no_recuerda` o `no_relevante` no se repite; `no_relevante` es el usuario diciendo que el dato no le importa y sirve de señal para no formular preguntas parecidas. Si es `respondida`, el registro afectado pasa el campo a `confirmado` y su `historial` enlaza con la pregunta (la respuesta es la evidencia).
 
 **Lote** (bitácora de cada ejecución de Mira, nocturna o a petición): lista las capturas procesadas y los registros y preguntas creados o actualizados, con versión y modelo. Es lo que permite saber qué capturas ya se procesaron sin modificar las capturas (inmutables) y evita reprocesar capturas que no produjeron registros.
 
