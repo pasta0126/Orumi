@@ -156,7 +156,7 @@
     const barra = $('barra');
     if (!$('marca').firstChild) $('marca').append(Logo(30), el('span', { text: 'ORUMI' }));
     const nav = (id, icono, texto) => { const a = $(id); if (!a.firstChild) a.append(ic(icono), el('span', { text: texto })); if (id === 'nav-pendientes') a.append(el('span', { class: 'contador', id: 'contador', hidden: true })); };
-    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas');
+    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera');
     const acc = $('acciones');
     if (!acc.firstChild) {
       const tema = el('button', { type: 'button', class: 'boton fantasma icono-solo', 'aria-label': 'Cambiar tema' });
@@ -321,6 +321,67 @@
     return tarjeta;
   }
 
+  // ------------------------------------------------------------ gestión: confirmación en dos pasos, fusión y papelera
+  /** Botón que pide confirmación en la misma pantalla (sin diálogos del navegador). */
+  function conConfirmacion(texto, icono, clase, pregunta, ok) {
+    const caja = el('span', { class: 'fila' });
+    const inicial = () => { vaciar(caja); caja.append(boton(texto, icono, { class: clase, onclick: preguntar })); };
+    const preguntar = () => {
+      vaciar(caja);
+      caja.append(el('span', { class: 'meta', text: pregunta }), boton('Confirmar', 'check', { class: 'principal pequeno', onclick: ok }),
+        boton('Cancelar', 'cerrar', { class: 'fantasma pequeno', onclick: inicial }));
+    };
+    inicial();
+    return caja;
+  }
+
+  /** Selector para fusionar otro registro en el actual: busca, elige y confirma. */
+  function selectorDeFusion(f, hecho) {
+    const caja = el('div', { class: 'fusion cristal' });
+    const entrada = el('input', { type: 'search', placeholder: 'Busca el registro que quieres traer a este…', maxlength: 200, 'aria-label': 'Buscar registro a fusionar' });
+    const resultados = el('div', { class: 'enlaces' });
+    const elegido = el('div', {});
+    let t = null;
+    const buscar = async () => {
+      vaciar(resultados);
+      if (!entrada.value.trim()) return;
+      try {
+        const p = await get('/api/registros', { q: entrada.value.trim(), limite: 8 });
+        const otros = p.registros.filter((x) => x.id !== f.id);
+        if (!otros.length) { resultados.append(el('span', { class: 'meta', text: 'Sin resultados.' })); return; }
+        for (const x of otros) {
+          resultados.append(el('button', { type: 'button', class: 'chip c-neutro elegir', onclick: () => elegir(x) }, ic(x.clase || 'otro'), x.titulo, el('span', { class: 'meta', text: x.desde ? ' · ' + fmtCorto.format(aFecha(x.desde)) : '' })));
+        }
+      } catch (e) { manejar(e); }
+    };
+    const elegir = (x) => {
+      vaciar(elegido);
+      elegido.append(el('p', { class: 'meta', text: `«${x.titulo}» se unirá a este registro y quedará como fusionado. Podrás verlo en la ficha de este.` }),
+        el('div', { class: 'fila' },
+          boton('Fusionar', 'fusionar', { class: 'principal pequeno', onclick: async () => { try { const r2 = await post(`/api/registros/${f.id}/fusionar`, { origen: x.id }); avisar(r2.mensaje, 'ok'); hecho(); } catch (e) { manejar(e); } } }),
+          boton('Cancelar', 'cerrar', { class: 'fantasma pequeno', onclick: () => vaciar(elegido) })));
+    };
+    entrada.addEventListener('input', () => { clearTimeout(t); t = setTimeout(buscar, 300); });
+    caja.append(entrada, resultados, elegido);
+    return caja;
+  }
+
+  async function vistaPapelera() {
+    const lista = el('div', {}, esqueletos(2));
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Nada se pierde' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Papelera' })))), lista);
+    try {
+      const p = await get('/api/papelera');
+      vaciar(lista);
+      if (!p.registros.length) { lista.append(estadoVacio('La papelera está vacía.')); return; }
+      p.registros.forEach((r, i) => {
+        const fila = el('div', { class: `registro papelera-fila cristal ${claseK(r.clase)}` },
+          el('div', { class: 'cuerpo' }, el('h3', {}, el('a', { href: '#/registro/' + r.id, text: r.titulo })), el('div', { class: 'chips' }, chipClase(r.clase), el('span', { class: 'meta', text: 'Eliminado ' + momento(r.eliminadoEl) }))),
+          boton('Restaurar', 'deshacer', { class: 'pequeno', onclick: async () => { try { const r2 = await post(`/api/registros/${r.id}/restaurar`, {}); avisar(r2.mensaje, 'ok'); fila.classList.add('sale'); setTimeout(() => fila.remove(), reducido ? 0 : 340); } catch (e) { manejar(e); } } }));
+        lista.append(entra(fila, i));
+      });
+    } catch (e) { manejar(e); }
+  }
+
   // ------------------------------------------------------------ vista: ficha
   async function vistaRegistro(id) {
     if (!ID_REG.test(id || '')) { cont.append(estadoVacio('Registro no válido.')); return; }
@@ -335,6 +396,7 @@
     const k = claseK(f.clase);
     const accion = async (ruta, cuerpo) => { try { const r = await post(ruta, cuerpo); avisar(r.mensaje, 'ok'); await recargar(); } catch (e) { manejar(e); } };
 
+    const activo = f.estado === 'activo';
     const filas = f.datos.map((d) => {
       const acc = el('div', { class: 'acc' });
       const fila = el('div', { class: 'dato' },
@@ -343,6 +405,7 @@
       const pintarAcciones = () => {
         vaciar(acc);
         if (!d.desconocido) acc.append(chipCerteza(d.certeza));
+        if (!activo) return;
         acc.append(boton('', 'editar', { class: 'fantasma pequeno icono-solo', 'aria-label': 'Corregir ' + (CAMPOS[d.campo] || d.campo), title: 'Corregir', onclick: abrir }));
         if (!d.desconocido && (d.certeza === 'interpretado' || d.certeza === 'hipotesis') && d.campo !== 'entidades') {
           acc.append(boton('', 'rechazar', { class: 'fantasma pequeno icono-solo peligro', 'aria-label': 'Rechazar ' + (CAMPOS[d.campo] || d.campo), title: 'Rechazar interpretación', onclick: () => accion(`/api/registros/${f.id}/rechazar`, { campo: d.campo }) }));
@@ -359,6 +422,25 @@
       return fila;
     });
 
+    const separador = (s) => {
+      const titulo = el('input', { type: 'text', placeholder: 'Título del nuevo registro (opcional)', maxlength: 200, 'aria-label': 'Título del nuevo registro' });
+      return el('div', { class: 'fila separar-fila' }, titulo,
+        conConfirmacion('Separar en otro registro', 'separar', 'fantasma pequeno', 'Se creará un registro nuevo con esta nota.',
+          () => accion(`/api/registros/${f.id}/separar`, { captura: s.captura, titulo: titulo.value })));
+    };
+    const fusionHueco = el('div', {});
+    const barraDeAcciones = activo
+      ? el('div', { class: 'acciones-ficha' },
+        boton('Deshacer último cambio', 'deshacer', { class: 'pequeno', onclick: () => accion(`/api/registros/${f.id}/deshacer`, {}) }),
+        boton('Fusionar con otro…', 'fusionar', { class: 'pequeno', onclick: () => { if (fusionHueco.firstChild) vaciar(fusionHueco); else fusionHueco.append(selectorDeFusion(f, recargar)); } }),
+        conConfirmacion('Eliminar', 'papelera', 'pequeno peligro', 'Irá a la papelera; podrás restaurarlo.', () => accion(`/api/registros/${f.id}/eliminar`, {})),
+        fusionHueco)
+      : null;
+    const banner = f.estado === 'eliminado'
+      ? el('div', { class: 'banner cristal' }, ic('papelera'), el('span', { text: `Este registro está en la papelera desde ${momento(f.eliminadoEl)}.` }), boton('Restaurar', 'deshacer', { class: 'pequeno principal', onclick: () => accion(`/api/registros/${f.id}/restaurar`, {}) }))
+      : f.estado === 'fusionado'
+        ? el('div', { class: 'banner cristal' }, ic('fusionar'), el('span', {}, 'Este registro se fusionó en '), el('a', { href: '#/registro/' + (f.fusionadoEn && f.fusionadoEn.id), text: (f.fusionadoEn && f.fusionadoEn.titulo) || 'otro registro' }), el('span', { text: '.' }))
+        : null;
     const bloqueNota = (c) => el('details', { class: 'nota-original' }, el('summary', {}, ic('nota'), `Nota original · ${momento(c.comunicadaEl)} · ${c.origen}`), el('pre', { text: c.texto }));
     const link = (id2, titulo, extra) => el('a', { class: 'chip c-neutro', href: '#/registro/' + id2 }, ic('enlace'), titulo || id2, extra || null);
     const origen = (o) => (o === 'usuario' ? 'personas' : 'spark');
@@ -370,12 +452,15 @@
         el('div', {}, el('h2', { text: f.titulo }),
           el('div', { class: 'chips' }, chipClase(f.clase), f.conflictos.some((c) => c.estado === 'abierto') ? el('span', { class: 'chip c-conflicto' }, ic('conflicto'), 'Conflicto abierto') : null,
             el('span', { class: 'meta', text: 'Comunicada ' + momento(f.comunicadaEl) }), el('span', { class: 'id-mono', text: f.id })))),
+      banner,
+      barraDeAcciones,
       f.descripcion ? el('p', { class: 'descripcion', text: f.descripcion }) : null,
       el('div', { class: 'seccion' }, 'Datos'), el('div', { class: 'datos cristal' }, filas),
       f.conflictos.length ? [el('div', { class: 'seccion' }, 'Conflictos'), el('div', { class: 'enlaces' }, f.conflictos.map((c) => link(c.con, c.titulo, el('span', { class: 'meta', text: `· ${CAMPOS[c.campo] || c.campo} · ${c.estado}` }))))] : null,
       f.relaciones.length ? [el('div', { class: 'seccion' }, 'Relaciones'), el('div', { class: 'enlaces' }, f.relaciones.map((r) => link(r.destino, r.titulo, el('span', { class: 'meta', text: `· ${r.tipo}` }))))] : null,
       el('div', { class: 'seccion' }, 'De dónde sale'),
-      f.fuentes.map((s) => el('div', { class: 'cita cristal' }, el('span', { class: 'meta', text: `${s.rol} · ${s.captura}` }), s.cita ? el('blockquote', { text: s.cita }) : null)),
+      f.fuentes.map((s) => el('div', { class: 'cita cristal' }, el('span', { class: 'meta', text: `${s.rol} · ${s.captura}` }), s.cita ? el('blockquote', { text: s.cita }) : null,
+        activo && s.rol === 'ampliacion' ? separador(s) : null)),
       f.capturas.map(bloqueNota),
       f.rechazos.length ? [el('div', { class: 'seccion' }, 'Interpretaciones rechazadas'), f.rechazos.map((r) => el('p', { class: 'meta' }, `${CAMPOS[r.campo] || r.campo}: `, el('span', { class: 'anterior', text: r.valor }), ` (era ${r.certeza_original})`))] : null,
       f.historial.length ? [el('div', { class: 'seccion' }, 'Historial'), el('ul', { class: 'historial' }, f.historial.map((h) => el('li', {}, el('span', { class: 'punto' }, ic(origen(h.origen))),
@@ -398,6 +483,7 @@
     moverIndicador(vistaActual); actualizarContador();
     if (vista === 'buscar') await vistaBuscar(resto || '');
     else if (vista === 'pendientes') await vistaPendientes();
+    else if (vista === 'papelera') await vistaPapelera();
     else if (vista === 'registro') await vistaRegistro(resto);
     else await vistaDia(vista === 'dia' ? resto : null);
     window.scrollTo({ top: 0 });

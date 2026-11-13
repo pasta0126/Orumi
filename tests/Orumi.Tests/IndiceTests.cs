@@ -81,6 +81,24 @@ public class IndiceTests : IDisposable
         Assert.Throws<ArgumentException>(() => Orumi.Indice.Conexion.DesdeUrl("no es una url"));
     }
 
+    // ---------------------------------------------------------------- registros eliminados y fusionados
+
+    [PostgresFact]
+    public async Task Los_registros_eliminados_y_fusionados_no_aparecen_en_las_consultas()
+    {
+        await Reindexar();
+        var antes = (await Consultas().PorClase("actividad")).Count;
+        var ejemplo = (await Consultas().PorClase("actividad")).First();
+
+        new Orumi.Core.Correcciones.Operaciones(_copia, () => DateTimeOffset.Now).Eliminar(ejemplo.Id);
+        await Reindexar(forzar: true);
+
+        var despues = await Consultas().PorClase("actividad");
+        Assert.Equal(antes - 1, despues.Count);
+        Assert.DoesNotContain(despues, f => f.Id == ejemplo.Id);
+        Assert.DoesNotContain(await Consultas().PorFecha(new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31)), f => f.Id == ejemplo.Id);
+    }
+
     // ---------------------------------------------------------------- 3.2 regenerar
 
     [PostgresFact]

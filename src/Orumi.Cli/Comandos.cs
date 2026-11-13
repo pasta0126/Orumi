@@ -35,7 +35,7 @@ public sealed class Comandos(
                 return Consultar(args.Skip(1).ToArray());
             }
 
-            if (args[0] is "responder" or "corregir" or "rechazar")
+            if (args[0] is "responder" or "corregir" or "rechazar" or "deshacer" or "eliminar" or "restaurar" or "fusionar" or "separar")
             {
                 return Modificar(args);
             }
@@ -337,6 +337,11 @@ public sealed class Comandos(
             return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | relacion ID | pendientes | sin-procesar | conflictos");
         }
 
+        if (args[0] == "papelera")
+        {
+            return PapeleraDeRegistros(Opciones.Analizar(args.Skip(1).ToArray()));
+        }
+
         if (args[0] == "pendientes")
         {
             return PendientesConContexto(Opciones.Analizar(args.Skip(1).ToArray()));
@@ -474,9 +479,26 @@ public sealed class Comandos(
             case "rechazar" when posicionales.Count == 2:
                 accion = op => op.Rechazar(posicionales[0], posicionales[1]);
                 break;
+            case "deshacer" when posicionales.Count is 1 or 2:
+                accion = op => op.Deshacer(posicionales[0], posicionales.Count == 2 ? posicionales[1] : null);
+                break;
+            case "eliminar" when posicionales.Count == 1:
+                accion = op => op.Eliminar(posicionales[0]);
+                break;
+            case "restaurar" when posicionales.Count == 1:
+                accion = op => op.Restaurar(posicionales[0]);
+                break;
+            case "fusionar" when posicionales.Count == 2:
+                accion = op => op.Fusionar(posicionales[0], posicionales[1]);
+                break;
+            case "separar" when posicionales.Count == 2:
+                accion = op => op.Separar(posicionales[0], posicionales[1], o.Valor("titulo"));
+                break;
             default:
                 return Uso("Uso: orumi responder PREGUNTA VALOR [--registro ID] | responder PREGUNTA --no-recuerdo | --no-relevante\n"
-                           + "     orumi corregir REGISTRO CAMPO VALOR\n     orumi rechazar REGISTRO CAMPO");
+                           + "     orumi corregir REGISTRO CAMPO VALOR\n     orumi rechazar REGISTRO CAMPO\n"
+                           + "     orumi deshacer REGISTRO [CAMPO]\n     orumi eliminar REGISTRO | restaurar REGISTRO\n"
+                           + "     orumi fusionar DESTINO ORIGEN\n     orumi separar REGISTRO CAPTURA [--titulo TEXTO]");
         }
 
         using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
@@ -498,6 +520,21 @@ public sealed class Comandos(
             error.WriteLine($"No se ha modificado nada: {e.Message}");
             return 2;
         }
+    }
+
+    /// <summary>Registros eliminados (a la papelera): se restauran con «orumi restaurar».</summary>
+    private int PapeleraDeRegistros(Opciones o)
+    {
+        var eliminados = Almacen.Cargar(DirectorioDatos(o)).DeTipo("registro")
+            .Where(r => r.Frontmatter.GetValueOrDefault("estado") as string == "eliminado")
+            .OrderByDescending(r => r.Frontmatter.GetValueOrDefault("eliminado_el") as string, StringComparer.Ordinal).ToList();
+        foreach (var r in eliminados)
+        {
+            salida.WriteLine($"{r.Id}  eliminado el {r.Frontmatter.GetValueOrDefault("eliminado_el")}  «{r.Frontmatter.GetValueOrDefault("titulo")}»");
+        }
+
+        salida.WriteLine(eliminados.Count == 0 ? "La papelera está vacía." : $"{eliminados.Count} registro(s) en la papelera.");
+        return 0;
     }
 
     /// <summary>Preguntas pendientes con el contexto necesario para contestar, leídas de los ficheros (sin depender del índice).</summary>
@@ -643,7 +680,9 @@ public sealed class Comandos(
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante
-          orumi corregir  REGISTRO CAMPO VALOR     orumi rechazar REGISTRO CAMPO
+          orumi corregir  REGISTRO CAMPO VALOR     orumi rechazar REGISTRO CAMPO     orumi deshacer REGISTRO [CAMPO]
+          orumi eliminar REGISTRO   orumi restaurar REGISTRO   orumi fusionar DESTINO ORIGEN   orumi separar REGISTRO CAPTURA [--titulo T]
+          orumi consultar papelera
           orumi estado    [--config FICHERO] [--datos RUTA]   (pendientes, último lote, gasto estimado y avisos)
           orumi preparar-volumen [--datos RUTA]   (una vez, con el volumen cifrado ya montado)
           orumi procesar  [--config FICHERO] [--datos RUTA] [--ejecucion lote|peticion] [--reprocesar CAPTURA]
@@ -659,7 +698,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo"];
 
     private readonly Dictionary<string, string> _valores = [];
 

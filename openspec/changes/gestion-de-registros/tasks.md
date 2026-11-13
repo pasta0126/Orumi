@@ -20,16 +20,16 @@
 
 ## 4. Índice y consultas
 
-- [ ] 4.1 Columna `estado` y filtros en las consultas; pruebas con PostgreSQL en el servidor
+- [x] 4.1 Columna `estado` y filtros en las consultas; pruebas con PostgreSQL en el servidor
 
 ## 5. Interfaces
 
-- [ ] 5.1 Comandos `deshacer`, `eliminar`, `restaurar`, `fusionar` y `separar` con bloqueo frente a Mira
-- [ ] 5.2 API del panel: operaciones, papelera y ficha de registro eliminado; filtros de lectura
-- [ ] 5.3 Página: acciones en la ficha, selector para fusionar, vista Papelera
-- [ ] 5.4 Pruebas de comandos, API y reglas de interfaz
+- [x] 5.1 Comandos `deshacer`, `eliminar`, `restaurar`, `fusionar` y `separar` con bloqueo frente a Mira
+- [x] 5.2 API del panel: operaciones, papelera y ficha de registro eliminado; filtros de lectura
+- [x] 5.3 Página: acciones en la ficha, selector para fusionar, vista Papelera
+- [x] 5.4 Pruebas de comandos, API y reglas de interfaz
 
 ## 6. Documentación y despliegue
 
-- [ ] 6.1 Documentar (`formato-de-ficheros`, `agente-mira`, guía, X58) y actualizar `infra`
+- [x] 6.1 Documentar (`formato-de-ficheros`, `agente-mira`, guía, X58) y actualizar `infra`
 - [ ] 6.2 Reconstruir imágenes, desplegar y probar con datos ficticios (incluido reprocesado con Mira real)

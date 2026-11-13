@@ -20,7 +20,8 @@ public static class PreguntasConContexto
             : new RegistroImplicado(id, null, "?");
 
         return almacen.DeTipo("pregunta")
-            .Where(p => p.Id is not null && p.Frontmatter.GetValueOrDefault("estado") as string == "pendiente")
+            .Where(p => p.Id is not null && p.Frontmatter.GetValueOrDefault("estado") as string == "pendiente"
+                        && !(registros.TryGetValue(p.Frontmatter.GetValueOrDefault("registro") as string ?? string.Empty, out var rp) && rp.Frontmatter.ContainsKey("estado")))
             .OrderBy(p => OrdenDeValor.GetValueOrDefault(p.Frontmatter.GetValueOrDefault("valor") as string ?? string.Empty, 3))
             .ThenBy(p => p.Frontmatter.GetValueOrDefault("creada_el") as string, StringComparer.Ordinal)
             .Select(p =>

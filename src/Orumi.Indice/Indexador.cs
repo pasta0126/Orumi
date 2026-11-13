@@ -174,7 +174,7 @@ public static class Indexador
             ("hora_expresion", Txt(hora, "expresion")), ("hora_valor", Hora(Txt(hora, "valor"))), ("hora_aproximada", hora is null ? null : Txt(hora, "aproximada") == "true"),
             ("duracion_expresion", Txt(duracion, "expresion")), ("duracion_minutos", Entero(Txt(duracion, "minutos"))),
             ("multidia_estado", Txt(multidia, "estado")), ("multidia_fin_desde", Fecha(Txt(fin, "desde"))), ("multidia_fin_hasta", Fecha(Txt(fin, "hasta"))),
-            ("clave_extraccion", Txt(fm, "clave_extraccion")), ("version_agente", Txt(gen, "version")), ("modelo", Txt(gen, "modelo")),
+            ("clave_extraccion", Txt(fm, "clave_extraccion")), ("estado", Txt(fm, "estado") ?? "activo"), ("version_agente", Txt(gen, "version")), ("modelo", Txt(gen, "modelo")),
             ("generado_el", Instante(Txt(proc, "generado_el"))), ("actualizado_el", Instante(Txt(proc, "actualizado_el"))));
 
         var certeza = Mapa(fm, "certeza");

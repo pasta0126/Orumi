@@ -113,6 +113,7 @@ app.MapGet("/api/registros", (HttpContext c) => Seguro(() =>
 app.MapGet("/api/registros/{id}", (string id) => Seguro(() => lectura.Ficha(id)));
 app.MapGet("/api/capturas/{id}", (string id) => Seguro(() => lectura.Captura(id)));
 app.MapGet("/api/preguntas", () => Seguro(() => lectura.PreguntasPendientes()));
+app.MapGet("/api/papelera", () => Seguro(() => lectura.Papelera()));
 
 app.MapPost("/api/preguntas/{id}/responder", (HttpContext c, string id, RespuestaAPregunta cuerpo) =>
 {
@@ -179,6 +180,62 @@ app.MapPost("/api/registros/{id}/rechazar", (HttpContext c, string id, Rechazo c
     return Respuesta(escritura.Ejecutar("rechazar", id, Correo(c), op => op.Rechazar(id, cuerpo.Campo ?? string.Empty)));
 });
 
+app.MapPost("/api/registros/{id}/deshacer", (HttpContext c, string id, Deshaciendo cuerpo) =>
+{
+    if (IdInvalido(id, Identificadores.Registro) is { } mal)
+    {
+        return mal;
+    }
+
+    if (Largo(cuerpo.Campo) is { } largo)
+    {
+        return largo;
+    }
+
+    return Respuesta(escritura.Ejecutar("deshacer", id, Correo(c), op => op.Deshacer(id, string.IsNullOrEmpty(cuerpo.Campo) ? null : cuerpo.Campo)));
+});
+
+app.MapPost("/api/registros/{id}/eliminar", (HttpContext c, string id, Vacio _) =>
+    IdInvalido(id, Identificadores.Registro) ?? Respuesta(escritura.Ejecutar("eliminar", id, Correo(c), op => op.Eliminar(id))));
+
+app.MapPost("/api/registros/{id}/restaurar", (HttpContext c, string id, Vacio _) =>
+    IdInvalido(id, Identificadores.Registro) ?? Respuesta(escritura.Ejecutar("restaurar", id, Correo(c), op => op.Restaurar(id))));
+
+app.MapPost("/api/registros/{id}/fusionar", (HttpContext c, string id, Fusionando cuerpo) =>
+{
+    if (IdInvalido(id, Identificadores.Registro) is { } mal)
+    {
+        return mal;
+    }
+
+    if (cuerpo.Origen is null || IdInvalido(cuerpo.Origen, Identificadores.Registro) is { } malOrigen)
+    {
+        return Results.Json(new { error = "Indica el registro que se fusiona en este." }, statusCode: 400);
+    }
+
+    return Respuesta(escritura.Ejecutar("fusionar", id, Correo(c), op => op.Fusionar(id, cuerpo.Origen)));
+});
+
+app.MapPost("/api/registros/{id}/separar", (HttpContext c, string id, Separando cuerpo) =>
+{
+    if (IdInvalido(id, Identificadores.Registro) is { } mal)
+    {
+        return mal;
+    }
+
+    if (cuerpo.Captura is null || IdInvalido(cuerpo.Captura, Identificadores.Captura) is { } malCaptura)
+    {
+        return Results.Json(new { error = "Indica la captura que se separa." }, statusCode: 400);
+    }
+
+    if (Largo(cuerpo.Titulo) is { } largo)
+    {
+        return largo;
+    }
+
+    return Respuesta(escritura.Ejecutar("separar", id, Correo(c), op => op.Separar(id, cuerpo.Captura, string.IsNullOrWhiteSpace(cuerpo.Titulo) ? null : cuerpo.Titulo)));
+});
+
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.Run("http://0.0.0.0:8080");
@@ -191,3 +248,11 @@ internal sealed record CierreDePregunta(string? Estado);
 internal sealed record Correccion(string? Campo, string? Valor);
 
 internal sealed record Rechazo(string? Campo);
+
+internal sealed record Deshaciendo(string? Campo);
+
+internal sealed record Vacio;
+
+internal sealed record Fusionando(string? Origen);
+
+internal sealed record Separando(string? Captura, string? Titulo);

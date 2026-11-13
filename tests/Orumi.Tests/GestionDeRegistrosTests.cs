@@ -381,3 +381,56 @@ public class GestionDeRegistrosTests
         Assert.Equal(antes, Instantanea(e));
     }
 }
+
+public class GestionPorLineaDeComandosTests
+{
+    private static (int Codigo, string Salida, string Error) Cli(EntornoMira e, params string[] args)
+    {
+        var s = new StringWriter();
+        var er = new StringWriter();
+        var codigo = new Orumi.Cli.Comandos(() => new MemoryStream(), s, er, () => e.Ahora, _ => null).Ejecutar([.. args, "--datos", e.Datos]);
+        return (codigo, s.ToString(), er.ToString());
+    }
+
+    private static async Task<(string R1, string R2)> Preparar(EntornoMira e)
+    {
+        e.Capturar("Hoy llamé a Marta.", e.Ahora);
+        e.Capturar("Hoy comí con Pau.", e.Ahora.AddMinutes(1));
+        e.Respuesta = s => Datos.Resp([Datos.Registro(s.Texto, "actividad", s.Texto.Contains("Marta") ? "Llamada con Marta" : "Comida con Pau", campos: new() { ["personas"] = new List<object?> { s.Texto.Contains("Marta") ? "Marta" : "Pau" } }, certeza: new() { ["personas"] = "dicho" })]);
+        await e.Procesar();
+        return (e.Registros().Single(r => (string)r.Frontmatter["titulo"]! == "Llamada con Marta").Id!, e.Registros().Single(r => (string)r.Frontmatter["titulo"]! == "Comida con Pau").Id!);
+    }
+
+    [Fact]
+    public async Task Los_comandos_eliminan_restauran_deshacen_y_fusionan()
+    {
+        using var e = new EntornoMira();
+        var (r1, r2) = await Preparar(e);
+
+        Assert.Equal(0, Cli(e, "corregir", r1, "personas", "Marta,", "Pau").Codigo);
+        Assert.Equal(0, Cli(e, "deshacer", r1, "personas").Codigo);
+        Assert.Equal(["Marta"], ((List<object?>)e.Doc(r1).Frontmatter["personas"]!).Cast<string>());
+
+        Assert.Equal(0, Cli(e, "eliminar", r2).Codigo);
+        var (c, salida, _) = Cli(e, "consultar", "papelera");
+        Assert.Equal(0, c);
+        Assert.Contains(r2, salida);
+        Assert.Equal(0, Cli(e, "restaurar", r2).Codigo);
+        Assert.Contains("vacía", Cli(e, "consultar", "papelera").Salida);
+
+        Assert.Equal(0, Cli(e, "fusionar", r1, r2).Codigo);
+        Assert.Equal("fusionado", e.Doc(r2).Frontmatter["estado"]);
+        Assert.Empty(e.Validar().Where(i => !i.Mensaje.Contains("sin lote")));
+    }
+
+    [Fact]
+    public async Task Un_error_de_gestion_termina_con_el_codigo_2_y_sin_modificar_nada()
+    {
+        using var e = new EntornoMira();
+        var (r1, _) = await Preparar(e);
+        var (codigo, _, error) = Cli(e, "fusionar", r1, r1);
+        Assert.Equal(2, codigo);
+        Assert.Contains("No se ha modificado nada", error);
+        Assert.Equal(2, Cli(e, "eliminar").Codigo); // faltan argumentos
+    }
+}

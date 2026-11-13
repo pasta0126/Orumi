@@ -42,7 +42,8 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
         {
             capturas = capturas.Count,
             pendientesDeProcesar = capturas.Count(c => !procesadas.Contains(c.Id)),
-            registros = a.DeTipo("registro").Count(),
+            registros = a.DeTipo("registro").Count(EsActivo),
+            enPapelera = a.DeTipo("registro").Count(r => r.Frontmatter.GetValueOrDefault("estado") as string == "eliminado"),
             preguntasPendientes = a.DeTipo("pregunta").Count(p => p.Frontmatter.GetValueOrDefault("estado") as string == "pendiente"),
             ultimoLote = a.DeTipo("lote").Select(l => l.Id).OrderBy(i => i, StringComparer.Ordinal).LastOrDefault(),
         };
@@ -61,7 +62,7 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
 
         var cuenta = new SortedDictionary<string, int>(StringComparer.Ordinal);
         var sinFecha = 0;
-        foreach (var r in repositorio.Actual().DeTipo("registro"))
+        foreach (var r in repositorio.Actual().DeTipo("registro").Where(EsActivo))
         {
             var (rd, rh) = Rango(r);
             if (rd is null)
@@ -96,7 +97,7 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
         var entidad = f.Entidad is { Length: > 0 } ? Normalizacion.SinAcentos(f.Entidad.Trim().ToLowerInvariant()) : null;
         var proyecto = f.Proyecto is { Length: > 0 } ? Normalizacion.SinAcentos(f.Proyecto.Trim().ToLowerInvariant()) : null;
 
-        var filtrados = repositorio.Actual().DeTipo("registro").Where(r => r.Id is not null).Where(r =>
+        var filtrados = repositorio.Actual().DeTipo("registro").Where(r => r.Id is not null && EsActivo(r)).Where(r =>
         {
             var (rd, rh) = Rango(r);
             if ((desde is not null || hasta is not null) && (rd is null || (desde is not null && rh < desde) || (hasta is not null && rd > hasta)))
@@ -176,7 +177,9 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
         }
 
         var titulos = almacen.DeTipo("registro").Where(x => x.Id is not null).ToDictionary(x => x.Id!, x => x.Frontmatter.GetValueOrDefault("titulo") as string);
-        var relaciones = Lista(fm, "relaciones").OfType<Dictionary<string, object?>>().Select(x =>
+        var activos = almacen.DeTipo("registro").Where(x => x.Id is not null && EsActivo(x)).Select(x => x.Id!).ToHashSet();
+        var fusionadoEn = fm.GetValueOrDefault("fusionado_en") as string;
+        var relaciones = Lista(fm, "relaciones").OfType<Dictionary<string, object?>>().Where(x => activos.Contains(x.GetValueOrDefault("destino") as string ?? string.Empty)).Select(x =>
             new { tipo = x.GetValueOrDefault("tipo"), destino = x.GetValueOrDefault("destino"), titulo = titulos.GetValueOrDefault(x.GetValueOrDefault("destino") as string ?? string.Empty), certeza = x.GetValueOrDefault("certeza") }).ToList();
         var conflictos = Lista(fm, "conflictos").OfType<Dictionary<string, object?>>().Select(x =>
             new { campo = x.GetValueOrDefault("campo"), con = x.GetValueOrDefault("con"), titulo = titulos.GetValueOrDefault(x.GetValueOrDefault("con") as string ?? string.Empty), pregunta = x.GetValueOrDefault("pregunta"), estado = x.GetValueOrDefault("estado") }).ToList();
@@ -187,6 +190,10 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
             clase = fm.GetValueOrDefault("clase"),
             titulo = fm.GetValueOrDefault("titulo"),
             comunicadaEl = fm.GetValueOrDefault("comunicada_el"),
+            estado = fm.GetValueOrDefault("estado") as string ?? "activo",
+            eliminadoEl = fm.GetValueOrDefault("eliminado_el"),
+            fusionadoEn = fusionadoEn is null ? null : new { id = fusionadoEn, titulo = titulos.GetValueOrDefault(fusionadoEn) },
+            separados = Lista(fm, "separados"),
             descripcion = r.Cuerpo.Split("\n## ", 2)[0].Trim(),
             datos,
             multidia = fm.GetValueOrDefault("multidia"),
@@ -272,6 +279,17 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
             ? d
             : throw new SolicitudInvalidaException($"«{nombre}» debe tener la forma AAAA-MM-DD.");
     }
+
+    /// <summary>Activo = sin estado. Los eliminados y fusionados («tumbas») no salen en días, búsquedas ni recuentos.</summary>
+    private static bool EsActivo(Documento r) => !r.Frontmatter.ContainsKey("estado");
+
+    /// <summary>Registros eliminados, para poder restaurarlos.</summary>
+    public object Papelera() => new
+    {
+        registros = repositorio.Actual().DeTipo("registro").Where(r => r.Frontmatter.GetValueOrDefault("estado") as string == "eliminado")
+            .OrderByDescending(r => r.Frontmatter.GetValueOrDefault("eliminado_el") as string, StringComparer.Ordinal)
+            .Select(r => new { id = r.Id, titulo = r.Frontmatter.GetValueOrDefault("titulo"), clase = r.Frontmatter.GetValueOrDefault("clase"), eliminadoEl = r.Frontmatter.GetValueOrDefault("eliminado_el") }).ToList(),
+    };
 
     private static (DateOnly? Desde, DateOnly? Hasta) Rango(Documento r)
     {

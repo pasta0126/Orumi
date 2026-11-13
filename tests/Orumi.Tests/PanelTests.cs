@@ -256,6 +256,61 @@ public class PanelTests
         Assert.NotSame(primero, repo.Actual());
     }
 
+    // ---------------------------------------------------------------- registros eliminados y fusionados
+
+    [Fact]
+    public async Task Los_eliminados_no_salen_en_dias_busquedas_ni_recuentos_pero_si_en_la_papelera()
+    {
+        using var e = new EntornoMira();
+        var (r1, _, _) = await Preparar(e);
+        new Orumi.Core.Correcciones.Operaciones(e.Datos, () => e.Ahora).Eliminar(r1);
+        var (l, _) = Leer(e);
+
+        Assert.DoesNotContain(l.Registros(new FiltroDeRegistros()).Registros, x => x.Id == r1);
+        Assert.Equal(1, l.Registros(new FiltroDeRegistros()).Total);
+        Assert.DoesNotContain("2026-11-16", Json(l.Dias("2026-11-01", "2026-11-30")));
+        var estado = Json(l.Estado());
+        Assert.Contains("\"registros\":1", estado);
+        Assert.Contains("\"enPapelera\":1", estado);
+        Assert.Contains(r1, Json(l.Papelera()));
+        Assert.Empty(l.PreguntasPendientes()); // sus preguntas se cerraron
+
+        var ficha = Json(l.Ficha(r1));
+        Assert.Contains("\"estado\":\"eliminado\"", ficha);
+        Assert.Contains("\"eliminadoEl\":", ficha);
+    }
+
+    [Fact]
+    public async Task Un_registro_fusionado_indica_donde_esta_y_no_sale_en_las_vistas()
+    {
+        using var e = new EntornoMira();
+        var (r1, r2, _) = await Preparar(e);
+        new Orumi.Core.Correcciones.Operaciones(e.Datos, () => e.Ahora).Fusionar(r1, r2);
+        var (l, _) = Leer(e);
+
+        var ficha = Json(l.Ficha(r2));
+        Assert.Contains("\"estado\":\"fusionado\"", ficha);
+        Assert.Contains($"\"fusionadoEn\":{{\"id\":\"{r1}\"", ficha);
+        Assert.DoesNotContain(l.Registros(new FiltroDeRegistros()).Registros, x => x.Id == r2);
+        Assert.DoesNotContain(r2, Json(l.Papelera())); // fusionado no es papelera
+    }
+
+    [Fact]
+    public async Task Eliminar_y_restaurar_desde_el_panel_pasan_por_el_bloqueo_y_la_auditoria()
+    {
+        using var e = new EntornoMira();
+        var (r1, _, _) = await Preparar(e);
+        var auditoria = new List<string>();
+        var w = Escritor(e, auditoria);
+
+        Assert.Equal(200, w.Ejecutar("eliminar", r1, "yo@ejemplo.com", op => op.Eliminar(r1)).Estado);
+        Assert.Equal(400, w.Ejecutar("eliminar", r1, null, op => op.Eliminar(r1)).Estado); // ya eliminado
+        Assert.Equal(200, w.Ejecutar("restaurar", r1, null, op => op.Restaurar(r1)).Estado);
+        Assert.Equal(3, auditoria.Count);
+        Assert.Contains("operacion=eliminar", auditoria[0]);
+        Assert.DoesNotContain("yo@ejemplo.com", auditoria[0]);
+    }
+
     // ---------------------------------------------------------------- escritura
 
     private static EscrituraDelPanel Escritor(EntornoMira e, List<string> auditoria) =>
@@ -350,9 +405,10 @@ public class PanelTests
         var rutas = Regex.Matches(codigo, @"app\.Map(Get|Post)\(""(/api[^""]*)""").Select(m => (m.Groups[1].Value, m.Groups[2].Value)).ToList();
         Assert.NotEmpty(rutas);
         Assert.DoesNotContain(rutas, r => r.Item1 == "Post" && r.Item2.Contains("capturas"));
-        // toda escritura es una de las cuatro operaciones conocidas
+        // toda escritura es una de las operaciones conocidas (ninguna sobre capturas)
         Assert.Equal(
-            ["/api/preguntas/{id}/cerrar", "/api/preguntas/{id}/responder", "/api/registros/{id}/corregir", "/api/registros/{id}/rechazar"],
+            ["/api/preguntas/{id}/cerrar", "/api/preguntas/{id}/responder", "/api/registros/{id}/corregir", "/api/registros/{id}/deshacer", "/api/registros/{id}/eliminar",
+                "/api/registros/{id}/fusionar", "/api/registros/{id}/rechazar", "/api/registros/{id}/restaurar", "/api/registros/{id}/separar"],
             rutas.Where(r => r.Item1 == "Post").Select(r => r.Item2).Order().ToArray());
     }
 }

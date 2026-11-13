@@ -40,37 +40,37 @@ public sealed class Consultas(string conexion, string esquema = Esquema.Vivo)
 
     /// <summary>Registros cuyo rango de fechas se solapa con [desde, hasta].</summary>
     public Task<List<FilaRegistro>> PorFecha(DateOnly desde, DateOnly hasta, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.fecha_desde <= @h AND r.fecha_hasta >= @d ORDER BY r.fecha_desde, r.id",
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND r.fecha_desde <= @h AND r.fecha_hasta >= @d ORDER BY r.fecha_desde, r.id",
             p => { p.AddWithValue("d", desde); p.AddWithValue("h", hasta); }, ct);
 
     /// <summary>Registros de un día con hora dentro de la franja. Los que no tienen hora concreta no aparecen.</summary>
     public Task<List<FilaRegistro>> PorHora(DateOnly dia, TimeOnly desde, TimeOnly hasta, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.fecha_desde <= @dia AND r.fecha_hasta >= @dia AND r.hora_valor BETWEEN @d AND @h ORDER BY r.hora_valor, r.id",
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND r.fecha_desde <= @dia AND r.fecha_hasta >= @dia AND r.hora_valor BETWEEN @d AND @h ORDER BY r.hora_valor, r.id",
             p => { p.AddWithValue("dia", dia); p.AddWithValue("d", desde); p.AddWithValue("h", hasta); }, ct);
 
     public Task<List<FilaRegistro>> PorClase(string clase, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.clase = @c ORDER BY r.fecha_desde, r.id", p => p.AddWithValue("c", clase), ct);
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND r.clase = @c ORDER BY r.fecha_desde, r.id", p => p.AddWithValue("c", clase), ct);
 
     /// <summary>Registros con algún dato de esa certeza (opcionalmente de un campo concreto).</summary>
     public Task<List<FilaRegistro>> PorCerteza(string certeza, string? campo = null, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.id IN (SELECT registro_id FROM {_s}.registro_certeza WHERE certeza = @z AND (@c::text IS NULL OR campo = @c)) " +
-                  $"OR r.id IN (SELECT registro_id FROM {_s}.registro_entidad WHERE certeza = @z AND (@c::text IS NULL OR @c = 'entidades')) ORDER BY r.fecha_desde, r.id",
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND (r.id IN (SELECT registro_id FROM {_s}.registro_certeza WHERE certeza = @z AND (@c::text IS NULL OR campo = @c)) " +
+                  $"OR r.id IN (SELECT registro_id FROM {_s}.registro_entidad WHERE certeza = @z AND (@c::text IS NULL OR @c = 'entidades'))) ORDER BY r.fecha_desde, r.id",
             p => { p.AddWithValue("z", certeza); p.AddWithValue("c", (object?)campo ?? DBNull.Value); }, ct);
 
     /// <summary>Registros relacionados con uno dado, en cualquier sentido, y los que están en conflicto con él.</summary>
     public Task<List<FilaRegistro>> PorRelacion(string registroId, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.id IN (" +
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND r.id IN (" +
                   $"SELECT destino_id FROM {_s}.relacion WHERE origen_id = @id UNION SELECT origen_id FROM {_s}.relacion WHERE destino_id = @id " +
                   $"UNION SELECT con_registro_id FROM {_s}.conflicto WHERE registro_id = @id) ORDER BY r.fecha_desde, r.id",
             p => p.AddWithValue("id", registroId), ct);
 
     public Task<List<FilaRegistro>> PorProyecto(string proyecto, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.id IN (SELECT registro_id FROM {_s}.registro_dato WHERE campo = 'proyectos' AND valor_normalizado = @p) ORDER BY r.fecha_desde, r.id",
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND r.id IN (SELECT registro_id FROM {_s}.registro_dato WHERE campo = 'proyectos' AND valor_normalizado = @p) ORDER BY r.fecha_desde, r.id",
             p => p.AddWithValue("p", Normalizacion.SinAcentos(proyecto)), ct);
 
     /// <summary>Registros que mencionan una entidad, escrita con o sin acentos ni mayúsculas.</summary>
     public Task<List<FilaRegistro>> PorEntidad(string entidad, CancellationToken ct = default) =>
-        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.id IN (SELECT registro_id FROM {_s}.registro_entidad WHERE nombre_normalizado = @n) ORDER BY r.fecha_desde, r.id",
+        Registros($"SELECT {Columnas} FROM {_s}.registro r WHERE r.estado = 'activo' AND r.id IN (SELECT registro_id FROM {_s}.registro_entidad WHERE nombre_normalizado = @n) ORDER BY r.fecha_desde, r.id",
             p => p.AddWithValue("n", Normalizacion.SinAcentos(entidad)), ct);
 
     /// <summary>Preguntas pendientes, de más a menos valor.</summary>

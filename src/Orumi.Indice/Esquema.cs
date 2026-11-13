@@ -31,7 +31,8 @@ public static partial class Esquema
               hora_expresion text, hora_valor time, hora_aproximada boolean,
               duracion_expresion text, duracion_minutos integer,
               multidia_estado text, multidia_fin_desde date, multidia_fin_hasta date,
-              clave_extraccion text, version_agente text, modelo text, generado_el timestamptz, actualizado_el timestamptz);
+              clave_extraccion text, version_agente text, modelo text, generado_el timestamptz, actualizado_el timestamptz,
+              estado text NOT NULL DEFAULT 'activo');
 
             CREATE TABLE {s}.registro_dato (
               registro_id text NOT NULL, campo text NOT NULL, valor text NOT NULL, valor_normalizado text NOT NULL, certeza text);

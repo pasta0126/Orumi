@@ -171,6 +171,20 @@ La marca es simétrica (aparece en los dos registros) y enlaza con la pregunta p
 
 Al **resolver** un conflicto (`orumi responder`), `estado` pasa a `resuelto` en los dos registros; el valor del usuario se aplica solo al registro que él indica, y la otra versión no se modifica.
 
+### 4.4b Estado del registro: eliminado y fusionado («tumbas»)
+
+Por defecto un registro está **activo** (sin campo `estado`). El usuario puede eliminarlo o fusionarlo con otro; el fichero y su `clave_extraccion` **se conservan** (así Mira no reutiliza la clave ni recrea el hecho y todo es reversible):
+
+```yaml
+estado: eliminado            # eliminado | fusionado
+eliminado_el: 2026-11-14T09:12:00+01:00     # si está eliminado
+fusionado_en: reg-20261110-q2x1             # si está fusionado: otro registro existente (no fusionado: no se encadenan)
+fusionado_el: 2026-11-14T09:15:00+01:00
+separados: [cap-20261111-1830-p3w]          # capturas que el usuario separó de este registro; Mira no las vuelve a ampliar a él
+```
+
+Los registros no activos no salen en consultas, días, búsquedas ni recuentos; los eliminados están en la papelera y se restauran. Un registro creado a mano al **separar** una captura lleva `procedencia.generado_por.agente: usuario` y no figura en ningún lote.
+
 ### 4.5 Rechazos
 
 Una interpretación rechazada se conserva para no volver a proponerla sin evidencia nueva:
@@ -191,7 +205,7 @@ historial:
   - {fecha: 2026-11-12T20:05:00+01:00, origen: usuario, campo: proyectos, anterior: [copias-de-seguridad], nuevo: [mantenimiento-servidor]}
 ```
 
-`origen`: `usuario` o `mira`. Opcionales: `pregunta` (si el cambio responde una pregunta), `captura`, `motivo`. Un cambio de versión de Mira se anota en `procedencia.actualizado_*` y conserva en `historial` lo que sustituye.
+`origen`: `usuario` o `mira`. Opcionales: `pregunta` (si el cambio responde una pregunta), `captura`, `motivo`, `certeza_anterior` (la certeza que tenía el campo antes de un cambio del usuario, para poder deshacerlo) y `deshace` (posición, empezando en 0, de la entrada del historial que esta entrada revierte; solo en reversiones del usuario). Los campos estructurales (`estado`, `fuentes`, `fusion`) llevan texto en `anterior` y `nuevo` y no certeza. Un cambio de versión de Mira se anota en `procedencia.actualizado_*` y conserva en `historial` lo que sustituye.
 
 ## 5. Estructura de directorios de `orumi/` (tarea 1.4)
 
