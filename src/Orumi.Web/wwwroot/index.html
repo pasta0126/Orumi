@@ -3,51 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1f2937">
+<meta name="theme-color" content="#080b12">
 <title>ORUMI · Captura</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icono.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icono.svg">
-<link rel="stylesheet" href="estilos.css">
+<script src="tema.js"></script>
+<link rel="stylesheet" href="ui.css">
+<link rel="stylesheet" href="captura.css">
 </head>
 <body>
-<main>
-  <header>
-    <h1>ORUMI</h1>
-    <span id="estado" role="status" aria-live="polite"></span>
-  </header>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
 
-  <section id="acceso" hidden>
+<header class="barra cristal" id="barra" hidden>
+  <span class="marca" id="marca"></span>
+  <span id="estado" class="estado-red" role="status" aria-live="polite"></span>
+  <div class="acciones">
+    <button id="tema" type="button" class="boton fantasma icono-solo" aria-label="Cambiar tema"></button>
+    <a href="/panel/" class="boton fantasma icono-solo" aria-label="Ir al panel" title="Panel" data-icono="dia"></a>
+    <button id="salir" type="button" class="boton fantasma icono-solo" aria-label="Cerrar sesión" title="Cerrar sesión" data-icono="salir"></button>
+  </div>
+</header>
+
+<main>
+  <section id="acceso" class="hero cristal" hidden>
+    <div id="logo-acceso"></div>
+    <h1 class="grad-texto">ORUMI</h1>
+    <p class="lema">Escucha, comprende y conecta.</p>
     <p>Inicia sesión con tu cuenta de Google para guardar notas.</p>
-    <button id="entrar" type="button" class="principal">Entrar con Google</button>
+    <button id="entrar" type="button" class="boton principal" data-icono="candado"><span>Entrar con Google</span></button>
     <p id="error-acceso" class="error" role="alert"></p>
   </section>
 
   <section id="captura" hidden>
-    <textarea id="texto" rows="10" placeholder="Cuenta lo que quieras: qué pasó, con quién, cuándo, cuánto duró…" aria-label="Nota"></textarea>
-
-    <div class="fila">
-      <button id="dictar" type="button" aria-pressed="false" hidden>🎙 Dictar</button>
-      <button id="enviar" type="button" class="principal">Enviar nota</button>
+    <div class="encabezado">
+      <p class="sobretitulo">Nueva nota</p>
+      <h2 class="titulo"><span class="grad-texto">¿Qué ha pasado?</span></h2>
     </div>
-    <p id="aviso-voz" class="nota" hidden>El dictado lo procesa el navegador (Google en Chrome/Edge, Apple en Safari): el audio sale de tu dispositivo. Si prefieres que no, escribe la nota.</p>
 
-    <details>
-      <summary>Más opciones</summary>
-      <label>Fecha del acontecimiento <small>(si hablas de otro día y no lo dices en el texto)</small>
-        <input id="fecha" type="date">
-      </label>
-      <label>Etiqueta <small>(proyecto o tema, opcional)</small>
-        <input id="etiqueta" type="text" maxlength="60" autocomplete="off">
-      </label>
+    <div class="lienzo cristal" id="lienzo">
+      <textarea id="texto" rows="9" placeholder="Cuéntalo como te salga: qué pasó, con quién, cuándo, cuánto duró…" aria-label="Nota"></textarea>
+      <div class="barra-lienzo">
+        <button id="dictar" type="button" class="boton mic" aria-pressed="false" hidden>
+          <span class="ondas" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span class="etiqueta-mic">Dictar</span>
+        </button>
+        <span class="espacio"></span>
+        <span id="cuenta" class="cuenta" aria-hidden="true"></span>
+        <button id="enviar" type="button" class="boton principal"><span>Enviar nota</span></button>
+      </div>
+    </div>
+
+    <details class="mas">
+      <summary><span class="resumen-icono" data-icono="filtros"></span>Más opciones</summary>
+      <div class="rejilla-mas">
+        <label>Fecha del acontecimiento <small>(si hablas de otro día y no lo dices)</small>
+          <input id="fecha" type="date">
+        </label>
+        <label>Etiqueta <small>(proyecto o tema)</small>
+          <input id="etiqueta" type="text" maxlength="60" autocomplete="off">
+        </label>
+      </div>
     </details>
 
-    <p id="mensaje" class="mensaje" role="status" aria-live="polite"></p>
-    <p id="pendientes" class="nota" hidden></p>
-    <a href="/panel/" class="enlace">Panel</a>
-    <button id="salir" type="button" class="enlace">Cerrar sesión</button>
+    <p id="aviso-voz" class="privacidad" hidden><span data-icono="microfono"></span>El dictado lo procesa el navegador (Google en Chrome y Edge, Apple en Safari): el audio sale de tu dispositivo. Si prefieres que no, escribe la nota.</p>
+    <p id="pendientes" class="privacidad pend" hidden></p>
   </section>
 </main>
+<p id="aviso" class="aviso" role="status" aria-live="polite"></p>
+<script src="iconos.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

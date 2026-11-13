@@ -1,6 +1,6 @@
 // Solo guarda la página y sus recursos para poder abrirla sin red. La API nunca se cachea.
-const VERSION = 'orumi-captura-v3';
-const RECURSOS = ['./', 'index.html', 'app.js', 'estilos.css', 'icono.svg', 'manifest.webmanifest'];
+const VERSION = 'orumi-captura-v4';
+const RECURSOS = ['./', 'index.html', 'app.js', 'ui.css', 'captura.css', 'iconos.js', 'tema.js', 'icono.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(RECURSOS)).then(() => self.skipWaiting()));

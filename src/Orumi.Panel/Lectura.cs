@@ -151,7 +151,15 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
         {
             var valor = fm[campo];
             var desconocido = valor is null || valor as string == "desconocido";
-            datos.Add(new DatoDeFicha(campo, valor, desconocido ? "desconocido" : ValoresDeCampo.Resumen(valor), desconocido, certeza.GetValueOrDefault(campo) as string));
+            var c = certeza.GetValueOrDefault(campo) as string;
+            if (c is null && campo == "entidades" && valor is List<object?> entidades)
+            {
+                // Cada entidad lleva su certeza: si todas coinciden, es la del campo.
+                var propias = entidades.OfType<Dictionary<string, object?>>().Select(e => e.GetValueOrDefault("certeza") as string).Distinct().ToList();
+                c = propias.Count == 1 ? propias[0] : null;
+            }
+
+            datos.Add(new DatoDeFicha(campo, valor, desconocido ? "desconocido" : ValoresDeCampo.Resumen(valor), desconocido, c));
         }
 
         var capturas = new Dictionary<string, object>();

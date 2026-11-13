@@ -1,0 +1,175 @@
+/* ORUMI — sistema de diseño compartido (panel y captura). Ficheros idénticos en ambos proyectos.
+   Sin recursos externos ni estilos en línea (CSP). Animaciones solo con transform/opacity y apagadas con movimiento reducido. */
+
+:root {
+  color-scheme: dark;
+  --bg: #080b12; --bg-2: #0d1220;
+  --texto: #eef1f8; --suave: #a3abc0; --tenue: #6f7892;
+  --borde: rgba(255, 255, 255, .09); --borde-fuerte: rgba(255, 255, 255, .18);
+  --cristal: rgba(20, 26, 42, .58); --cristal-fuerte: rgba(30, 38, 60, .78); --campo: rgba(8, 11, 20, .55);
+  --sombra: 0 10px 40px -12px rgba(0, 0, 0, .65);
+  --brillo: rgba(124, 140, 255, .16);
+  --acento-1: #7c8cff; --acento-2: #3fd9c4; --acento-3: #ff7ab8;
+  --grad: linear-gradient(135deg, var(--acento-1), var(--acento-2));
+  --sobre-acento: #06101c;
+  --foco: #9aa8ff;
+  --c-dicho: #3fd9a8; --c-confirmado: #3fd9a8; --c-interpretado: #f5b44a; --c-hipotesis: #b497ff; --c-recomendacion: #5cb8ff;
+  --c-desconocido: #8a93aa; --c-peligro: #ff6b86; --c-ok: #3fd9a8;
+  --aurora-1: rgba(99, 102, 241, .55); --aurora-2: rgba(20, 184, 166, .42); --aurora-3: rgba(244, 114, 182, .26);
+  --radio: 18px; --radio-s: 12px;
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --fuente: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+:root[data-tema="light"] {
+  color-scheme: light;
+  --bg: #f3f2f9; --bg-2: #eceaf6;
+  --texto: #14172b; --suave: #4d556f; --tenue: #7a8199;
+  --borde: rgba(20, 23, 43, .1); --borde-fuerte: rgba(20, 23, 43, .2);
+  --cristal: rgba(255, 255, 255, .66); --cristal-fuerte: rgba(255, 255, 255, .88); --campo: rgba(255, 255, 255, .8);
+  --sombra: 0 12px 36px -14px rgba(60, 60, 120, .35);
+  --brillo: rgba(79, 70, 229, .12);
+  --acento-1: #4f46e5; --acento-2: #0b9e92; --acento-3: #db2777;
+  --sobre-acento: #ffffff;
+  --foco: #4f46e5;
+  --c-dicho: #0b8f6f; --c-confirmado: #0b8f6f; --c-interpretado: #a86a00; --c-hipotesis: #6d3fd1; --c-recomendacion: #1470c4;
+  --c-desconocido: #6b7390; --c-peligro: #c8213f; --c-ok: #0b8f6f;
+  --aurora-1: rgba(129, 140, 248, .5); --aurora-2: rgba(45, 212, 191, .4); --aurora-3: rgba(244, 114, 182, .3);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-tema]) {
+    color-scheme: light;
+    --bg: #f3f2f9; --bg-2: #eceaf6;
+    --texto: #14172b; --suave: #4d556f; --tenue: #7a8199;
+    --borde: rgba(20, 23, 43, .1); --borde-fuerte: rgba(20, 23, 43, .2);
+    --cristal: rgba(255, 255, 255, .66); --cristal-fuerte: rgba(255, 255, 255, .88); --campo: rgba(255, 255, 255, .8);
+    --sombra: 0 12px 36px -14px rgba(60, 60, 120, .35);
+    --brillo: rgba(79, 70, 229, .12);
+    --acento-1: #4f46e5; --acento-2: #0b9e92; --acento-3: #db2777;
+    --sobre-acento: #ffffff;
+    --foco: #4f46e5;
+    --c-dicho: #0b8f6f; --c-confirmado: #0b8f6f; --c-interpretado: #a86a00; --c-hipotesis: #6d3fd1; --c-recomendacion: #1470c4;
+    --c-desconocido: #6b7390; --c-peligro: #c8213f; --c-ok: #0b8f6f;
+    --aurora-1: rgba(129, 140, 248, .5); --aurora-2: rgba(45, 212, 191, .4); --aurora-3: rgba(244, 114, 182, .3);
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+/* El degradado va en html: si estuviera en body, taparía la aurora (z-index negativo). */
+html { background: linear-gradient(180deg, var(--bg), var(--bg-2)) fixed; background-color: var(--bg); }
+body {
+  margin: 0; min-height: 100vh; color: var(--texto); font: 16px/1.55 var(--fuente);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+h1, h2, h3 { letter-spacing: -.02em; line-height: 1.2; margin: 0; }
+a { color: var(--acento-1); text-underline-offset: 3px; }
+::selection { background: color-mix(in srgb, var(--acento-1) 40%, transparent); }
+:focus-visible { outline: 2px solid var(--foco); outline-offset: 3px; border-radius: 8px; }
+[tabindex="-1"]:focus { outline: none; }
+
+/* ---------- fondo aurora (capa fija y barata: solo transform) ---------- */
+.aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.aurora i { position: absolute; border-radius: 50%; filter: blur(80px); will-change: transform; }
+.aurora i:nth-child(1) { width: 58vmax; height: 58vmax; left: -18vmax; top: -22vmax; background: radial-gradient(circle at 40% 40%, var(--aurora-1), transparent 66%); animation: deriva-1 34s ease-in-out infinite alternate; }
+.aurora i:nth-child(2) { width: 52vmax; height: 52vmax; right: -16vmax; top: 6vmax; background: radial-gradient(circle at 50% 50%, var(--aurora-2), transparent 66%); animation: deriva-2 41s ease-in-out infinite alternate; }
+.aurora i:nth-child(3) { width: 46vmax; height: 46vmax; left: 18vmax; bottom: -26vmax; background: radial-gradient(circle at 50% 50%, var(--aurora-3), transparent 66%); animation: deriva-3 47s ease-in-out infinite alternate; }
+.aurora::after { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, transparent 40%, var(--bg) 100%); opacity: .55; }
+@keyframes deriva-1 { to { transform: translate3d(14vmax, 10vmax, 0) scale(1.12); } }
+@keyframes deriva-2 { to { transform: translate3d(-16vmax, 8vmax, 0) scale(.92); } }
+@keyframes deriva-3 { to { transform: translate3d(12vmax, -12vmax, 0) scale(1.1); } }
+
+/* ---------- superficies de cristal ---------- */
+.cristal {
+  position: relative; background: var(--cristal); border: 1px solid var(--borde); border-radius: var(--radio);
+  box-shadow: var(--sombra), inset 0 1px 0 rgba(255, 255, 255, .06);
+  -webkit-backdrop-filter: blur(18px) saturate(150%); backdrop-filter: blur(18px) saturate(150%);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .cristal { background: var(--cristal-fuerte); } }
+.foco-luz { overflow: hidden; }
+.foco-luz::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .35s var(--ease);
+  background: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), var(--brillo), transparent 62%);
+}
+.foco-luz:hover::after { opacity: 1; }
+
+/* ---------- botones ---------- */
+.boton {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 16px;
+  font: 600 .94rem/1 var(--fuente); color: var(--texto); cursor: pointer; text-decoration: none;
+  background: var(--cristal); border: 1px solid var(--borde); border-radius: 12px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  transition: transform .25s var(--ease), border-color .25s, background .25s, box-shadow .25s, opacity .2s;
+}
+.boton:hover { transform: translateY(-1px); border-color: var(--borde-fuerte); }
+.boton:active { transform: translateY(0) scale(.98); }
+.boton:disabled { opacity: .5; cursor: default; transform: none; }
+.boton.principal { color: var(--sobre-acento); border-color: transparent; background: var(--grad); box-shadow: 0 8px 26px -10px color-mix(in srgb, var(--acento-1) 70%, transparent); }
+.boton.principal:hover { box-shadow: 0 12px 32px -10px color-mix(in srgb, var(--acento-1) 85%, transparent); filter: brightness(1.06); }
+.boton.fantasma { background: transparent; border-color: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; color: var(--suave); }
+.boton.fantasma:hover { color: var(--texto); background: color-mix(in srgb, var(--texto) 7%, transparent); }
+.boton.peligro { color: var(--c-peligro); }
+.boton.pequeno { min-height: 34px; padding: 0 12px; font-size: .84rem; border-radius: 10px; }
+.boton.icono-solo { width: 44px; padding: 0; }
+.boton.icono-solo.pequeno { width: 34px; }
+
+/* ---------- campos ---------- */
+.campo, input[type="text"], input[type="date"], input[type="search"], select, textarea {
+  width: 100%; min-height: 44px; padding: 10px 14px; color: var(--texto); font: inherit; background: var(--campo);
+  border: 1px solid var(--borde); border-radius: 12px; transition: border-color .2s, box-shadow .25s, background .2s;
+}
+input::placeholder, textarea::placeholder { color: var(--tenue); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--acento-1); box-shadow: 0 0 0 4px color-mix(in srgb, var(--acento-1) 24%, transparent); }
+select { appearance: none; padding-right: 36px; background-image: linear-gradient(45deg, transparent 50%, var(--suave) 50%), linear-gradient(135deg, var(--suave) 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+label { color: var(--suave); font-size: .85rem; font-weight: 600; }
+
+/* ---------- chips y etiquetas ---------- */
+.chip {
+  --c: var(--c-desconocido); display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; white-space: nowrap;
+  font: 600 .74rem/1 var(--fuente); letter-spacing: .01em; color: var(--c);
+  background: color-mix(in srgb, var(--c) 13%, transparent); border: 1px solid color-mix(in srgb, var(--c) 32%, transparent); border-radius: 999px;
+}
+.chip svg { width: 14px; height: 14px; }
+.c-dicho { --c: var(--c-dicho); } .c-confirmado { --c: var(--c-confirmado); } .c-interpretado { --c: var(--c-interpretado); }
+.c-hipotesis { --c: var(--c-hipotesis); } .c-recomendacion { --c: var(--c-recomendacion); } .c-desconocido { --c: var(--c-desconocido); }
+.c-conflicto { --c: var(--c-peligro); } .c-neutro { --c: var(--suave); }
+
+/* ---------- iconos ---------- */
+.icono { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.icono.grande { width: 28px; height: 28px; }
+
+/* ---------- logotipo ---------- */
+.logo { display: block; overflow: visible; }
+.logo .anillo { transform-box: fill-box; transform-origin: center; }
+.logo .anillo-a { animation: giro 28s linear infinite; }
+.logo .anillo-b { animation: giro 19s linear infinite reverse; }
+.logo .nucleo { transform-box: fill-box; transform-origin: center; animation: pulso 4.8s ease-in-out infinite; }
+
+/* ---------- movimiento ---------- */
+@keyframes subir { from { opacity: 0; transform: translate3d(0, 14px, 0); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+@keyframes giro { to { transform: rotate(360deg); } }
+@keyframes pulso { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.28); opacity: .78; } }
+@keyframes brillo-esqueleto { to { transform: translateX(100%); } }
+@keyframes onda { 0%, 100% { transform: scaleY(.28); } 50% { transform: scaleY(1); } }
+@keyframes halo { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes aviso-sube { from { opacity: 0; transform: translate3d(-50%, 18px, 0) scale(.96); } to { opacity: 1; transform: translate3d(-50%, 0, 0) scale(1); } }
+.vista { animation: aparecer .28s var(--ease) both; }
+.entra { animation: subir .6s var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }
+
+.esqueleto { position: relative; overflow: hidden; background: color-mix(in srgb, var(--texto) 7%, transparent); border-radius: 12px; min-height: 18px; }
+.esqueleto::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--texto) 11%, transparent), transparent); animation: brillo-esqueleto 1.5s ease-in-out infinite; }
+
+.aviso {
+  position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 50; max-width: min(92vw, 34rem); padding: 12px 18px; text-align: center;
+  font-weight: 600; font-size: .93rem; border-radius: 14px; color: var(--texto); background: var(--cristal-fuerte); border: 1px solid var(--borde-fuerte);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--sombra); transform: translateX(-50%); animation: aviso-sube .42s var(--ease) both;
+}
+.aviso:empty { display: none; }
+.aviso.ok { border-color: color-mix(in srgb, var(--c-ok) 55%, transparent); }
+.aviso.mal { border-color: color-mix(in srgb, var(--c-peligro) 60%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .entra, .vista { opacity: 1; filter: none; transform: none; }
+}
+@media (hover: none) { .foco-luz::after { display: none; } }

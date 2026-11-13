@@ -2,7 +2,9 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const CLAVE_TOKEN = 'orumi_token';
-  const texto = $('texto'), dictar = $('dictar'), enviar = $('enviar'), mensaje = $('mensaje'), estado = $('estado'), pendientes = $('pendientes');
+  const texto = $('texto'), dictar = $('dictar'), enviar = $('enviar'), estado = $('estado'), pendientes = $('pendientes');
+  const { Icono, Logo } = window.OrumiIconos;
+  const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ------------------------------------------------------------ almacenamiento local (cola sin conexión)
   const abrirBD = () => new Promise((res, rej) => {
@@ -78,8 +80,13 @@
     location.href = urlAuth + '/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
   }
   const dispositivo = () => (matchMedia('(pointer: coarse)').matches ? 'web-movil' : 'web-escritorio');
-  const decir = (t, clase) => { mensaje.textContent = t; mensaje.className = 'mensaje ' + (clase || ''); };
-  const mostrar = (acceso) => { $('acceso').hidden = !acceso; $('captura').hidden = acceso; };
+  let temporizador = null;
+  const decir = (t, clase) => {
+    const a = $('aviso'); a.textContent = t || ''; a.className = 'aviso ' + (clase || '');
+    clearTimeout(temporizador);
+    if (t) temporizador = setTimeout(() => { a.textContent = ''; }, clase === 'mal' ? 7000 : 3500);
+  };
+  const mostrar = (acceso) => { $('acceso').hidden = !acceso; $('captura').hidden = acceso; $('barra').hidden = acceso; };
 
   async function actualizarPendientes() {
     let n = 0;
@@ -138,7 +145,8 @@
     if (r.resultado === 'ok') {
       try { await quitar(nota.idEnvio); } catch { /* nada */ }
       texto.value = ''; huboDictado = false; base = '';
-      decir('Guardada: ' + r.id, 'ok');
+      decir('Nota guardada · ' + r.id, 'ok');
+      confirmar();
     } else if (r.resultado === 'rechazada') {
       try { await quitar(nota.idEnvio); } catch { /* nada */ }
       decir(r.error, 'mal');
@@ -150,6 +158,30 @@
       decir('Sin conexión: la nota queda guardada en este dispositivo y se enviará sola.', 'ok');
     }
     actualizarPendientes();
+  }
+
+  // ------------------------------------------------------------ detalles visuales
+  function confirmar() {
+    const l = $('lienzo'); l.classList.remove('enviada'); void l.offsetWidth; l.classList.add('enviada');
+    setTimeout(() => l.classList.remove('enviada'), reducido ? 0 : 950);
+  }
+  function marcarMic(on) {
+    dictar.setAttribute('aria-pressed', on ? 'true' : 'false');
+    dictar.querySelector('.etiqueta-mic').textContent = on ? 'Parar' : 'Dictar';
+  }
+  function iniciarInterfaz() {
+    document.querySelectorAll('[data-icono]').forEach((n) => n.prepend(Icono(n.dataset.icono)));
+    $('marca').append(Logo(30), Object.assign(document.createElement('span'), { textContent: 'ORUMI' }));
+    $('logo-acceso').append(Logo(76));
+    dictar.prepend(Object.assign(Icono('microfono'), { }));
+    dictar.firstChild.classList.add('icono-mic');
+    enviar.append(Icono('enviar'));
+    const t = $('tema');
+    const pintar = () => { while (t.firstChild) t.removeChild(t.firstChild); t.append(Icono(window.OrumiTema.actual() === 'dark' ? 'sol' : 'luna')); };
+    t.addEventListener('click', () => { window.OrumiTema.alternar(); pintar(); });
+    pintar();
+    const cuenta = $('cuenta');
+    texto.addEventListener('input', () => { cuenta.textContent = texto.value.length ? texto.value.length.toLocaleString('es-ES') + ' caracteres' : ''; });
   }
 
   // ------------------------------------------------------------ dictado (opcional)
@@ -164,8 +196,8 @@
       if (escuchando) { rec.stop(); return; }
       base = texto.value; finales = '';
       rec = new SR(); rec.lang = 'es-ES'; rec.continuous = true; rec.interimResults = true;
-      rec.onstart = () => { escuchando = true; huboDictado = true; dictar.setAttribute('aria-pressed', 'true'); dictar.textContent = '⏹ Parar'; decir('Escuchando…'); };
-      rec.onend = () => { escuchando = false; dictar.setAttribute('aria-pressed', 'false'); dictar.textContent = '🎙 Dictar'; texto.value = (base + finales).trimStart(); decir(''); };
+      rec.onstart = () => { escuchando = true; huboDictado = true; marcarMic(true); decir('Escuchando…'); };
+      rec.onend = () => { escuchando = false; marcarMic(false); texto.value = (base + finales).trimStart(); decir(''); };
       rec.onerror = (e) => { if (e.error !== 'no-speech' && e.error !== 'aborted') decir('El dictado falló (' + e.error + '). Puedes escribir la nota.', 'mal'); };
       rec.onresult = (e) => {
         let provisional = '';
@@ -189,6 +221,7 @@
   window.addEventListener('online', () => { estado.textContent = ''; vaciarCola(); });
   window.addEventListener('offline', () => { estado.textContent = 'sin conexión'; });
 
+  iniciarInterfaz();
   (async () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     const vuelta = leerFragmento();

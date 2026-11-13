@@ -1,0 +1,64 @@
+/* Captura de ORUMI — estilos propios (los tokens y componentes base están en ui.css). */
+.barra { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 20; display: flex; align-items: center; gap: 12px; max-width: 54rem; margin: 10px auto 0; padding: 8px 10px 8px 16px; border-radius: 20px; width: calc(100% - 24px); }
+.marca { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: .22em; font-size: .95rem; }
+.marca span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.acciones { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+.estado-red { color: var(--c-interpretado); font-size: .82rem; font-weight: 700; }
+a.boton { text-decoration: none; }
+
+main { max-width: 54rem; margin: 0 auto; padding: 30px 16px 70px; }
+.sobretitulo { margin: 0 0 6px; font-size: .78rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--tenue); }
+h2.titulo { font-size: clamp(1.9rem, 5vw, 2.9rem); font-weight: 800; }
+.grad-texto { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.encabezado { margin-bottom: 20px; }
+
+.lienzo { display: grid; padding: 6px; transition: box-shadow .4s var(--ease), border-color .3s; }
+.lienzo:focus-within { border-color: color-mix(in srgb, var(--acento-1) 55%, transparent); box-shadow: var(--sombra), 0 0 0 5px color-mix(in srgb, var(--acento-1) 14%, transparent); }
+.lienzo textarea { min-height: 34vh; padding: 18px 20px; font-size: 1.1rem; line-height: 1.6; background: transparent; border: 0; border-radius: 14px; resize: vertical; }
+.lienzo textarea:focus { box-shadow: none; }
+.barra-lienzo { display: flex; align-items: center; gap: 10px; padding: 6px 8px 8px; }
+.espacio { flex: 1; }
+.cuenta { color: var(--tenue); font-size: .8rem; font-variant-numeric: tabular-nums; }
+
+/* botón de dictado: halo y ondas mientras escucha */
+.mic { position: relative; gap: 10px; }
+.mic .ondas { display: none; align-items: center; gap: 3px; height: 18px; }
+.mic .ondas i { width: 3px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: center; animation: onda 1s ease-in-out infinite; }
+.mic .ondas i:nth-child(2) { animation-delay: .15s; } .mic .ondas i:nth-child(3) { animation-delay: .3s; } .mic .ondas i:nth-child(4) { animation-delay: .45s; }
+.mic::before { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--c-peligro); opacity: 0; pointer-events: none; }
+.mic[aria-pressed="true"] { color: var(--c-peligro); border-color: color-mix(in srgb, var(--c-peligro) 55%, transparent); background: color-mix(in srgb, var(--c-peligro) 10%, var(--cristal)); }
+.mic[aria-pressed="true"]::before { animation: halo 1.6s ease-out infinite; }
+.mic[aria-pressed="true"] .ondas { display: inline-flex; }
+.mic[aria-pressed="true"] .icono-mic { display: none; }
+
+details.mas { margin: 16px 4px 0; }
+details.mas summary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; color: var(--suave); font-weight: 600; padding: 6px 2px; }
+details.mas summary::-webkit-details-marker { display: none; }
+details.mas[open] summary { color: var(--texto); }
+.rejilla-mas { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 10px; }
+.rejilla-mas label { display: grid; gap: 6px; }
+.rejilla-mas small { color: var(--tenue); font-weight: 500; }
+
+.privacidad { display: flex; align-items: flex-start; gap: 10px; margin: 18px 4px 0; color: var(--tenue); font-size: .84rem; }
+.privacidad .icono { width: 16px; height: 16px; margin-top: 2px; }
+.privacidad.pend { color: var(--c-interpretado); font-weight: 600; }
+
+/* confirmación de envío */
+@keyframes enviada { 0% { box-shadow: var(--sombra), 0 0 0 0 color-mix(in srgb, var(--c-ok) 55%, transparent); } 100% { box-shadow: var(--sombra), 0 0 0 28px transparent; } }
+.lienzo.enviada { animation: enviada .9s var(--ease); border-color: color-mix(in srgb, var(--c-ok) 60%, transparent); }
+
+/* acceso */
+.hero { display: grid; justify-items: center; gap: 18px; max-width: 30rem; margin: 9vh auto 0; padding: 42px 32px; text-align: center; }
+.hero h1 { font-size: 1.6rem; letter-spacing: .3em; font-weight: 800; }
+.hero p { margin: 0; color: var(--suave); }
+.hero .lema { font-size: 1.15rem; color: var(--texto); font-weight: 600; }
+.hero .error { color: var(--c-peligro); font-weight: 600; }
+.resumen-icono { display: inline-flex; }
+
+@media (max-width: 560px) {
+  .barra { width: calc(100% - 20px); }
+  .lienzo textarea { min-height: 38vh; }
+  .barra-lienzo { flex-wrap: wrap; }
+  .cuenta { display: none; }
+  #enviar { flex: 1; }
+}
