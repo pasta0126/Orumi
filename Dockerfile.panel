@@ -1,0 +1,16 @@
+# ORUMI — panel web (API + página) (linux/arm64 para la Raspberry Pi; también construye en x64).
+# Lee todos los datos y escribe solo mediante las operaciones de responder/corregir/rechazar. Los originales
+# (capturas) se montan en solo lectura. El acceso se configura por entorno; nada de eso va en la imagen.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS construccion
+WORKDIR /origen
+COPY Orumi.slnx ./
+COPY src/ src/
+RUN dotnet publish src/Orumi.Panel -c Release -o /publicado --no-self-contained
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+WORKDIR /app
+COPY --from=construccion /publicado ./
+USER app
+ENV ORUMI_DATOS=/datos
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "orumi-panel.dll"]
