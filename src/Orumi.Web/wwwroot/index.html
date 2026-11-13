@@ -18,9 +18,8 @@
   </header>
 
   <section id="acceso" hidden>
-    <p>Introduce el token de acceso (solo se guarda en este dispositivo).</p>
-    <input id="token" type="password" autocomplete="off" placeholder="Token de acceso" aria-label="Token de acceso">
-    <button id="guardar-token" type="button">Entrar</button>
+    <p>Inicia sesión con tu cuenta de Google para guardar notas.</p>
+    <button id="entrar" type="button" class="principal">Entrar con Google</button>
     <p id="error-acceso" class="error" role="alert"></p>
   </section>
 
@@ -45,7 +44,7 @@
 
     <p id="mensaje" class="mensaje" role="status" aria-live="polite"></p>
     <p id="pendientes" class="nota" hidden></p>
-    <button id="cambiar-token" type="button" class="enlace">Cambiar token</button>
+    <button id="salir" type="button" class="enlace">Cerrar sesión</button>
   </section>
 </main>
 <script src="app.js"></script>

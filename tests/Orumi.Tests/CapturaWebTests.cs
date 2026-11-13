@@ -108,48 +108,112 @@ public class CapturaWebTests : IDisposable
         Assert.Empty(Orumi.Core.Validacion.Validador.Validar(Almacen.Cargar(_datos)).Where(i => !i.Mensaje.Contains("sin lote")));
     }
 
-    // ---------------------------------------------------------------- acceso
+    // ---------------------------------------------------------------- acceso (sesión de Google vía GoTrue)
 
-    private static AccesoPorToken Acceso(Func<DateTimeOffset> reloj) => new(new string('t', 40), reloj, maxFallos: 3, bloqueo: TimeSpan.FromMinutes(15));
-
-    [Fact]
-    public void Con_el_token_correcto_se_permite_y_con_otro_se_deniega()
+    private sealed class VerificadorFalso : IVerificadorDeSesion
     {
-        var a = Acceso(() => _ahora);
-        Assert.Equal(ResultadoDeAcceso.Permitido, a.Comprobar(new string('t', 40), "1.1.1.1"));
-        Assert.Equal(ResultadoDeAcceso.Denegado, a.Comprobar("otro", "1.1.1.1"));
-        Assert.Equal(ResultadoDeAcceso.Denegado, a.Comprobar(null, "1.1.1.1"));
+        public Dictionary<string, IdentidadDeSesion> Sesiones { get; } = [];
+
+        public bool Caido { get; set; }
+
+        public int Consultas { get; private set; }
+
+        public Task<IdentidadDeSesion?> VerificarAsync(string token, CancellationToken ct)
+        {
+            Consultas++;
+            if (Caido)
+            {
+                throw new HttpRequestException("GoTrue no responde");
+            }
+
+            return Task.FromResult(Sesiones.GetValueOrDefault(token));
+        }
+    }
+
+    private (AccesoPorSesion Acceso, VerificadorFalso Verificador) Acceso()
+    {
+        var v = new VerificadorFalso();
+        v.Sesiones["bueno"] = new IdentidadDeSesion("Yo@Ejemplo.com", true);
+        v.Sesiones["sin-verificar"] = new IdentidadDeSesion("yo@ejemplo.com", false);
+        v.Sesiones["ajeno"] = new IdentidadDeSesion("otro@ejemplo.com", true);
+        return (new AccesoPorSesion(v, ["yo@ejemplo.com"], () => _ahora, maxFallos: 3, bloqueo: TimeSpan.FromMinutes(15)), v);
     }
 
     [Fact]
-    public void Tras_varios_fallos_se_bloquea_el_origen_incluso_con_el_token_correcto_y_luego_se_libera()
+    public async Task Una_sesion_valida_de_un_correo_permitido_se_acepta_sin_distinguir_mayusculas()
     {
-        var a = Acceso(() => _ahora);
-        Assert.Equal(ResultadoDeAcceso.Denegado, a.Comprobar("x", "2.2.2.2"));
-        Assert.Equal(ResultadoDeAcceso.Denegado, a.Comprobar("x", "2.2.2.2"));
-        Assert.Equal(ResultadoDeAcceso.Bloqueado, a.Comprobar("x", "2.2.2.2"));
-        Assert.Equal(ResultadoDeAcceso.Bloqueado, a.Comprobar(new string('t', 40), "2.2.2.2"));
-        Assert.Equal(ResultadoDeAcceso.Permitido, a.Comprobar(new string('t', 40), "3.3.3.3")); // otro origen no afectado
-
-        _ahora = _ahora.AddMinutes(16);
-        Assert.Equal(ResultadoDeAcceso.Permitido, a.Comprobar(new string('t', 40), "2.2.2.2"));
-    }
-
-    [Fact]
-    public void Un_acierto_reinicia_la_cuenta_de_fallos()
-    {
-        var a = Acceso(() => _ahora);
-        a.Comprobar("x", "4.4.4.4");
-        a.Comprobar("x", "4.4.4.4");
-        a.Comprobar(new string('t', 40), "4.4.4.4");
-        Assert.Equal(ResultadoDeAcceso.Denegado, a.Comprobar("x", "4.4.4.4"));
+        var (a, _) = Acceso();
+        Assert.Equal(ResultadoDeAcceso.Permitido, await a.ComprobarAsync("bueno", "1.1.1.1"));
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("corto")]
-    public void Un_token_demasiado_corto_no_se_admite(string token) =>
-        Assert.Throws<ArgumentException>(() => new AccesoPorToken(token, () => DateTimeOffset.UtcNow));
+    [InlineData(null, ResultadoDeAcceso.Denegado)]
+    [InlineData("", ResultadoDeAcceso.Denegado)]
+    [InlineData("caducada", ResultadoDeAcceso.Denegado)]
+    [InlineData("ajeno", ResultadoDeAcceso.NoAutorizado)]
+    [InlineData("sin-verificar", ResultadoDeAcceso.NoAutorizado)]
+    public async Task Sin_sesion_valida_o_con_una_cuenta_no_autorizada_se_rechaza(string? token, ResultadoDeAcceso esperado)
+    {
+        var (a, _) = Acceso();
+        Assert.Equal(esperado, await a.ComprobarAsync(token, "1.1.1.1"));
+    }
+
+    [Fact]
+    public async Task Las_sesiones_aceptadas_se_cachean_un_minuto()
+    {
+        var (a, v) = Acceso();
+        await a.ComprobarAsync("bueno", "1.1.1.1");
+        await a.ComprobarAsync("bueno", "1.1.1.1");
+        Assert.Equal(1, v.Consultas);
+
+        _ahora = _ahora.AddSeconds(61);
+        await a.ComprobarAsync("bueno", "1.1.1.1");
+        Assert.Equal(2, v.Consultas);
+    }
+
+    [Fact]
+    public async Task Una_sesion_que_deja_de_ser_valida_se_rechaza_tras_la_cache()
+    {
+        var (a, v) = Acceso();
+        await a.ComprobarAsync("bueno", "1.1.1.1");
+        v.Sesiones.Remove("bueno");
+        _ahora = _ahora.AddSeconds(61);
+        Assert.Equal(ResultadoDeAcceso.Denegado, await a.ComprobarAsync("bueno", "1.1.1.1"));
+    }
+
+    [Fact]
+    public async Task Tras_varios_fallos_se_bloquea_el_origen_incluso_con_una_sesion_buena_y_luego_se_libera()
+    {
+        var (a, _) = Acceso();
+        await a.ComprobarAsync("mala", "2.2.2.2");
+        await a.ComprobarAsync("ajeno", "2.2.2.2");
+        Assert.Equal(ResultadoDeAcceso.Bloqueado, await a.ComprobarAsync(null, "2.2.2.2"));
+        Assert.Equal(ResultadoDeAcceso.Bloqueado, await a.ComprobarAsync("bueno", "2.2.2.2"));
+        Assert.Equal(ResultadoDeAcceso.Permitido, await a.ComprobarAsync("bueno", "3.3.3.3")); // otro origen no afectado
+
+        _ahora = _ahora.AddMinutes(16);
+        Assert.Equal(ResultadoDeAcceso.Permitido, await a.ComprobarAsync("bueno", "2.2.2.2"));
+    }
+
+    [Fact]
+    public async Task Si_el_proveedor_de_identidad_no_responde_se_lanza_y_no_cuenta_como_fallo()
+    {
+        var (a, v) = Acceso();
+        v.Caido = true;
+        for (var i = 0; i < 5; i++)
+        {
+            await Assert.ThrowsAsync<HttpRequestException>(() => a.ComprobarAsync("bueno", "4.4.4.4"));
+        }
+
+        v.Caido = false;
+        Assert.Equal(ResultadoDeAcceso.Permitido, await a.ComprobarAsync("bueno", "4.4.4.4"));
+    }
+
+    [Fact]
+    public void Sin_correos_permitidos_no_se_admite_el_servicio()
+    {
+        Assert.Throws<ArgumentException>(() => new AccesoPorSesion(new VerificadorFalso(), [" ", ""], () => _ahora));
+    }
 
     // ---------------------------------------------------------------- alcance mínimo
 

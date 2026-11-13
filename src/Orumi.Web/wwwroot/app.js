@@ -25,7 +25,58 @@
   const todas = () => tx('readonly', (s) => s.getAll());
 
   // ------------------------------------------------------------ utilidades
-  const token = () => { try { return localStorage.getItem(CLAVE_TOKEN); } catch { return null; } };
+  // ------------------------------------------------------------ sesión (Google a través del GoTrue de la plataforma)
+  const CLAVE_SESION = 'orumi_sesion', CLAVE_AUTH = 'orumi_auth';
+  const leerLS = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+  const escribirLS = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } };
+  const sesion = () => leerLS(CLAVE_SESION);
+  let urlAuth = leerLS(CLAVE_AUTH);
+
+  async function cargarConfig() {
+    try {
+      const r = await fetch('/api/config');
+      if (r.ok) { urlAuth = (await r.json()).auth; escribirLS(CLAVE_AUTH, urlAuth); }
+    } catch { /* sin red: se usa la guardada */ }
+    return urlAuth;
+  }
+
+  // Al volver de Google, GoTrue deja la sesión en el fragmento de la URL.
+  function leerFragmento() {
+    if (!location.hash.includes('access_token') && !location.hash.includes('error')) return null;
+    const p = new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null, '', location.pathname + location.search);
+    if (p.get('error')) return { error: p.get('error_description') || p.get('error') };
+    const expiraEn = parseInt(p.get('expires_in') || '3600', 10);
+    escribirLS(CLAVE_SESION, { access: p.get('access_token'), refresh: p.get('refresh_token'), expira: Date.now() + expiraEn * 1000 });
+    return { ok: true };
+  }
+
+  async function renovar() {
+    const s = sesion();
+    if (!s || !s.refresh || !urlAuth) return false;
+    try {
+      const r = await fetch(urlAuth + '/token?grant_type=refresh_token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: s.refresh }),
+      });
+      if (!r.ok) { if (r.status === 400 || r.status === 401) escribirLS(CLAVE_SESION, null); return false; }
+      const d = await r.json();
+      escribirLS(CLAVE_SESION, { access: d.access_token, refresh: d.refresh_token, expira: Date.now() + (d.expires_in || 3600) * 1000 });
+      return true;
+    } catch { return false; }
+  }
+
+  // Token de acceso vigente (renovándolo si hace falta) o null si hay que iniciar sesión de nuevo.
+  async function accesoValido() {
+    let s = sesion();
+    if (!s) return null;
+    if (s.expira - 60000 < Date.now()) { await renovar(); s = sesion(); }
+    return s ? s.access : null;
+  }
+
+  function entrar() {
+    if (!urlAuth) { $('error-acceso').textContent = 'Sin conexión: no se puede iniciar sesión ahora.'; return; }
+    location.href = urlAuth + '/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
+  }
   const dispositivo = () => (matchMedia('(pointer: coarse)').matches ? 'web-movil' : 'web-escritorio');
   const decir = (t, clase) => { mensaje.textContent = t; mensaje.className = 'mensaje ' + (clase || ''); };
   const mostrar = (acceso) => { $('acceso').hidden = !acceso; $('captura').hidden = acceso; };
@@ -39,23 +90,28 @@
 
   // ------------------------------------------------------------ envío
   // Devuelve 'ok' | 'rechazada' (error de contenido; se devuelve el texto al editor) | 'acceso' | 'sin-conexion'
-  async function mandar(nota) {
+  async function mandar(nota, reintento = false) {
+    const acceso = await accesoValido();
+    if (!acceso) return { resultado: 'acceso' };
     let r;
     try {
       r = await fetch('/api/capturas', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token() },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + acceso },
         body: JSON.stringify(nota),
       });
     } catch { return { resultado: 'sin-conexion' }; }
     if (r.status === 200 || r.status === 201) return { resultado: 'ok', id: (await r.json()).id };
-    if (r.status === 401 || r.status === 429) return { resultado: 'acceso', bloqueado: r.status === 429 };
+    if (r.status === 401 && !reintento && await renovar()) return mandar(nota, true);
+    if (r.status === 401) { escribirLS(CLAVE_SESION, null); return { resultado: 'acceso' }; }
+    if (r.status === 403) return { resultado: 'acceso', prohibido: true };
+    if (r.status === 429) return { resultado: 'acceso', bloqueado: true };
     if (r.status === 400) return { resultado: 'rechazada', error: (await r.json().catch(() => ({}))).error || 'La nota no es válida.' };
-    return { resultado: 'sin-conexion' }; // fallo del servidor: se conserva y se reintenta
+    return { resultado: 'sin-conexion' }; // fallo del servidor o del acceso: se conserva y se reintenta
   }
 
   async function vaciarCola() {
-    if (!token()) return;
+    if (!sesion()) return;
     let cola = [];
     try { cola = await todas(); } catch { return; }
     for (const nota of cola.sort((a, b) => a.creada.localeCompare(b.creada))) {
@@ -87,8 +143,8 @@
       try { await quitar(nota.idEnvio); } catch { /* nada */ }
       decir(r.error, 'mal');
     } else if (r.resultado === 'acceso') {
-      decir(r.bloqueado ? 'Demasiados intentos. Espera unos minutos.' : 'El token no es válido. La nota queda guardada en este dispositivo.', 'mal');
-      texto.value = ''; mostrar(true);
+      decir(r.prohibido ? 'Esta cuenta no tiene acceso a ORUMI.' : r.bloqueado ? 'Demasiados intentos. Espera unos minutos.' : 'La sesión ha caducado. La nota queda guardada en este dispositivo: inicia sesión para enviarla.', 'mal');
+      texto.value = ''; if (!r.prohibido) mostrar(true);
     } else {
       texto.value = ''; huboDictado = false; base = '';
       decir('Sin conexión: la nota queda guardada en este dispositivo y se enviará sola.', 'ok');
@@ -126,24 +182,30 @@
   texto.addEventListener('input', () => { if (!escuchando) base = texto.value; });
 
   // ------------------------------------------------------------ arranque
-  $('guardar-token').addEventListener('click', async () => {
-    const valor = $('token').value.trim();
-    if (!valor) return;
-    try { localStorage.setItem(CLAVE_TOKEN, valor); } catch { $('error-acceso').textContent = 'Este navegador no permite guardar el token.'; return; }
-    let r;
-    try { r = await fetch('/api/comprobar', { headers: { Authorization: 'Bearer ' + valor } }); } catch { $('error-acceso').textContent = 'Sin conexión: no se puede comprobar el token.'; return; }
-    if (r.ok) { $('token').value = ''; $('error-acceso').textContent = ''; mostrar(false); decir(''); vaciarCola(); }
-    else { localStorage.removeItem(CLAVE_TOKEN); $('error-acceso').textContent = r.status === 429 ? 'Demasiados intentos. Espera unos minutos.' : 'Token no válido.'; }
-  });
-  $('cambiar-token').addEventListener('click', () => { try { localStorage.removeItem(CLAVE_TOKEN); } catch { /* nada */ } mostrar(true); });
+  $('entrar').addEventListener('click', entrar);
+  $('salir').addEventListener('click', () => { escribirLS(CLAVE_SESION, null); mostrar(true); decir(''); });
   enviar.addEventListener('click', enviarNota);
   texto.addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') enviarNota(); });
   window.addEventListener('online', () => { estado.textContent = ''; vaciarCola(); });
   window.addEventListener('offline', () => { estado.textContent = 'sin conexión'; });
 
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-  mostrar(!token());
-  if (!navigator.onLine) estado.textContent = 'sin conexión';
-  actualizarPendientes();
-  vaciarCola();
+  (async () => {
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+    const vuelta = leerFragmento();
+    await cargarConfig();
+    if (vuelta && vuelta.error) $('error-acceso').textContent = 'No se pudo iniciar sesión: ' + vuelta.error;
+    const logueado = !!(await accesoValido());
+    mostrar(!logueado);
+    if (logueado) {
+      // Comprobar de entrada que la cuenta tiene acceso, para decirlo antes de que se escriba nada.
+      try {
+        const r = await fetch('/api/comprobar', { headers: { Authorization: 'Bearer ' + (await accesoValido()) } });
+        if (r.status === 403) { escribirLS(CLAVE_SESION, null); mostrar(true); $('error-acceso').textContent = 'Esta cuenta de Google no tiene acceso a ORUMI.'; }
+        else if (r.status === 401) { escribirLS(CLAVE_SESION, null); mostrar(true); }
+      } catch { /* sin red: se puede escribir igualmente */ }
+    }
+    if (!navigator.onLine) estado.textContent = 'sin conexión';
+    actualizarPendientes();
+    vaciarCola();
+  })();
 })();
