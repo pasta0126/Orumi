@@ -153,3 +153,12 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 - **Reprocesado.** Es siempre explícito (`--reprocesar CAPTURA`). Si el proveedor no reclama la clave, Mira reconoce el registro por su fragmento de origen y su clase; nunca pierde un dato conocido por recibir «desconocido».
 - **Recuperación.** Los registros que una ejecución interrumpida dejó guardados sin lote se adoptan como creados en el siguiente lote.
 - **El lote indica el proveedor y el modelo** (`proveedor`, `agente.modelo`) y los problemas sin reproducir contenido.
+
+## 10. Control del saldo y del gasto (change `control-de-saldo`)
+
+- **Errores del proveedor que cortan la ejecución:** saldo agotado o problema de facturación (402, `billing_error` o un mensaje de saldo insuficiente), límite de gasto (429 con `enforced_spend_limit_reached`, o 400 «You have reached your specified API usage limits») y clave inválida (401). Mira no reintenta las demás capturas, las deja pendientes, escribe un lote con `problemas[].tipo` y una explicación de qué hacer, y termina con código **7** (saldo o límite) u **8** (clave). Cualquier otro error solo deja pendiente esa captura. Tras recargar, la siguiente ejecución retoma sola: la captura no está en ningún lote.
+- **Uso y coste estimado:** cada respuesta informa de los tokens de entrada y salida; el lote guarda el uso por captura y el total de la ejecución (aunque la salida no se pudiera guardar, porque la llamada ya se cobra). Los precios salen de la configuración (`precios`); sin ellos el coste es `desconocido`.
+- **Presupuesto** (`presupuesto.saldo_usd`, `desde`, `aviso_porcentaje`, 90 por defecto): se suma el coste estimado de los lotes desde esa fecha; al llegar al porcentaje y al superar el saldo hay aviso en el lote y en la consola. **Solo avisa**: la estimación no detiene nada, porque no incluye lo que gaste el *playground* de la consola ni otras claves.
+- **Dónde se ve:** `orumi estado` (pendientes, último lote, gasto estimado, avisos) y una línea `⚠ Mira: …` por la salida de error al ejecutar `capturar` o `validar`. Se deriva de los lotes, sin estado propio, y desaparece cuando un lote posterior termina bien.
+- **Limitaciones:** la API de Claude no expone el saldo real a cuentas individuales (el uso y el coste solo están en una API de administración que requiere una organización y una clave de administrador, y que no devuelve el saldo restante); no hay avisos por correo o móvil hasta que exista el panel o la app.
+

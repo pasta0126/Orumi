@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Anthropic;
+using Anthropic.Exceptions;
 using Anthropic.Models.Messages;
 
 namespace Orumi.Agente.Proveedores;
@@ -31,9 +32,48 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
             Messages = [new UserMessageParam { Content = Mensaje(solicitud) }],
         };
 
-        var respuesta = await _cliente.Value.Messages.Create(parametros, ct);
+        Message respuesta;
+        try
+        {
+            respuesta = await _cliente.Value.Messages.Create(parametros, ct);
+        }
+        catch (AnthropicApiException e)
+        {
+            var (tipo, codigo, mensaje) = LeerError(e.ResponseBody, e.Message);
+            var categoria = ClasificadorDeErrores.Clasificar((int)e.StatusCode, tipo, codigo, mensaje);
+            if (categoria == CategoriaError.Otro)
+            {
+                throw; // un error puntual: solo esa captura queda pendiente
+            }
+
+            throw new ProveedorException(categoria, ClasificadorDeErrores.Explicacion(categoria));
+        }
+
         var texto = string.Concat(respuesta.Content.Select(b => b.TryPickText(out var t) ? t.Text : string.Empty));
-        return LectorDeRespuesta.Analizar(texto);
+        var analizada = LectorDeRespuesta.Analizar(texto);
+        // El uso se informa aunque luego la salida no sea válida: la llamada ya se ha cobrado.
+        return analizada with { Uso = new UsoDeTokens(respuesta.Usage.InputTokens, respuesta.Usage.OutputTokens) };
+    }
+
+    /// <summary>Tipo, código y mensaje del cuerpo de error de la API (<c>{"error": {"type", "message", "details": {"error_code"}}}</c>).</summary>
+    internal static (string? Tipo, string? Codigo, string? Mensaje) LeerError(string? cuerpo, string? mensajeDeLaExcepcion)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(cuerpo ?? "{}");
+            if (doc.RootElement.TryGetProperty("error", out var e))
+            {
+                string? Texto(JsonElement x, string n) => x.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+                var codigo = e.TryGetProperty("details", out var d) && d.ValueKind == JsonValueKind.Object ? Texto(d, "error_code") : null;
+                return (Texto(e, "type"), codigo, Texto(e, "message") ?? mensajeDeLaExcepcion);
+            }
+        }
+        catch (JsonException)
+        {
+            // cuerpo no JSON: se clasifica por el mensaje de la excepción
+        }
+
+        return (null, null, mensajeDeLaExcepcion);
     }
 
     /// <summary>El mensaje de usuario: JSON con lo mínimo necesario.</summary>

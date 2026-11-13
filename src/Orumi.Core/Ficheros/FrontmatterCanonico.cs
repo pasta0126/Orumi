@@ -23,19 +23,19 @@ public static partial class FrontmatterCanonico
     ];
 
     private static readonly string[] OrdenLote =
-        ["id", "tipo", "ejecutado_el", "ejecucion", "agente", "proveedor", "capturas", "problemas"];
+        ["id", "tipo", "ejecutado_el", "ejecucion", "agente", "proveedor", "capturas", "uso", "avisos", "problemas"];
 
     /// <summary>Mapas que se escriben en línea: <c>{a: 1, b: 2}</c>.</summary>
     private static readonly HashSet<string> MapasEnLinea =
     [
         "fecha", "hora", "duracion", "multidia.fin", "procedencia.generado_por", "procedencia.actualizado_por",
-        "generada_por", "agente", "respuesta", "fuentes[].fragmento",
+        "generada_por", "agente", "respuesta", "fuentes[].fragmento", "uso",
     ];
 
     /// <summary>Listas en línea (<c>[a, b]</c>).</summary>
     private static readonly HashSet<string> ListasEnLinea =
     [
-        "herramientas", "personas", "lugares", "proyectos", "acciones", "resultados", "problemas", "ideas", "otros_registros",
+        "herramientas", "personas", "lugares", "proyectos", "acciones", "resultados", "problemas", "ideas", "otros_registros", "avisos",
     ];
 
     /// <summary>Listas en bloque cuyos elementos son mapas en línea.</summary>

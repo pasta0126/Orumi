@@ -13,7 +13,9 @@ public sealed record Configuracion(
     string Horario,
     int VentanaRelacionadosDias,
     int MaximoPendientes,
-    bool ExigirVolumen = false)
+    bool ExigirVolumen = false,
+    Precios? Precios = null,
+    Presupuesto? Presupuesto = null)
 {
     public const int CaducidadPorDefecto = 180;
 
@@ -45,6 +47,28 @@ public sealed record Configuracion(
             Texto(lote, "horario", "03:00"),
             Entero(lote, "ventana_relacionados_dias", 14),
             Entero(preguntas, "maximo_pendientes", 5),
-            Texto(Mapa(raiz, "volumen"), "exigir") == "true");
+            Texto(Mapa(raiz, "volumen"), "exigir") == "true",
+            LeerPrecios(Mapa(raiz, "precios")),
+            LeerPresupuesto(Mapa(raiz, "presupuesto")));
     }
+
+    private static Precios? LeerPrecios(Dictionary<string, object?> m)
+    {
+        return Decimal(m, "entrada_por_millon_usd") is { } e && Decimal(m, "salida_por_millon_usd") is { } s ? new Precios(e, s) : null;
+    }
+
+    private static Presupuesto? LeerPresupuesto(Dictionary<string, object?> m)
+    {
+        if (Decimal(m, "saldo_usd") is not { } saldo
+            || !DateOnly.TryParseExact(m.GetValueOrDefault("desde") as string, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var desde))
+        {
+            return null;
+        }
+
+        var aviso = int.TryParse(m.GetValueOrDefault("aviso_porcentaje") as string, CultureInfo.InvariantCulture, out var a) ? a : 90;
+        return new Presupuesto(saldo, desde, aviso);
+    }
+
+    private static decimal? Decimal(Dictionary<string, object?> m, string clave) =>
+        decimal.TryParse(m.GetValueOrDefault(clave) as string, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : null;
 }

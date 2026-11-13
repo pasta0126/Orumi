@@ -10,7 +10,9 @@ using Npgsql;
 namespace Orumi.Cli;
 
 /// <summary>Comandos del MVP. Separados de <c>Main</c> para poder probarlos sin proceso.</summary>
-public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter error, Func<DateTimeOffset> reloj, Func<string, string?> entorno)
+public sealed class Comandos(
+    Func<Stream> entrada, TextWriter salida, TextWriter error, Func<DateTimeOffset> reloj, Func<string, string?> entorno,
+    Func<IProveedorIA?>? proveedorDePrueba = null)
 {
     public const string VariableDatos = "ORUMI_DATOS";
     public const string VariableConfiguracion = "ORUMI_CONFIG";
@@ -39,6 +41,7 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
                 "procesar" => Procesar(opciones),
                 "preparar-volumen" => PrepararVolumen(opciones),
                 "reindexar" => Reindexar(opciones),
+                "estado" => Estado(opciones),
                 _ => Uso($"Comando desconocido: {args[0]}"),
             };
         }
@@ -99,6 +102,7 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
             o.Valor("etiqueta"));
         salida.WriteLine($"Captura creada: {creada.Id}");
         salida.WriteLine(creada.Ruta);
+        MostrarAvisos(datos, ConfigOpcional(o));
         return 0;
     }
 
@@ -114,6 +118,7 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
 
         var almacen = Almacen.Cargar(datos);
         var incidencias = Validador.Validar(almacen);
+        MostrarAvisos(datos, ConfigOpcional(o)); // el aviso va por la salida de error y no cambia el resultado de la validación
         if (incidencias.Count == 0)
         {
             salida.WriteLine($"OK: sin errores ({almacen.DeTipo("captura").Count()} capturas, {almacen.DeTipo("registro").Count()} registros, " +
@@ -141,7 +146,11 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
         }
 
         IProveedorIA proveedor;
-        if (o.Valor("simulado") is { } respuestas)
+        if (proveedorDePrueba?.Invoke() is { } inyectado)
+        {
+            proveedor = inyectado;
+        }
+        else if (o.Valor("simulado") is { } respuestas)
         {
             var respuesta = LectorDeRespuesta.Analizar(File.ReadAllText(respuestas, Encoding.UTF8));
             proveedor = new ProveedorSimulado(_ => respuesta);
@@ -175,7 +184,11 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
             return 3;
         }
 
-        var opciones = new OpcionesProcesador(config?.MaximoPendientes ?? 5, config?.VentanaRelacionadosDias ?? 14);
+        var opciones = new OpcionesProcesador(
+            MaximoPendientes: config?.MaximoPendientes ?? 5,
+            VentanaRelacionadosDias: config?.VentanaRelacionadosDias ?? 14,
+            Precios: config?.Precios,
+            Presupuesto: config?.Presupuesto);
         var reprocesar = o.Valor("reprocesar") is { } id ? new[] { id } : null;
         var resultado = new Procesador(datos, proveedor, opciones, reloj, config, entorno)
             .EjecutarAsync(ejecucion, reprocesar: reprocesar).GetAwaiter().GetResult();
@@ -192,6 +205,13 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
             return 4;
         }
 
+        if (resultado.Fatal is { } fatal)
+        {
+            error.WriteLine(ClasificadorDeErrores.Explicacion(fatal));
+            salida.WriteLine($"Capturas pendientes tras detenerse: {resultado.Pendientes - resultado.Procesadas.Count}. Lote: {resultado.LoteId}");
+            return fatal == CategoriaError.ClaveInvalida ? 8 : 7;
+        }
+
         if (resultado.Pendientes == 0)
         {
             salida.WriteLine("No hay capturas pendientes.");
@@ -204,6 +224,17 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
         if (resultado.LoteId is not null)
         {
             salida.WriteLine($"Lote: {resultado.LoteId}");
+        }
+
+        if (resultado.TokensEntrada + resultado.TokensSalida > 0)
+        {
+            salida.WriteLine($"Uso: {resultado.TokensEntrada} tokens de entrada y {resultado.TokensSalida} de salida; coste estimado " +
+                             (resultado.CosteEstimadoUsd is { } c ? $"{Formato.Usd2(c)} US$." : "desconocido (sin precios en la configuración)."));
+        }
+
+        foreach (var a in resultado.Avisos)
+        {
+            error.WriteLine($"⚠ Mira: {a}");
         }
 
         foreach (var p in resultado.Problemas)
@@ -324,6 +355,81 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
         return 0;
     }
 
+    /// <summary>La configuración, si existe y es legible; nunca hace fallar un comando.</summary>
+    private Configuracion? ConfigOpcional(Opciones o)
+    {
+        try
+        {
+            var ruta = o.Valor("config") ?? entorno(VariableConfiguracion);
+            return ruta is not null && File.Exists(ruta) ? Configuracion.Leer(File.ReadAllText(ruta, Encoding.UTF8)) : null;
+        }
+        catch (Exception e) when (e is IOException or FormatException or YamlDotNet.Core.YamlException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Aviso breve en la salida de error (saldo agotado, clave inválida, presupuesto cerca): nunca bloquea ni falla.</summary>
+    private void MostrarAvisos(string datos, Configuracion? config)
+    {
+        try
+        {
+            foreach (var aviso in ServicioDeEstado.Calcular(datos, config).Avisos)
+            {
+                error.WriteLine($"⚠ Mira: {aviso}");
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or FormatException)
+        {
+            // un aviso nunca debe impedir el comando
+        }
+    }
+
+    private int Estado(Opciones o)
+    {
+        var config = ConfigOpcional(o);
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config?.Datos) ? null : config.Datos) ?? entorno(VariableDatos);
+        if (string.IsNullOrWhiteSpace(datos) || !Directory.Exists(datos))
+        {
+            error.WriteLine($"Indica un directorio de datos existente con --datos, en la configuración o con la variable {VariableDatos}.");
+            return 2;
+        }
+
+        ExigirVolumenSiProcede(o, datos, config);
+        var e = ServicioDeEstado.Calcular(datos, config);
+        salida.WriteLine($"Capturas pendientes de procesar: {e.Pendientes}");
+        if (e.UltimoLote is { } l)
+        {
+            salida.WriteLine($"Último lote: {l.Id} ({l.EjecutadoEl:yyyy-MM-dd HH:mm}): {l.Procesadas} captura(s) procesada(s), {l.Problemas} problema(s)");
+        }
+        else
+        {
+            salida.WriteLine("Todavía no se ha ejecutado ningún lote.");
+        }
+
+        if (e.Presupuesto is { } p && e.GastoEstimado is { } g)
+        {
+            salida.WriteLine($"Gasto estimado desde {p.Desde:yyyy-MM-dd}: {Formato.Usd2(g)} de {Formato.Usd2(p.SaldoUsd)} US$ " +
+                             $"({(p.SaldoUsd > 0 ? g / p.SaldoUsd * 100m : 0m):0}%; aviso al {p.AvisoPorcentaje}%). Es una estimación: compárala con la consola del proveedor.");
+        }
+        else
+        {
+            salida.WriteLine("Presupuesto: sin configurar (añade `presupuesto` y `precios` a la configuración).");
+        }
+
+        foreach (var a in e.Avisos)
+        {
+            salida.WriteLine($"⚠ {a}");
+        }
+
+        if (e.Avisos.Count == 0)
+        {
+            salida.WriteLine("Sin avisos.");
+        }
+
+        return 0;
+    }
+
     private int PrepararVolumen(Opciones o)
     {
         var datos = DirectorioDatos(o);
@@ -397,6 +503,7 @@ public sealed class Comandos(Func<Stream> entrada, TextWriter salida, TextWriter
           orumi validar   [--datos RUTA]
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
+          orumi estado    [--config FICHERO] [--datos RUTA]   (pendientes, último lote, gasto estimado y avisos)
           orumi preparar-volumen [--datos RUTA]   (una vez, con el volumen cifrado ya montado)
           orumi procesar  [--config FICHERO] [--datos RUTA] [--ejecucion lote|peticion] [--reprocesar CAPTURA]
                           [--simulado RESPUESTAS.json]   (prueba sin enviar nada al proveedor)

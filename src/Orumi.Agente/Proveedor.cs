@@ -68,7 +68,8 @@ public sealed record PreguntaCandidata(string Campo, string Texto, string Valor,
 
 public sealed record RespuestaExtraccion(
     IReadOnlyList<RegistroExtraido> Registros,
-    IReadOnlyList<PreguntaCandidata> Preguntas)
+    IReadOnlyList<PreguntaCandidata> Preguntas,
+    UsoDeTokens? Uso = null)
 {
     public static RespuestaExtraccion SinHechos { get; } = new([], []);
 }

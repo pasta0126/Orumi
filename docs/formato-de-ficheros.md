@@ -240,10 +240,12 @@ agente: {agente: Mira, version: "…", modelo: "…"}
 proveedor: anthropic            # obligatorio: a quién se enviaron los datos (o `simulado`/`manual`)
 capturas:
   - {captura: cap-20261109-0815-m4k, registros_creados: [reg-…], registros_actualizados: [], preguntas_creadas: []}
-problemas: []                   # opcional: [{captura, motivo}], sin reproducir contenido
+uso: {tokens_entrada: 1000, tokens_salida: 500, coste_estimado_usd: "0.000350"}   # opcional: toda la ejecución, incluidas llamadas cuya salida no se pudo guardar
+avisos: ["Gasto estimado 4.50 de 5.00 US$ (90%) …"]   # opcional: aviso por presupuesto
+problemas: []                   # opcional: [{captura, motivo, tipo}], sin reproducir contenido
 ```
 
-Cada entrada de `capturas` puede añadir `preguntas_cerradas_por_limite`, `preguntas_descartadas` (número) y `nota` (p. ej. `sin hechos registrables`). Los registros que una ejecución interrumpida dejó guardados sin lote se adoptan como `registros_creados` en el siguiente lote.
+Cada entrada de `capturas` puede añadir `preguntas_cerradas_por_limite`, `preguntas_descartadas` (número), `nota` (p. ej. `sin hechos registrables`) y el uso de esa captura (`tokens_entrada`, `tokens_salida`, `coste_estimado_usd`; el coste es `desconocido` si la configuración no tiene precios: nunca se inventa). En `problemas`, `tipo` es `saldo_agotado`, `limite_de_gasto` o `clave_invalida` cuando el proveedor cortó la ejecución (lo que deja el lote como el «aviso vigente» hasta que un lote posterior termine sin ese problema); los avisos y los problemas nunca contienen texto de las notas ni la clave. Los registros que una ejecución interrumpida dejó guardados sin lote se adoptan como `registros_creados` en el siguiente lote.
 
 ## 7. Lectura sin herramientas
 

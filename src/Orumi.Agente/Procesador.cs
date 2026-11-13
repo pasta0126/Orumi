@@ -5,9 +5,10 @@ using Orumi.Core.Validacion;
 
 namespace Orumi.Agente;
 
-public sealed record OpcionesProcesador(int MaximoPendientes = 5, int VentanaRelacionadosDias = 14, string VersionMira = "0.1.0-mvp");
+public sealed record OpcionesProcesador(
+    int MaximoPendientes = 5, int VentanaRelacionadosDias = 14, string VersionMira = "0.1.0-mvp", Precios? Precios = null, Presupuesto? Presupuesto = null);
 
-public sealed record ProblemaDeLote(string Captura, string Motivo);
+public sealed record ProblemaDeLote(string Captura, string Motivo, string? Tipo = null);
 
 public sealed class ResultadoEjecucion
 {
@@ -22,6 +23,17 @@ public sealed class ResultadoEjecucion
     public List<string> PreguntasCerradasPorLimite { get; } = [];
 
     public List<ProblemaDeLote> Problemas { get; } = [];
+
+    /// <summary>Si la ejecución se detuvo por saldo agotado, límite de gasto o clave inválida.</summary>
+    public CategoriaError? Fatal { get; set; }
+
+    public List<string> Avisos { get; } = [];
+
+    public long TokensEntrada { get; set; }
+
+    public long TokensSalida { get; set; }
+
+    public decimal? CosteEstimadoUsd { get; set; }
 
     public string? LoteId { get; set; }
 
@@ -92,8 +104,15 @@ public sealed class Procesador(
                 resultado.RegistrosActualizados.AddRange(r.Actualizados);
                 resultado.PreguntasCreadas.AddRange(r.PreguntasCreadas);
                 resultado.PreguntasCerradasPorLimite.AddRange(r.CerradasPorLimite);
-                _entradas.Add(r.Entrada(captura.Id!));
+                _entradas.Add(r.Entrada(captura.Id!, opciones.Precios));
                 almacen = Almacen.Cargar(datos);
+            }
+            catch (ProveedorException e)
+            {
+                // Saldo agotado, límite de gasto o clave inválida: seguir fallaría igual. Se corta, todo queda pendiente y se explica qué hacer.
+                resultado.Problemas.Add(new ProblemaDeLote(captura.Id!, ClasificadorDeErrores.Explicacion(e.Categoria), ClasificadorDeErrores.Etiqueta(e.Categoria)));
+                resultado.Fatal = e.Categoria;
+                break;
             }
             catch (ProcesamientoFallidoException e)
             {
@@ -112,6 +131,9 @@ public sealed class Procesador(
     }
 
     private readonly List<Dictionary<string, object?>> _entradas = [];
+    private long _tokensEntrada;
+    private long _tokensSalida;
+    private bool _hayUso;
 
     private static List<Documento> Pendientes(Almacen almacen, IReadOnlyCollection<string>? reprocesar)
     {
@@ -143,7 +165,11 @@ public sealed class Procesador(
 
         public string? Nota { get; set; }
 
-        public Dictionary<string, object?> Entrada(string capturaId)
+        public long? TokensEntrada { get; set; }
+
+        public long? TokensSalida { get; set; }
+
+        public Dictionary<string, object?> Entrada(string capturaId, Precios? precios)
         {
             var e = new Dictionary<string, object?>
             {
@@ -155,6 +181,13 @@ public sealed class Procesador(
             if (CerradasPorLimite.Count > 0)
             {
                 e["preguntas_cerradas_por_limite"] = CerradasPorLimite.Cast<object?>().ToList();
+            }
+
+            if (TokensEntrada is { } te && TokensSalida is { } ts)
+            {
+                e["tokens_entrada"] = te.ToString(CultureInfo.InvariantCulture);
+                e["tokens_salida"] = ts.ToString(CultureInfo.InvariantCulture);
+                e["coste_estimado_usd"] = precios is null ? "desconocido" : Formato.Usd(precios.Coste(te, ts));
             }
 
             if (PreguntasDescartadas > 0)
@@ -193,6 +226,16 @@ public sealed class Procesador(
             relacionados);
 
         var respuesta = await proveedor.ExtraerAsync(solicitud, ct);
+        if (respuesta.Uso is { } uso)
+        {
+            // El consumo cuenta aunque la captura luego no se pueda guardar: la llamada ya se hizo y se cobra.
+            _tokensEntrada += uso.Entrada;
+            _tokensSalida += uso.Salida;
+            _hayUso = true;
+            res.TokensEntrada = uso.Entrada;
+            res.TokensSalida = uso.Salida;
+        }
+
         if (respuesta.Registros.Count == 0)
         {
             res.Nota = "sin hechos registrables";
@@ -942,7 +985,42 @@ public sealed class Procesador(
         if (res.Problemas.Count > 0)
         {
             fm["problemas"] = res.Problemas
-                .Select(p => (object?)new Dictionary<string, object?> { ["captura"] = p.Captura, ["motivo"] = p.Motivo }).ToList();
+                .Select(p =>
+                {
+                    var d = new Dictionary<string, object?> { ["captura"] = p.Captura, ["motivo"] = p.Motivo };
+                    if (p.Tipo is not null)
+                    {
+                        d["tipo"] = p.Tipo;
+                    }
+
+                    return (object?)d;
+                }).ToList();
+        }
+
+        decimal? coste = null;
+        if (_hayUso)
+        {
+            coste = opciones.Precios?.Coste(_tokensEntrada, _tokensSalida);
+            res.TokensEntrada = _tokensEntrada;
+            res.TokensSalida = _tokensSalida;
+            res.CosteEstimadoUsd = coste;
+            fm["uso"] = new Dictionary<string, object?>
+            {
+                ["tokens_entrada"] = _tokensEntrada.ToString(CultureInfo.InvariantCulture),
+                ["tokens_salida"] = _tokensSalida.ToString(CultureInfo.InvariantCulture),
+                ["coste_estimado_usd"] = coste is null ? "desconocido" : Formato.Usd(coste.Value),
+            };
+        }
+
+        // Aviso previo por presupuesto: solo avisa, nunca detiene (la estimación puede diferir del saldo real).
+        if (opciones.Presupuesto is { } presupuesto)
+        {
+            var previo = ControlDeGasto.GastoEstimado(almacen.DeTipo("lote"), presupuesto.Desde);
+            if (ControlDeGasto.AvisoDePresupuesto(previo + (coste ?? 0m), presupuesto) is { } aviso)
+            {
+                fm["avisos"] = new List<object?> { aviso };
+                res.Avisos.Add(aviso);
+            }
         }
 
         var cuerpo = $"Ejecución de Mira ({ejecucion}): {res.Procesadas.Count} captura(s) procesada(s)"
