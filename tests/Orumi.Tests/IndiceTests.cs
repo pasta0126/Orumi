@@ -76,6 +76,8 @@ public class IndiceTests : IDisposable
         Assert.Contains("Username=orumi_app", c);
         Assert.Contains("Database=orumi", c);
         Assert.Contains("SSL Mode=Disable", c);
+        var b = new NpgsqlConnectionStringBuilder(c); // la cadena debe ser válida para Npgsql, también sin GSS (evita cargar libgssapi en la imagen)
+        Assert.Equal(Npgsql.GssEncryptionMode.Disable, b.GssEncryptionMode);
         Assert.Throws<ArgumentException>(() => Orumi.Indice.Conexion.DesdeUrl("no es una url"));
     }
 
