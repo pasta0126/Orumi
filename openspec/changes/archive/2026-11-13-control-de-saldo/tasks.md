@@ -19,5 +19,5 @@
 ## 4. Documentación y despliegue
 
 - [x] 4.1 Documentar los campos nuevos del lote en `docs/formato-de-ficheros.md` y el comportamiento en `docs/agente-mira.md`
-- [ ] 4.2 Configurar el presupuesto (5 US$ desde 2026-11-13, aviso al 90 %) y los precios de Haiku 5.5 en `orumi.yaml` del servidor, reconstruir la imagen y probar `estado`
-- [ ] 4.3 Actualizar `infra` (README, ROADMAP, `security/orumi.md`) y `docs/decisiones.md`
+- [x] 4.2 Configurar el presupuesto (5 US$ desde 2026-11-13, aviso al 90 %) y los precios de Haiku 5.5 en `orumi.yaml` del servidor, reconstruir la imagen y probar `estado`
+- [x] 4.3 Actualizar `infra` (README, ROADMAP, `security/orumi.md`) y `docs/decisiones.md`
