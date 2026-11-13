@@ -30,3 +30,4 @@ summary { cursor: pointer; color: var(--suave); }
 .mensaje { min-height: 1.5em; margin: 12px 0 0; }
 .mensaje.ok { color: var(--ok); }
 .mensaje.mal, .error { color: var(--error); }
+a.enlace { color: var(--suave); font-size: .85rem; margin-right: 12px; }

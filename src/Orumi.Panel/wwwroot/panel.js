@@ -29,14 +29,19 @@
   const FORMATOS = { fecha: 'AAAA-MM-DD o AAAA-MM-DD..AAAA-MM-DD', hora: 'HH:MM', duracion: '90, 2h, 1h30', entidades: 'Nombre:tipo, Nombre:tipo', titulo: 'Texto', contexto: 'Texto', resultados: 'Texto' };
 
   // ------------------------------------------------------------ sesión (Google a través del GoTrue de la plataforma)
-  const CLAVE_SESION = 'orumi_panel_sesion', CLAVE_AUTH = 'orumi_panel_auth';
+  // La sesión se comparte con la página de captura (mismo origen): las mismas claves.
+  const CLAVE_SESION = 'orumi_sesion', CLAVE_AUTH = 'orumi_auth', CLAVE_API = 'orumi_panel_api';
   const leerLS = (k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
   const escribirLS = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } };
   const sesion = () => leerLS(CLAVE_SESION);
   let urlAuth = leerLS(CLAVE_AUTH);
+  let urlApi = leerLS(CLAVE_API);
 
   async function cargarConfig() {
-    try { const r = await fetch('/api/config'); if (r.ok) { urlAuth = (await r.json()).auth; escribirLS(CLAVE_AUTH, urlAuth); } } catch { /* sin red */ }
+    try {
+      const r = await fetch('config.json'); // relativo a /panel/
+      if (r.ok) { const c = await r.json(); urlAuth = c.auth; urlApi = c.api; escribirLS(CLAVE_AUTH, urlAuth); escribirLS(CLAVE_API, urlApi); }
+    } catch { /* sin red: se usan las guardadas */ }
   }
   function leerFragmento() {
     if (!location.hash.includes('access_token') && !location.hash.includes('error')) return null;
@@ -65,7 +70,7 @@
   }
   function entrar() {
     if (!urlAuth) { avisar('Sin conexión: no se puede iniciar sesión ahora.', 'mal'); return; }
-    location.href = urlAuth + '/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/');
+    location.href = urlAuth + '/authorize?provider=google&redirect_to=' + encodeURIComponent(location.origin + '/panel/');
   }
 
   // ------------------------------------------------------------ API
@@ -73,10 +78,11 @@
   async function api(ruta, opciones = {}, reintento = false) {
     const token = await acceso();
     if (!token) throw new ErrorDeApi(401, 'Inicia sesión.');
+    if (!urlApi) throw new ErrorDeApi(0, 'Sin conexión con el servidor.');
     const cabeceras = { Authorization: 'Bearer ' + token };
     if (opciones.cuerpo) cabeceras['Content-Type'] = 'application/json';
     let r;
-    try { r = await fetch(ruta, { method: opciones.metodo || 'GET', headers: cabeceras, body: opciones.cuerpo ? JSON.stringify(opciones.cuerpo) : undefined }); }
+    try { r = await fetch(urlApi + ruta, { method: opciones.metodo || 'GET', headers: cabeceras, body: opciones.cuerpo ? JSON.stringify(opciones.cuerpo) : undefined }); }
     catch { throw new ErrorDeApi(0, 'Sin conexión con el servidor.'); }
     if (r.status === 401 && !reintento && await renovar()) return api(ruta, opciones, true);
     const datos = await r.json().catch(() => ({}));

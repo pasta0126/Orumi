@@ -27,6 +27,10 @@ catch (Exception e) when (e is ArgumentException or UriFormatException)
 }
 
 var origenAuth = new Uri(authPublico).GetLeftPart(UriPartial.Authority);
+// La página vive en otro origen (orumi.northernarchive.com/panel) y la API en este: lista cerrada de orígenes permitidos.
+var apiPublica = (Environment.GetEnvironmentVariable("ORUMI_PANEL_API") ?? "https://orumi-api.northernarchive.com").TrimEnd('/');
+var origenesPermitidos = (Environment.GetEnvironmentVariable("ORUMI_PANEL_ORIGENES") ?? "https://orumi.northernarchive.com")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(o => o.TrimEnd('/')).ToList();
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
@@ -42,9 +46,10 @@ builder.Logging.SetMinimumLevel(LogLevel.Warning); // nunca se registra contenid
 var app = builder.Build();
 app.UseForwardedHeaders();
 app.UsarErroresGenericos();
-app.UsarCabecerasDeSeguridad(origenAuth);
+app.UsarCabecerasDeSeguridad(origenAuth, true, apiPublica);
+app.UsarCors(origenesPermitidos);
 var limites = new PoliticaDeLimites(LimitesDePeticiones.DesdeEntorno(Environment.GetEnvironmentVariable), () => DateTimeOffset.UtcNow);
-app.UsarGuardianDeApi(new GuardianDeApi(acceso, limites, ["/api/config"]));
+app.UsarGuardianDeApi(new GuardianDeApi(acceso, limites, []), origenesPermitidos); // ninguna ruta pública bajo /api
 
 TimeZoneInfo zona;
 try
@@ -89,8 +94,9 @@ IResult? IdInvalido(string id, System.Text.RegularExpressions.Regex rx) =>
 IResult? Largo(params string?[] valores) =>
     valores.Any(v => v is { Length: > 2000 }) ? Results.Json(new { error = "El valor es demasiado largo." }, statusCode: 400) : null;
 
-// ------------------------------------------------------------------ API (todas protegidas por el guardián; solo /api/config es pública)
-app.MapGet("/api/config", () => Results.Json(new { auth = authPublico }));
+// ------------------------------------------------------------------ API (todas protegidas por el guardián; ninguna es pública)
+// Configuración de la página (fuera de /api): dónde está el proveedor de identidad y la API. No contiene datos.
+app.MapGet("/config.json", () => Results.Json(new { auth = authPublico, api = apiPublica }));
 app.MapGet("/api/estado", () => Seguro(() => lectura.Estado()));
 app.MapGet("/api/dias", (HttpContext c) => Seguro(() => lectura.Dias(Q(c, "desde"), Q(c, "hasta"))));
 app.MapGet("/api/registros", (HttpContext c) => Seguro(() =>

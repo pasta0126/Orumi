@@ -1,5 +1,5 @@
 // Solo guarda la página y sus recursos para poder abrirla sin red. La API nunca se cachea.
-const VERSION = 'orumi-captura-v1';
+const VERSION = 'orumi-captura-v3';
 const RECURSOS = ['./', 'index.html', 'app.js', 'estilos.css', 'icono.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
@@ -10,7 +10,8 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  // El panel (/panel) tiene su propia página y no se guarda aquí.
+  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/panel')) return;
   // Red primero (siempre la última versión); si no hay red, la copia guardada.
   e.respondWith(fetch(e.request).then((r) => {
     const copia = r.clone();

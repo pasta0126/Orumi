@@ -14,7 +14,14 @@
 - [x] 2.1 Vistas Día, Pendientes, Buscar y Ficha (texto siempre como texto, móvil, tema, teclado)
 - [ ] 2.2 Probar en Chrome contra datos de ejemplo
 
+## 2b. Direcciones separadas (página en /panel, API en orumi-api)
+
+- [ ] 2b.1 CORS con lista cerrada (`ORUMI_PANEL_ORIGENES`), resolución de peticiones previas, comprobación de `Origin` en escrituras con la lista y CSP hacia la API; `/config.json` público y ninguna ruta pública en `/api` del panel
+- [ ] 2b.2 Página: base de API desde `/config.json`, sesión compartida con la captura (mismas claves), redirección de login a `/panel/`, enlaces entre captura y panel; la captura excluye `/panel` de su caché
+- [ ] 2b.3 Pruebas de CORS (origen permitido, no permitido, previa, escritura desde la lista) y de la lista de rutas públicas
+
 ## 3. Despliegue y documentación
 
-- [ ] 3.1 `Dockerfile.panel` y servicio en `infra` (Traefik con `ratelimit`, `inflightreq` y límite de cuerpo, `orumi-api.northernarchive.com`, `capturas/` en solo lectura)
+- [x] 3.1 `Dockerfile.panel` y servicio en `infra` (Traefik con `ratelimit`, `inflightreq` y límite de cuerpo, `capturas/` en solo lectura)
+- [ ] 3.1b Enrutado: página en `orumi.northernarchive.com/panel` (redirección de `/panel`, prefijo quitado) y API solo en `orumi-api.northernarchive.com/api`
 - [ ] 3.2 Documentar (X56, guía, seguridad, infra) y probar con datos reales

@@ -86,13 +86,13 @@ public static class GuardianDeApiExtensiones
 {
     public const string ClaveDeCorreo = "orumi.correo";
 
-    public static IApplicationBuilder UsarGuardianDeApi(this IApplicationBuilder app, GuardianDeApi guardian) =>
+    public static IApplicationBuilder UsarGuardianDeApi(this IApplicationBuilder app, GuardianDeApi guardian, IReadOnlyCollection<string>? origenesPermitidos = null) =>
         app.Use(async (c, siguiente) =>
         {
             var cabecera = c.Request.Headers.Authorization.ToString();
             var bearer = cabecera.StartsWith("Bearer ", StringComparison.Ordinal) ? cabecera["Bearer ".Length..] : null;
             var d = await guardian.EvaluarAsync(
-                c.Request.Method, c.Request.Path.Value ?? "/", CabecerasDeSeguridad.OrigenPropio(c.Request), c.Request.ContentType, bearer,
+                c.Request.Method, c.Request.Path.Value ?? "/", CabecerasDeSeguridad.OrigenPropio(c.Request, origenesPermitidos), c.Request.ContentType, bearer,
                 c.Connection.RemoteIpAddress?.ToString() ?? "desconocido", c.RequestAborted);
             if (d.Sigue)
             {

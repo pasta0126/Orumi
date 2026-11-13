@@ -233,4 +233,58 @@ public class SeguridadDeApiTests
         Assert.DoesNotContain("yo@ejemplo.com", linea);
         Assert.Contains("operacion=corregir id=reg-20261113-aaaa resultado=ok", linea);
     }
+
+    // ---------------------------------------------------------------- orígenes (CORS) y lista de rutas públicas
+
+    private static readonly string[] Permitidos = ["https://orumi.northernarchive.com"];
+
+    [Theory]
+    [InlineData(null, "orumi-api.northernarchive.com", true)] // no es un navegador
+    [InlineData("", "orumi-api.northernarchive.com", true)]
+    [InlineData("https://orumi.northernarchive.com", "orumi-api.northernarchive.com", true)] // la página del panel
+    [InlineData("https://orumi.northernarchive.com/", "orumi-api.northernarchive.com", true)]
+    [InlineData("https://ORUMI.northernarchive.com", "orumi-api.northernarchive.com", true)]
+    [InlineData("https://orumi-api.northernarchive.com", "orumi-api.northernarchive.com", true)] // el propio sitio
+    [InlineData("https://evil.example.com", "orumi-api.northernarchive.com", false)]
+    [InlineData("https://orumi.northernarchive.com.evil.com", "orumi-api.northernarchive.com", false)]
+    [InlineData("http://orumi.northernarchive.com", "orumi-api.northernarchive.com", false)] // otro esquema
+    [InlineData("null", "orumi-api.northernarchive.com", false)]
+    public void Solo_el_propio_sitio_y_la_lista_cerrada_pueden_escribir(string? origen, string host, bool esperado) =>
+        Assert.Equal(esperado, CabecerasDeSeguridad.OrigenPermitido(origen, host, Permitidos));
+
+    [Fact]
+    public async Task Una_escritura_desde_la_pagina_del_panel_pasa_el_guardian_y_desde_otro_origen_no()
+    {
+        var (g, _) = Montar();
+        var desdePanel = CabecerasDeSeguridad.OrigenPermitido("https://orumi.northernarchive.com", "orumi-api.northernarchive.com", Permitidos);
+        var desdeOtro = CabecerasDeSeguridad.OrigenPermitido("https://evil.example.com", "orumi-api.northernarchive.com", Permitidos);
+        Assert.True((await Peticion(g, "POST", "/api/registros/x/corregir", origenPropio: desdePanel)).Sigue);
+        Assert.Equal(403, (await Peticion(g, "POST", "/api/registros/x/corregir", origenPropio: desdeOtro)).Estado);
+    }
+
+    [Fact]
+    public async Task El_panel_no_tiene_ninguna_ruta_publica_en_la_api()
+    {
+        var g = new GuardianDeApi(new AccesoPorSesion(new Verificador(), ["yo@ejemplo.com"], () => _ahora), new PoliticaDeLimites(new LimitesDePeticiones(), () => _ahora), []);
+        foreach (var ruta in new[] { "/api/config", "/api/estado", "/api/registros" })
+        {
+            Assert.Equal(401, (await g.EvaluarAsync("GET", ruta, true, null, null, "5.5.5.5", CancellationToken.None)).Estado);
+        }
+    }
+
+    [Fact]
+    public void El_programa_del_panel_no_declara_rutas_publicas_ni_api_config_y_aplica_cors_con_lista()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "Orumi.slnx")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        var codigo = File.ReadAllText(Path.Combine(dir!, "src", "Orumi.Panel", "Program.cs"));
+        Assert.DoesNotContain("/api/config", codigo);
+        Assert.Contains("new GuardianDeApi(acceso, limites, [])", codigo);
+        Assert.Contains("UsarCors(origenesPermitidos)", codigo);
+        Assert.DoesNotContain("Access-Control-Allow-Origin\"] = \"*", codigo);
+    }
 }

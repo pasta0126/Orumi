@@ -19,6 +19,21 @@ El sistema MUST exigir una sesión válida del proveedor de identidad de la plat
 - **WHEN** el sistema responde con datos personales
 - **THEN** la respuesta indica que no debe almacenarse en caché
 
+### Requirement: Origen restringido de la página
+El sistema MUST aceptar peticiones entre orígenes únicamente desde la lista cerrada de orígenes configurada, MUST responder con el origen exacto (nunca un comodín), MUST resolver las peticiones previas sin autenticar y sin devolver datos, y MUST rechazar las escrituras cuyo origen no sea el propio ni uno de la lista.
+
+#### Scenario: Origen permitido
+- **WHEN** la página del panel hace una petición con su origen en la lista
+- **THEN** la API responde con ese origen exacto en las cabeceras de control de acceso
+
+#### Scenario: Origen no permitido
+- **WHEN** otro origen hace una petición
+- **THEN** la respuesta no incluye cabeceras de control de acceso y las escrituras se rechazan con 403
+
+#### Scenario: Petición previa
+- **WHEN** el navegador envía una petición previa desde un origen permitido
+- **THEN** se responde sin datos y sin exigir sesión
+
 ### Requirement: Ver registros por día
 El sistema MUST listar los registros de un día o rango, con título, clase, hora y certeza de la fecha, y permitir navegar entre días.
 
