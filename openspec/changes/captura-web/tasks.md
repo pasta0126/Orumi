@@ -13,6 +13,6 @@
 
 ## 3. Despliegue y documentación
 
-- [ ] 3.1 Imagen y servicio en `infra` (Traefik, token, volumen), DNS del subdominio por el usuario
-- [ ] 3.2 Registrar X53 (privacidad del dictado y acceso), actualizar `docs/tecnologias.md`, la guía y `infra` (README, ROADMAP, seguridad)
+- [x] 3.1 Imagen y servicio en `infra` (Traefik, token, volumen), DNS del subdominio por el usuario
+- [x] 3.2 Registrar X53 (privacidad del dictado y acceso), actualizar `docs/tecnologias.md`, la guía y `infra` (README, ROADMAP, seguridad)
 - [ ] 3.3 Prueba real extremo a extremo: dictar en el móvil, ver la captura en el servidor y procesarla
