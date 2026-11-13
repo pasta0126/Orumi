@@ -503,29 +503,15 @@ public sealed class Comandos(
     /// <summary>Preguntas pendientes con el contexto necesario para contestar, leídas de los ficheros (sin depender del índice).</summary>
     private int PendientesConContexto(Opciones o)
     {
-        var datos = DirectorioDatos(o);
-        var almacen = Almacen.Cargar(datos);
-        var registros = almacen.DeTipo("registro").Where(r => r.Id is not null).ToDictionary(r => r.Id!);
-        var orden = new Dictionary<string, int> { ["alta"] = 0, ["media"] = 1, ["baja"] = 2 };
-        var preguntas = almacen.DeTipo("pregunta")
-            .Where(p => p.Frontmatter.GetValueOrDefault("estado") as string == "pendiente")
-            .OrderBy(p => orden.GetValueOrDefault(p.Frontmatter.GetValueOrDefault("valor") as string ?? string.Empty, 3))
-            .ThenBy(p => p.Frontmatter.GetValueOrDefault("creada_el") as string, StringComparer.Ordinal)
-            .ToList();
-
-        string Titulo(string id) => registros.TryGetValue(id, out var r) ? $"{id} «{r.Frontmatter.GetValueOrDefault("titulo")}»" : id;
+        var preguntas = PreguntasConContexto.Pendientes(Almacen.Cargar(DirectorioDatos(o)));
+        string Titulo(RegistroImplicado r) => r.Titulo is null ? r.Id : $"{r.Id} «{r.Titulo}»";
         foreach (var p in preguntas)
         {
-            var fm = p.Frontmatter;
-            var campo = fm.GetValueOrDefault("campo") as string ?? string.Empty;
-            var principal = fm.GetValueOrDefault("registro") as string ?? string.Empty;
-            salida.WriteLine($"{p.Id}  [{fm.GetValueOrDefault("valor")}] {fm.GetValueOrDefault("texto")}");
-            var actual = registros.TryGetValue(principal, out var reg) ? ValoresDeCampo.Resumen(reg.Frontmatter.GetValueOrDefault(campo)) : "?";
-            salida.WriteLine($"    registro: {Titulo(principal)} · campo: {campo} · valor actual: {actual}");
-            foreach (var otro in (fm.GetValueOrDefault("otros_registros") as List<object?> ?? []).OfType<string>())
+            salida.WriteLine($"{p.Id}  [{p.Valor}] {p.Texto}");
+            salida.WriteLine($"    registro: {Titulo(p.Registro)} · campo: {p.Campo} · valor actual: {p.Registro.ValorActual}");
+            foreach (var otro in p.Otros)
             {
-                var valorOtro = registros.TryGetValue(otro, out var ro) ? ValoresDeCampo.Resumen(ro.Frontmatter.GetValueOrDefault(campo)) : "?";
-                salida.WriteLine($"    con: {Titulo(otro)} · valor actual: {valorOtro}");
+                salida.WriteLine($"    con: {Titulo(otro)} · valor actual: {otro.ValorActual}");
             }
         }
 

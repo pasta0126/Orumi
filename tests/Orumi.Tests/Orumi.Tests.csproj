@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Orumi.Indice\Orumi.Indice.csproj" />
     <ProjectReference Include="..\..\src\Orumi.Web\Orumi.Web.csproj" />
     <ProjectReference Include="..\..\src\Orumi.Acceso\Orumi.Acceso.csproj" />
+    <ProjectReference Include="..\..\src\Orumi.Panel\Orumi.Panel.csproj" />
   </ItemGroup>
 
 </Project>
