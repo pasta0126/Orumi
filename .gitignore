@@ -65,3 +65,6 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# Volcado de sesión local (puede contener datos personales)
+session.txt
