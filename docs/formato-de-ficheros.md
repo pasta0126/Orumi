@@ -169,6 +169,8 @@ conflictos:
 
 La marca es simétrica (aparece en los dos registros) y enlaza con la pregunta pendiente. Mientras el usuario no lo resuelva, siguen en conflicto.
 
+Al **resolver** un conflicto (`orumi responder`), `estado` pasa a `resuelto` en los dos registros; el valor del usuario se aplica solo al registro que él indica, y la otra versión no se modifica.
+
 ### 4.5 Rechazos
 
 Una interpretación rechazada se conserva para no volver a proponerla sin evidencia nueva:
@@ -178,7 +180,7 @@ rechazos:
   - {campo: contexto, valor: "Posible falta de tiempo", certeza_original: interpretado, rechazada_el: 2026-11-12T20:10:00+01:00}
 ```
 
-El campo queda `desconocido` o con el valor que dé el usuario.
+El campo queda `desconocido` o con el valor que dé el usuario. `valor` es el texto legible del valor rechazado (para listas, los elementos separados por comas) y coincide con el `anterior` de la entrada de historial del usuario.
 
 ### 4.6 Historial
 

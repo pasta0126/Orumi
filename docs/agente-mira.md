@@ -172,3 +172,11 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 - **Modo inmediato:** `orumi procesar --inmediato si` procesa nota a nota con la API normal y a precio completo, para ver el resultado en el momento.
 - **Privacidad:** igual que el modo inmediato (garantía declarada y vigente), con una salvedad: la API de lotes retiene los datos del lote **29 días** y no admite retención cero; las Condiciones Comerciales siguen prohibiendo entrenar con ellos.
 
+## 12. Respuestas y correcciones del usuario (change `responder-y-corregir`)
+
+- `orumi responder PREGUNTA VALOR`: aplica el valor al campo por el que se preguntó (confirmado, con historial de origen `usuario` y enlace a la pregunta), guarda el texto literal como `respuesta` y cierra la pregunta como `respondida`. `--no-recuerdo` / `--no-relevante` la cierran sin tocar el registro (y no se repite). En un conflicto, `--registro ID` indica a qué registro corresponde el valor y el conflicto queda `resuelto` en ambos; en una coincidencia dudosa, `misma` (relación `relacionado_con` confirmada, sin fusionar) o `distinta`.
+- `orumi corregir REGISTRO CAMPO VALOR` y `orumi rechazar REGISTRO CAMPO` (solo interpretaciones de Mira: pasan a `rechazos` y el campo queda `desconocido`).
+- Los valores se interpretan con reglas deterministas, sin modelo: fecha `AAAA-MM-DD[..AAAA-MM-DD]`, hora `HH:MM`, duración `90`, `90m`, `2h`, `1h30`, listas separadas por comas, entidades `Nombre[:tipo]`. Lo que no encaja se rechaza sin modificar nada.
+- Se valida el resultado antes de escribir (si aparece un error nuevo no se escribe nada), la escritura es atómica, no se tocan capturas y no se ejecuta mientras Mira procesa (código de salida 3). Mira respeta lo corregido en los reprocesados (X30).
+- `orumi consultar pendientes` lee los ficheros y muestra, por pregunta, el registro, el campo, el valor actual y el otro registro implicado.
+

@@ -2,6 +2,7 @@ using System.Text;
 using Orumi.Agente;
 using Orumi.Agente.Proveedores;
 using Orumi.Core.Capturas;
+using Orumi.Core.Correcciones;
 using Orumi.Core.Ficheros;
 using Orumi.Core.Validacion;
 using Orumi.Indice;
@@ -32,6 +33,11 @@ public sealed class Comandos(
             if (args[0] == "consultar")
             {
                 return Consultar(args.Skip(1).ToArray());
+            }
+
+            if (args[0] is "responder" or "corregir" or "rechazar")
+            {
+                return Modificar(args);
             }
 
             var opciones = Opciones.Analizar(args.Skip(1).ToArray());
@@ -331,6 +337,11 @@ public sealed class Comandos(
             return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | relacion ID | pendientes | sin-procesar | conflictos");
         }
 
+        if (args[0] == "pendientes")
+        {
+            return PendientesConContexto(Opciones.Analizar(args.Skip(1).ToArray()));
+        }
+
         var c = new Consultas(CadenaDeConexion());
         void Registros(IEnumerable<FilaRegistro> filas)
         {
@@ -413,6 +424,113 @@ public sealed class Comandos(
         {
             // un aviso nunca debe impedir el comando
         }
+    }
+
+    /// <summary>responder / corregir / rechazar: argumentos posicionales, opciones <c>--datos</c> y <c>--registro</c>, y los indicadores <c>--no-recuerdo</c> y <c>--no-relevante</c>.</summary>
+    private int Modificar(string[] args)
+    {
+        var posicionales = new List<string>();
+        var opciones = new List<string>();
+        string? cierre = null;
+        for (var i = 1; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--no-recuerdo": cierre = "no_recuerda"; break;
+                case "--no-relevante": cierre = "no_relevante"; break;
+                case var a when a.StartsWith("--", StringComparison.Ordinal):
+                    opciones.Add(a);
+                    if (i + 1 < args.Length)
+                    {
+                        opciones.Add(args[++i]);
+                    }
+
+                    break;
+                default: posicionales.Add(args[i]); break;
+            }
+        }
+
+        var o = Opciones.Analizar([.. opciones]);
+        var datos = DirectorioDatos(o);
+        if (!Directory.Exists(datos))
+        {
+            error.WriteLine($"No existe el directorio de datos: {datos}");
+            return 2;
+        }
+
+        string Texto(int desde) => string.Join(' ', posicionales.Skip(desde)).Trim();
+        Func<Operaciones, ResultadoOperacion> accion;
+        switch (args[0])
+        {
+            case "responder" when cierre is not null && posicionales.Count == 1:
+                accion = op => op.CerrarSinDato(posicionales[0], cierre);
+                break;
+            case "responder" when cierre is null && posicionales.Count >= 2:
+                accion = op => op.Responder(posicionales[0], Texto(1), o.Valor("registro"));
+                break;
+            case "corregir" when posicionales.Count >= 3:
+                accion = op => op.Corregir(posicionales[0], posicionales[1], Texto(2));
+                break;
+            case "rechazar" when posicionales.Count == 2:
+                accion = op => op.Rechazar(posicionales[0], posicionales[1]);
+                break;
+            default:
+                return Uso("Uso: orumi responder PREGUNTA VALOR [--registro ID] | responder PREGUNTA --no-recuerdo | --no-relevante\n"
+                           + "     orumi corregir REGISTRO CAMPO VALOR\n     orumi rechazar REGISTRO CAMPO");
+        }
+
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: no se ha modificado nada. Vuelve a intentarlo dentro de unos minutos.");
+            return 3;
+        }
+
+        try
+        {
+            var r = accion(new Operaciones(datos, reloj));
+            salida.WriteLine(r.Mensaje);
+            salida.WriteLine("El índice se actualizará en el próximo lote (o con «orumi reindexar»).");
+            return 0;
+        }
+        catch (OperacionInvalidaException e)
+        {
+            error.WriteLine($"No se ha modificado nada: {e.Message}");
+            return 2;
+        }
+    }
+
+    /// <summary>Preguntas pendientes con el contexto necesario para contestar, leídas de los ficheros (sin depender del índice).</summary>
+    private int PendientesConContexto(Opciones o)
+    {
+        var datos = DirectorioDatos(o);
+        var almacen = Almacen.Cargar(datos);
+        var registros = almacen.DeTipo("registro").Where(r => r.Id is not null).ToDictionary(r => r.Id!);
+        var orden = new Dictionary<string, int> { ["alta"] = 0, ["media"] = 1, ["baja"] = 2 };
+        var preguntas = almacen.DeTipo("pregunta")
+            .Where(p => p.Frontmatter.GetValueOrDefault("estado") as string == "pendiente")
+            .OrderBy(p => orden.GetValueOrDefault(p.Frontmatter.GetValueOrDefault("valor") as string ?? string.Empty, 3))
+            .ThenBy(p => p.Frontmatter.GetValueOrDefault("creada_el") as string, StringComparer.Ordinal)
+            .ToList();
+
+        string Titulo(string id) => registros.TryGetValue(id, out var r) ? $"{id} «{r.Frontmatter.GetValueOrDefault("titulo")}»" : id;
+        foreach (var p in preguntas)
+        {
+            var fm = p.Frontmatter;
+            var campo = fm.GetValueOrDefault("campo") as string ?? string.Empty;
+            var principal = fm.GetValueOrDefault("registro") as string ?? string.Empty;
+            salida.WriteLine($"{p.Id}  [{fm.GetValueOrDefault("valor")}] {fm.GetValueOrDefault("texto")}");
+            var actual = registros.TryGetValue(principal, out var reg) ? ValoresDeCampo.Resumen(reg.Frontmatter.GetValueOrDefault(campo)) : "?";
+            salida.WriteLine($"    registro: {Titulo(principal)} · campo: {campo} · valor actual: {actual}");
+            foreach (var otro in (fm.GetValueOrDefault("otros_registros") as List<object?> ?? []).OfType<string>())
+            {
+                var valorOtro = registros.TryGetValue(otro, out var ro) ? ValoresDeCampo.Resumen(ro.Frontmatter.GetValueOrDefault(campo)) : "?";
+                salida.WriteLine($"    con: {Titulo(otro)} · valor actual: {valorOtro}");
+            }
+        }
+
+        salida.WriteLine(preguntas.Count == 0 ? "Sin preguntas pendientes." : $"{preguntas.Count} pregunta(s) pendiente(s).");
+        return 0;
     }
 
     private int Estado(Opciones o)
@@ -538,6 +656,8 @@ public sealed class Comandos(
           orumi validar   [--datos RUTA]
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
+          orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante
+          orumi corregir  REGISTRO CAMPO VALOR     orumi rechazar REGISTRO CAMPO
           orumi estado    [--config FICHERO] [--datos RUTA]   (pendientes, último lote, gasto estimado y avisos)
           orumi preparar-volumen [--datos RUTA]   (una vez, con el volumen cifrado ya montado)
           orumi procesar  [--config FICHERO] [--datos RUTA] [--ejecucion lote|peticion] [--reprocesar CAPTURA]
@@ -553,7 +673,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro"];
 
     private readonly Dictionary<string, string> _valores = [];
 

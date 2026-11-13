@@ -388,7 +388,7 @@ public static partial class Validador
             }
 
             if (!historial.Any(h => Texto(h, "origen") == "usuario" && Texto(h, "campo") == campo
-                                    && h.TryGetValue("anterior", out var ant) && ant as string == Texto(rz, "valor")))
+                                    && h.TryGetValue("anterior", out var ant) && Orumi.Core.Correcciones.ValoresDeCampo.Resumen(ant) == Texto(rz, "valor")))
             {
                 E("rechazo sin entrada de historial del usuario");
             }
