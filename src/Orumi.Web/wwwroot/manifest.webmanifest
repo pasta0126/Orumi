@@ -1,7 +1,7 @@
 {
   "name": "ORUMI · Captura",
   "short_name": "ORUMI",
-  "description": "Captura de notas por texto o voz",
+  "description": "Captura de notas por texto",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

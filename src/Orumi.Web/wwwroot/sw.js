@@ -1,5 +1,5 @@
 // Solo guarda la página y sus recursos para poder abrirla sin red. La API nunca se cachea.
-const VERSION = 'orumi-captura-v4';
+const VERSION = 'orumi-captura-v5';
 const RECURSOS = ['./', 'index.html', 'app.js', 'ui.css', 'captura.css', 'iconos.js', 'tema.js', 'icono.svg', 'manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
