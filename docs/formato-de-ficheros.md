@@ -222,6 +222,7 @@ orumi/
 ├── hipotesis/hip-….yaml            # hipótesis del usuario, «por verificar» (X65)
 ├── analisis/etiquetas/AAAA/MM/reg-….yaml   # conceptos dichos en cada registro (derivado, regenerable)
 ├── analisis/ejecuciones/AAAA/MM/eti-….yaml # constancia de cada etiquetado (proveedor, modelo, uso)
+├── analisis/AAAA/semana-AAAA-Www.yaml      # revisión semanal: contrastes, evidencia y aprendizaje de Mira
 ├── aprendizajes/apr-….yaml         # lo que Mira ha aprendido de los cierres de preguntas (X64)
 ├── clima/AAAA/MM/AAAA-MM-DD-ciudad.yaml   # clima diario por ciudad (contexto derivado y regenerable)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
@@ -270,6 +271,36 @@ etiquetas:
 ```
 
 La constancia de cada ejecución (`analisis/ejecuciones/…/eti-AAAAMMDD-HHMM.yaml`) lleva proveedor, modelo, registros enviados, etiquetas, descartadas, tokens y coste estimado; nunca texto del usuario. Al modelo solo le llegan los conceptos y el texto del usuario: **ningún dato meteorológico**.
+
+### 5.01 Revisión semanal (`analisis/AAAA/semana-AAAA-Www.yaml`, X21–X23, X66)
+
+Se genera la primera noche de cada semana (también con `orumi analizar`) y se reemplaza si se regenera. **Etapa de observación** (4 semanas desde el primer registro): solo `observacion` (días transcurridos y necesarios, días con registros), sin contrastes ni preguntas. Después, un **contraste por hipótesis** con solo frecuencia observada y evidencia enlazada, sin causalidad ni recomendaciones:
+
+```yaml
+id: semana-2026-W49
+tipo: revision_semanal
+estado: completa               # observacion | completa
+contrastes:
+  - id: "hip-uv-dolor-de-cabeza#c1"
+    formulacion: "un índice UV alto con luz fuerte me provoca dolor de cabeza"   # tus palabras
+    factor: "UV alto (≥ 6)"
+    veredicto: apoyada          # apoyada | sin_apoyo | insuficiente
+    resumen: {dias_con_factor: 12, efecto_con_factor: 9, dias_sin_factor: 12, efecto_sin_factor: 1, tasa_con_factor: 0.75, tasa_sin_factor: 0.083, diferencia: 0.667, dias_con_efecto: 10, semanas_con_efecto: 4}
+    excluidos: {sin_clima: 0, factor_sin_dato: 0, efecto_sin_dato: 3}   # días que NO cuentan como «no ocurrió»
+    motivos: []                 # lo que falta cuando es insuficiente
+    texto: "Los datos apoyan tu hipótesis: … Es una asociación observada: no indica que sea la causa."
+    revision: ninguna           # o {estado: confirmada|matizada|descartada, comentario, fecha}; lo descartado no sale salvo evidencia nueva sustancial
+    evidencia:                  # trazabilidad a los registros y al clima usado
+      - {fecha: 2026-10-03, ciudad: "Barcelona", factor: si, efecto: presente, registros: [reg-20261003-ab12], clima: "UV máx 7.5, lluvia 0 mm, nubes 40 %", citas: ["me dolía la cabeza"]}
+sugerencias: ["Hay 2 día(s) con UV ≥ 6; con un umbral de 5 habría 10. No se cambia solo."]
+aprendizaje: {reglas_activas: 1, cambios: [...], tendencia: [{desde, hasta, formuladas, respondidas, no_relevantes, no_sucedio, no_recuerda, por_limite, pendientes, tasa_respuesta, tasa_no_relevante}]}
+preguntas_creadas: [preg-…]
+etiquetado: {ejecucion: eti-…, proveedor: anthropic, modelo: claude-sonnet-5-5, coste_estimado_usd: "0.013210"}
+```
+
+**Veredicto (X20):** *insuficiente* si faltan días conocidos con y sin el factor (≥ 4 por grupo), días con el efecto (≥ 3) o semanas distintas con el efecto (≥ 2); *apoyada* si la diferencia de tasas es ≥ 0,25 y los intervalos de Wilson no se solapan; *sin apoyo* si es ≤ 0,10; lo intermedio es *insuficiente* («no concluyente»). Todos los umbrales son configuración (`analisis:`). **Un día sin dato del efecto no cuenta como «no ocurrió»**: solo cuentan lo dicho (`presente`) o lo confirmado como ausente (`negado` o la respuesta «No sucedió»). Límite conocido: lo mencionado espontáneamente cuenta siempre, y la ausencia solo si se confirmó, por lo que puede sobrerrepresentarse el efecto; por eso las preguntas de contraste buscan equilibrar ambos grupos.
+
+**Preguntas de contraste (X63):** `campo: contraste` con `hipotesis`, `contraste`, `concepto`, `dia` y `clase_pregunta: "contraste:hip-…#cN"`; el `registro` es el de referencia del día. «Respondida» = ocurrió; «No sucedió» = ausencia confirmada; la duración de estar fuera (`concepto: exterior_duracion`) se lee de la respuesta («2 horas», «1h30», «media hora»; lo vago es desconocido).
 
 ### 5.0 Aprendizajes (`aprendizajes/`, X64)
 

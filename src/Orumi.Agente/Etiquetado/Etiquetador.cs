@@ -115,11 +115,11 @@ public sealed class Etiquetador(string datos, IProveedorDeTexto proveedor, Func<
     public async Task<ResultadoDeEtiquetado> EjecutarAsync(CancellationToken ct = default)
     {
         var ahora = reloj();
-        var conceptos = AlmacenDeHipotesis.ConceptosActivos(datos);
+        var conceptos = AlmacenDeHipotesis.Conceptos(datos);
         var vacio = new ResultadoDeEtiquetado(0, 0, 0, 0, [], [], 0, 0, null, null);
         if (conceptos.Count == 0)
         {
-            return vacio with { Problemas = ["No hay hipótesis activas: no hay nada que etiquetar."] };
+            return vacio with { Problemas = ["No hay hipótesis declaradas: no hay nada que etiquetar."] };
         }
 
         var registros = Preparar(Almacen.Cargar(datos));

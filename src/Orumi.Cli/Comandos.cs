@@ -68,6 +68,7 @@ public sealed class Comandos(
                 "estado" => Estado(opciones),
                 "clima" => Clima(opciones),
                 "etiquetar" => Etiquetar(opciones),
+                "analizar" => Analizar(opciones),
                 _ => Uso($"Comando desconocido: {args[0]}"),
             };
         }
@@ -181,7 +182,39 @@ public sealed class Comandos(
             }
         }
 
+        // Después del clima: etiquetado diario de los registros nuevos y, la primera noche de cada semana, el análisis semanal.
+        // Nada de esto cambia el resultado de Mira ni su código de salida (spec «El clima no bloquea…» y X65).
+        if (o.Valor("simulado") is null && ConfigOpcional(o) is { } cfg)
+        {
+            try
+            {
+                AnalisisNocturno(o, cfg);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                error.WriteLine($"Análisis pendiente: {e.Message}");
+            }
+        }
+
         return codigo;
+    }
+
+    private void AnalisisNocturno(Opciones o, Configuracion cfg)
+    {
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(cfg.Datos) ? null : cfg.Datos) ?? entorno(VariableDatos);
+        if (string.IsNullOrWhiteSpace(datos) || !Directory.Exists(datos) || Orumi.Core.Hipotesis.AlmacenDeHipotesis.Listar(datos).Count == 0)
+        {
+            return;
+        }
+
+        if (Orumi.Agente.Analisis.RevisionSemanal.Existe(datos, DateOnly.FromDateTime(reloj().DateTime)))
+        {
+            Etiquetar(o);
+        }
+        else
+        {
+            Analizar(o);
+        }
     }
 
     private int ProcesarConMira(Opciones o)
@@ -582,7 +615,7 @@ public sealed class Comandos(
     private int Hipotesis(string[] args)
     {
         var accion = args.Length > 0 ? args[0] : "listar";
-        var o = Opciones.Analizar([.. args.Skip(1)]);
+        var o = Opciones.Analizar([.. args.Skip(1).SkipWhile(a => !a.StartsWith("--", StringComparison.Ordinal))]);
         var datos = DirectorioDatos(o);
         if (!Directory.Exists(datos))
         {
@@ -605,6 +638,10 @@ public sealed class Comandos(
 
                 salida.WriteLine(hs.Count == 0 ? "No hay hipótesis declaradas. Usa «orumi hipotesis iniciales» o «añadir»." : $"{hs.Count} hipótesis.");
                 return 0;
+            case "confirmar" or "matizar" or "descartar":
+                return args.Length >= 2 && !args[1].StartsWith("--", StringComparison.Ordinal)
+                    ? RevisarHipotesis(o, args[1], accion)
+                    : Uso("Uso: orumi hipotesis confirmar|matizar|descartar HIPOTESIS[#CONTRASTE] [--comentario \"…\"]");
             case "iniciales":
             case "añadir" or "anadir":
                 using (var bloqueo = BloqueoDeEjecucion.Adquirir(datos))
@@ -649,7 +686,7 @@ public sealed class Comandos(
                 }
 
             default:
-                return Uso("Uso: orumi hipotesis listar | iniciales | añadir --formulacion \"…\" --factor clima:uv_alto[,…] --efecto CONCEPTO [--retardo 0-1] [--descripciones \"concepto=descripción|…\"]");
+                return Uso("Uso: orumi hipotesis listar | iniciales | confirmar|matizar|descartar HIPOTESIS[#CONTRASTE] [--comentario \"…\"] | añadir --formulacion \"…\" --factor clima:uv_alto[,…] --efecto CONCEPTO [--retardo 0-1] [--descripciones \"concepto=descripción|…\"]");
         }
     }
 
@@ -668,24 +705,8 @@ public sealed class Comandos(
             return 2;
         }
 
-        Orumi.Agente.Etiquetado.IProveedorDeTexto proveedor;
-        if (proveedorDeTextoDePrueba?.Invoke() is { } inyectado)
-        {
-            proveedor = inyectado;
-        }
-        else if (o.Valor("simulado") is { } fichero)
-        {
-            var respuesta = File.ReadAllText(fichero, Encoding.UTF8);
-            proveedor = new Orumi.Agente.Etiquetado.ProveedorDeTextoSimulado((_, _) => respuesta);
-        }
-        else if (config is { Proveedor: "anthropic" })
-        {
-            proveedor = new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(config.Modelo);
-        }
-        else
-        {
-            throw new ArgumentException("Indica el proveedor en la configuración (--config) o usa --simulado FICHERO para una prueba sin enviar nada.");
-        }
+        var proveedor = ProveedorDeTexto(o, config)
+                        ?? throw new ArgumentException("Indica el proveedor en la configuración (--config) o usa --simulado FICHERO para una prueba sin enviar nada.");
 
         using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
         if (bloqueo is null)
@@ -710,6 +731,130 @@ public sealed class Comandos(
 
         r.Problemas.ToList().ForEach(p => error.WriteLine($"  {p}"));
         return r.Problemas.Count == 0 ? 0 : 1;
+    }
+
+    /// <summary>Proveedor para el etiquetado: el de prueba, una respuesta simulada o el configurado; <c>null</c> si no hay ninguno.</summary>
+    private Orumi.Agente.Etiquetado.IProveedorDeTexto? ProveedorDeTexto(Opciones o, Configuracion? config)
+    {
+        if (proveedorDeTextoDePrueba?.Invoke() is { } inyectado)
+        {
+            return inyectado;
+        }
+
+        if (o.Valor("simulado") is { } fichero)
+        {
+            var respuesta = File.ReadAllText(fichero, Encoding.UTF8);
+            return new Orumi.Agente.Etiquetado.ProveedorDeTextoSimulado((_, _) => respuesta);
+        }
+
+        return config is { Proveedor: "anthropic" } ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(config.Modelo) : null;
+    }
+
+    /// <summary>
+    /// Análisis semanal (X21): etiqueta los registros nuevos, contrasta las hipótesis con los registros y el clima, crea pocas preguntas de contraste
+    /// y escribe la revisión de la semana. Con <c>--simulado</c> el etiquetado usa esa respuesta; sin proveedor se salta el etiquetado.
+    /// </summary>
+    private int Analizar(Opciones o)
+    {
+        var rutaConfig = o.Valor("config") ?? entorno(VariableConfiguracion);
+        Configuracion? config = rutaConfig is null ? null : Configuracion.Leer(File.ReadAllText(rutaConfig, Encoding.UTF8));
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config?.Datos) ? null : config.Datos) ?? entorno(VariableDatos);
+        if (string.IsNullOrWhiteSpace(datos) || !Directory.Exists(datos))
+        {
+            error.WriteLine($"Indica un directorio de datos existente con --datos, en la configuración o con la variable {VariableDatos}.");
+            return 2;
+        }
+
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: el análisis termina sin hacer nada.");
+            return 3;
+        }
+
+        var codigo = 0;
+        if (Orumi.Core.Hipotesis.AlmacenDeHipotesis.Listar(datos).Count == 0)
+        {
+            salida.WriteLine("No hay hipótesis declaradas: usa «orumi hipotesis iniciales» o «añadir». No se analiza nada.");
+            return 0;
+        }
+
+        if (o.Valor("etiquetar") != "no" && ProveedorDeTexto(o, config) is { } proveedor)
+        {
+            var e = new Orumi.Agente.Etiquetado.Etiquetador(datos, proveedor, reloj, config, entorno).EjecutarAsync().GetAwaiter().GetResult();
+            if (e.Detenida.Count > 0)
+            {
+                error.WriteLine("Etiquetado detenido: las comprobaciones de privacidad no se cumplen (se sigue con las etiquetas que ya hay).");
+                e.Detenida.ToList().ForEach(m => error.WriteLine($"  - {m}"));
+                codigo = 1;
+            }
+            else
+            {
+                salida.WriteLine($"Etiquetado: {e.Enviados} registro(s) enviados, {e.Etiquetados} etiqueta(s), {e.Omitidos} sin cambios.");
+                e.Problemas.ToList().ForEach(p => error.WriteLine($"  {p}"));
+            }
+        }
+
+        var clima = config?.Clima ?? Orumi.Agente.Clima.ConfiguracionDeClima.Leer([])!;
+        var r = Orumi.Agente.Analisis.RevisionSemanal.Generar(datos, config, clima, config?.Analisis ?? new Orumi.Agente.Analisis.UmbralesDeAnalisis(), reloj());
+        var a = r.Analisis;
+        if (r.EnObservacion)
+        {
+            salida.WriteLine($"Etapa de observación: {a.DiasDeObservacion} de {(config?.Analisis ?? new Orumi.Agente.Analisis.UmbralesDeAnalisis()).SemanasDeObservacion * 7} días desde el primer registro; {a.DiasConRegistros} día(s) con registros. Aún no hay contrastes.");
+        }
+        else
+        {
+            foreach (var c in a.Contrastes)
+            {
+                salida.WriteLine($"{c.Id}  [{c.Veredicto}]  {c.Texto}");
+            }
+
+            if (a.Descartados.Count > 0)
+            {
+                salida.WriteLine($"{a.Descartados.Count} contraste(s) descartado(s) por ti, sin evidencia nueva sustancial.");
+            }
+        }
+
+        if (r.PreguntasCreadas.Count > 0)
+        {
+            salida.WriteLine($"Preguntas de contraste creadas: {r.PreguntasCreadas.Count} ({string.Join(", ", r.PreguntasCreadas)}).");
+        }
+
+        salida.WriteLine($"Revisión {r.Id} escrita: {r.Ruta}");
+        return codigo;
+    }
+
+    /// <summary>El usuario confirma, matiza o descarta un contraste de una hipótesis (X22).</summary>
+    private int RevisarHipotesis(Opciones o, string objetivo, string accion)
+    {
+        var datos = DirectorioDatos(o);
+        var partes = objetivo.Split('#', 2);
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: no se ha modificado nada. Vuelve a intentarlo dentro de unos minutos.");
+            return 3;
+        }
+
+        try
+        {
+            var h = Orumi.Core.Hipotesis.AlmacenDeHipotesis.Leer(datos, partes[0])
+                    ?? throw new Orumi.Core.Hipotesis.HipotesisInvalidaException($"No existe la hipótesis «{partes[0]}».");
+            var contrasteId = partes.Length > 1 ? partes[1] : (h.Contrastes.Count == 1 ? h.Contrastes[0].Id : null);
+            var rutaConfig = o.Valor("config") ?? entorno(VariableConfiguracion);
+            var config = rutaConfig is not null && File.Exists(rutaConfig) ? Configuracion.Leer(File.ReadAllText(rutaConfig, Encoding.UTF8)) : null;
+            var efectos = Orumi.Agente.Analisis.MotorDeContraste
+                .Analizar(datos, config?.Clima ?? Orumi.Agente.Clima.ConfiguracionDeClima.Leer([])!, config?.Analisis ?? new Orumi.Agente.Analisis.UmbralesDeAnalisis(), DateOnly.FromDateTime(reloj().DateTime))
+                .Contrastes.FirstOrDefault(c => c.Hipotesis == partes[0] && c.Contraste == contrasteId)?.EfectosTotales ?? 0;
+            var r = Orumi.Core.Hipotesis.AlmacenDeHipotesis.Revisar(datos, partes[0], contrasteId, accion, o.Valor("comentario"), efectos, reloj());
+            salida.WriteLine($"{partes[0]}{(contrasteId is null ? "" : "#" + contrasteId)}: {accion}. La hipótesis queda «{r.Estado}».");
+            return 0;
+        }
+        catch (Orumi.Core.Hipotesis.HipotesisInvalidaException e)
+        {
+            error.WriteLine($"No se ha modificado nada: {e.Message}");
+            return 2;
+        }
     }
 
     /// <summary>El usuario corrige una etiqueta de un registro (presente, negado o quitar): su palabra prevalece al regenerar.</summary>
@@ -1036,6 +1181,8 @@ public sealed class Comandos(
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante | PREGUNTA --no-sucedio
           orumi hipotesis listar | iniciales | añadir --formulacion "…" --factor clima:uv_alto --efecto CONCEPTO [--retardo 0-1]   (tus hipótesis, «por verificar»)
+          orumi analizar  [--datos RUTA] [--simulado RESPUESTA.json]   (revisión semanal: contrasta tus hipótesis con tus registros y el clima)
+          orumi hipotesis confirmar|matizar|descartar HIPOTESIS[#CONTRASTE] [--comentario "…"]
           orumi etiquetar [--datos RUTA] [--simulado RESPUESTA.json]   (el modelo señala qué conceptos dijiste explícitamente en cada registro)
           orumi etiquetas ver REGISTRO | corregir REGISTRO CONCEPTO presente|negado|quitar
           orumi aprendizajes listar | desactivar ID | activar ID | borrar ID   (lo que Mira ha aprendido de tus cierres de preguntas)
@@ -1057,7 +1204,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo", "comentario", "etiquetar"];
 
     private readonly Dictionary<string, string> _valores = [];
 

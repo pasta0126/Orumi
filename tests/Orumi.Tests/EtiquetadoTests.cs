@@ -70,8 +70,9 @@ public class EtiquetadoTests : IDisposable
         Assert.Empty(AlmacenDeHipotesis.CargarIniciales(_datos, Ahora));
 
         Assert.Equal(Hipotesis.Descartada, AlmacenDeHipotesis.Leer(_datos, "hip-lluvia-relajacion")!.Estado);
-        Assert.DoesNotContain("relajacion", AlmacenDeHipotesis.ConceptosActivos(_datos).Keys);
-        Assert.Contains("dolor_de_cabeza", AlmacenDeHipotesis.ConceptosActivos(_datos).Keys);
+        // Lo descartado se sigue etiquetando en silencio (solo así puede reabrirse con evidencia nueva sustancial).
+        Assert.Contains("relajacion", AlmacenDeHipotesis.Conceptos(_datos).Keys);
+        Assert.Contains("dolor_de_cabeza", AlmacenDeHipotesis.Conceptos(_datos).Keys);
     }
 
     [Fact]

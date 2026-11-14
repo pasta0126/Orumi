@@ -22,7 +22,8 @@
 
 - [x] 4.1 Nuevo cierre «no sucedió» (formato de preguntas, `orumi responder`/`cerrar`, API y panel); efecto: ausencia confirmada, nunca se repite
 - [x] 4.2 Clase de pregunta (campo + tema) guardada en cada pregunta y cierre; migración que deja válidas las preguntas existentes
-- [ ] 4.3 (se hace tras las secciones 5 y 6: necesita las hipótesis y las etiquetas) Preguntas de contraste: generación determinista de candidatas (día con factor presente, efecto sin dato, hipótesis con evidencia insuficiente, duración de exposición ausente, ciudad mencionada distinta), dentro del máximo de 5 y con tono neutro sin sugerir respuesta
+- [x] 4.3a Preguntas de contraste: huecos deterministas (efecto sin dato en los días del contraste, equilibrando los grupos; duración de estar fuera ausente), pocas (≤ 3 por pasada y dentro del máximo de Mira), neutras, sin repetir un (concepto, día); solo tras la etapa de observación
+- [ ] 4.3b Pregunta de ciudad: ciudad indicada que no se reconoce (no se consulta su clima hasta confirmarla) y texto que menciona otra ciudad. **Pendiente de decisión:** para ubicar una ciudad nueva hace falta geolocalizar su nombre (Open-Meteo tiene un servicio de geocodificación; solo saldría el nombre de la ciudad) y guardar las ciudades confirmadas en un fichero propio, porque la configuración es de solo lectura
 - [x] 4.4 Almacén `aprendizajes/apr-*.yaml` y motor: ≥ 3 cierres «no relevante» en ≥ 2 días → prioridad baja de la clase; una respuesta con datos la restablece; la clase nunca se prohíbe; desactivación del usuario prevalece
 - [x] 4.5 Aplicar los aprendizajes: orden y selección de candidatas (determinista) y preferencias en el prompt de interpretación, sin incluir textos de cierres; el prompt no permite inventar
 - [x] 4.6 `orumi aprendizajes listar|desactivar|activar|borrar` y su equivalente en el panel
@@ -37,13 +38,13 @@
 
 ## 6. Análisis semanal
 
-- [ ] 6.1 Motor de contraste determinista: unión registro↔clima por fecha, hora y ciudad, ventanas de retardo, denominador con efecto mencionado o ausencia confirmada, evidencia mínima (≥ 3 registros en ≥ 2 semanas), resultado apoyada / sin apoyo / insuficiente
-- [ ] 6.2 Factores: exposición al sol (> 1,5 h dicha por el usuario y día soleado o despejado según el clima de esas horas), UV alto, lluvia, socialización con retardo
-- [ ] 6.3 Revisión semanal `analisis/AAAA/semana-AAAA-Www.yaml` con texto por plantilla, trazabilidad a registros y clima, sugerencias de ajuste de umbrales (sin aplicarlas), etapa de observación de 4 semanas y sin recomendaciones
-- [ ] 6.4 Apartado «Qué ha aprendido Mira» en la revisión: reglas nuevas o cambiadas y tendencia semanal de preguntas formuladas, respondidas, «no relevante» y «no sucedió»
-- [ ] 6.5 Comando `orumi analizar` y paso semanal del lote nocturno; coste y proveedor constan en el lote
-- [ ] 6.6 Revisión del usuario: `orumi hipotesis confirmar|matizar|descartar`; lo descartado reaparece solo con evidencia nueva sustancial
-- [ ] 6.7 Pruebas con datos sintéticos: asociación fuerte → apoyada; ruido → sin apoyo; pocos datos → insuficiente; días sin clima excluidos y contados; días sin dato contados y no tomados por ausencia; exposición de 1 h o sin duración no cuenta; jornada laboral no es socialización; texto sin consejos
+- [x] 6.1 Motor de contraste determinista: unión registro↔clima por fecha, hora y ciudad, ventanas de retardo, denominador con efecto mencionado o ausencia confirmada, evidencia mínima (≥ 3 registros en ≥ 2 semanas), resultado apoyada / sin apoyo / insuficiente
+- [x] 6.2 Factores: exposición al sol (> 1,5 h dicha por el usuario y día soleado o despejado según el clima de esas horas), UV alto, lluvia, socialización con retardo
+- [x] 6.3 Revisión semanal `analisis/AAAA/semana-AAAA-Www.yaml` con texto por plantilla, trazabilidad a registros y clima, sugerencias de ajuste de umbrales (sin aplicarlas), etapa de observación de 4 semanas y sin recomendaciones
+- [x] 6.4 Apartado «Qué ha aprendido Mira» en la revisión: reglas nuevas o cambiadas y tendencia semanal de preguntas formuladas, respondidas, «no relevante» y «no sucedió»
+- [x] 6.5 Comando `orumi analizar` y paso semanal del lote nocturno; coste y proveedor constan en el lote
+- [x] 6.6 Revisión del usuario: `orumi hipotesis confirmar|matizar|descartar`; lo descartado reaparece solo con evidencia nueva sustancial
+- [x] 6.7 Pruebas con datos sintéticos: asociación fuerte → apoyada; ruido → sin apoyo; pocos datos → insuficiente; días sin clima excluidos y contados; días sin dato contados y no tomados por ausencia; exposición de 1 h o sin duración no cuenta; jornada laboral no es socialización; texto sin consejos
 
 ## 7. Panel
 
