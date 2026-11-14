@@ -98,11 +98,18 @@ public sealed partial class Operaciones(string datos, Func<DateTimeOffset> ahora
 
     public ResultadoOperacion CerrarSinDato(string preguntaId, string estado)
     {
+        var texto = estado switch
+        {
+            "no_recuerda" => "No lo recuerdo.",
+            "no_relevante" => Aprendizaje.MotorDeAprendizaje.TextoNoRelevante,
+            "no_sucedio" => "No sucedió.",
+            _ => throw new OperacionInvalidaException("Una pregunta solo se cierra sin dato como no_recuerda, no_relevante o no_sucedio."),
+        };
         var almacen = Almacen.Cargar(datos);
         var pregunta = Buscar(almacen, preguntaId, "pregunta");
         var fm = Clonar(pregunta.Frontmatter);
         ExigirPendiente(fm, preguntaId);
-        Cerrar(fm, estado, estado == "no_recuerda" ? "No lo recuerdo." : "No es relevante.");
+        Cerrar(fm, estado, texto);
         return Guardar(almacen, [pregunta with { Frontmatter = fm }], $"Pregunta {preguntaId} cerrada como «{estado}»; el registro no cambia y Mira no volverá a preguntarlo.");
     }
 

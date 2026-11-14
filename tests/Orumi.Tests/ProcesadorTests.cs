@@ -479,7 +479,7 @@ public class ProcesadorTests
     }
 
     [Fact]
-    public async Task C11_Tras_no_relevante_no_se_repite_ni_se_formula_otra_equivalente()
+    public async Task C11_Tras_un_no_relevante_no_se_repite_esa_pregunta_pero_una_clase_no_se_prohibe_con_un_solo_cierre()
     {
         using var e = new EntornoMira();
         e.Capturar("Se me ha ocurrido usar cron.");
@@ -498,8 +498,10 @@ public class ProcesadorTests
         e.Respuesta = _ => Resp([Registro("Otra idea suelta.", "idea", "Otra idea")], P(0, "proyectos", "baja", "¿Y esta, de qué proyecto?"));
         var r = await e.Procesar();
 
-        Assert.Empty(r.PreguntasCreadas); // misma clase y mismo campo: equivalente
-        Assert.Single(e.Preguntas());
+        // Con un solo cierre no hay aprendizaje (hacen falta ≥ 3 en ≥ 2 días): la clase no se prohíbe, X64.
+        Assert.Single(r.PreguntasCreadas);
+        Assert.Equal(2, e.Preguntas().Count);
+        Assert.Empty(Orumi.Core.Aprendizaje.MotorDeAprendizaje.Listar(e.Datos));
     }
 
     [Fact]

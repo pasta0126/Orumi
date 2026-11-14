@@ -36,6 +36,11 @@ public sealed class Comandos(
                 return Consultar(args.Skip(1).ToArray());
             }
 
+            if (args[0] == "aprendizajes")
+            {
+                return Aprendizajes(args.Skip(1).ToArray());
+            }
+
             if (args[0] is "responder" or "corregir" or "rechazar" or "deshacer" or "eliminar" or "restaurar" or "fusionar" or "separar")
             {
                 return Modificar(args);
@@ -478,6 +483,7 @@ public sealed class Comandos(
             {
                 case "--no-recuerdo": cierre = "no_recuerda"; break;
                 case "--no-relevante": cierre = "no_relevante"; break;
+                case "--no-sucedio": cierre = "no_sucedio"; break;
                 case var a when a.StartsWith("--", StringComparison.Ordinal):
                     opciones.Add(a);
                     if (i + 1 < args.Length)
@@ -530,7 +536,7 @@ public sealed class Comandos(
                 accion = op => op.Separar(posicionales[0], posicionales[1], o.Valor("titulo"));
                 break;
             default:
-                return Uso("Uso: orumi responder PREGUNTA VALOR [--registro ID] | responder PREGUNTA --no-recuerdo | --no-relevante\n"
+                return Uso("Uso: orumi responder PREGUNTA VALOR [--registro ID] | responder PREGUNTA --no-recuerdo | --no-relevante | --no-sucedio\n"
                            + "     orumi corregir REGISTRO CAMPO VALOR\n     orumi rechazar REGISTRO CAMPO\n"
                            + "     orumi deshacer REGISTRO [CAMPO]\n     orumi eliminar REGISTRO | restaurar REGISTRO\n"
                            + "     orumi fusionar DESTINO ORIGEN\n     orumi separar REGISTRO CAPTURA [--titulo TEXTO]");
@@ -553,6 +559,83 @@ public sealed class Comandos(
         catch (OperacionInvalidaException e)
         {
             error.WriteLine($"No se ha modificado nada: {e.Message}");
+            return 2;
+        }
+    }
+
+    /// <summary>
+    /// Lo que Mira ha aprendido de cómo se cierran sus preguntas (X64): se ve con su evidencia y el usuario lo desactiva, activa o borra.
+    /// Nada se aplica en secreto y ninguna clase de pregunta queda prohibida: solo pasa por detrás de las demás.
+    /// </summary>
+    private int Aprendizajes(string[] args)
+    {
+        var accion = args.Length > 0 ? args[0] : "listar";
+        var resto = args.Skip(1).ToList();
+        var opciones = new List<string>();
+        var id = (string?)null;
+        for (var i = 0; i < resto.Count; i++)
+        {
+            if (resto[i].StartsWith("--", StringComparison.Ordinal))
+            {
+                opciones.Add(resto[i]);
+                if (i + 1 < resto.Count)
+                {
+                    opciones.Add(resto[++i]);
+                }
+            }
+            else
+            {
+                id ??= resto[i];
+            }
+        }
+
+        var o = Opciones.Analizar([.. opciones]);
+        var datos = DirectorioDatos(o);
+        if (!Directory.Exists(datos))
+        {
+            error.WriteLine($"No existe el directorio de datos: {datos}");
+            return 2;
+        }
+
+        if (accion == "listar" && id is null)
+        {
+            var reglas = Orumi.Core.Aprendizaje.MotorDeAprendizaje.Listar(datos);
+            foreach (var r in reglas)
+            {
+                salida.WriteLine($"{r.Id}  [{r.Estado}]  {r.Descripcion}");
+                salida.WriteLine($"    evidencia: {string.Join(", ", r.Evidencia)}");
+            }
+
+            salida.WriteLine(reglas.Count == 0 ? "Mira aún no ha aprendido nada de tus cierres de preguntas." : $"{reglas.Count} aprendizaje(s).");
+            return 0;
+        }
+
+        if (id is null || accion is not ("desactivar" or "activar" or "borrar"))
+        {
+            return Uso("Uso: orumi aprendizajes listar | desactivar ID | activar ID | borrar ID");
+        }
+
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: no se ha modificado nada. Vuelve a intentarlo dentro de unos minutos.");
+            return 3;
+        }
+
+        try
+        {
+            var r = accion switch
+            {
+                "desactivar" => Orumi.Core.Aprendizaje.MotorDeAprendizaje.Desactivar(datos, id, reloj()),
+                "activar" => Orumi.Core.Aprendizaje.MotorDeAprendizaje.Activar(datos, id, reloj()),
+                _ => Orumi.Core.Aprendizaje.MotorDeAprendizaje.Borrar(datos, id, reloj()),
+            };
+            salida.WriteLine($"{r.Id}: {(accion == "borrar" ? "borrado (solo volverá a aprenderse con evidencia nueva)" : r.Estado)}.");
+            return 0;
+        }
+        catch (Orumi.Core.Aprendizaje.AprendizajeNoEncontradoException e)
+        {
+            error.WriteLine(e.Message);
             return 2;
         }
     }
@@ -751,7 +834,8 @@ public sealed class Comandos(
           orumi clima     [--datos RUTA]   (obtiene el clima de los días con registros; requiere la sección «clima» en la configuración)
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
-          orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante
+          orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante | PREGUNTA --no-sucedio
+          orumi aprendizajes listar | desactivar ID | activar ID | borrar ID   (lo que Mira ha aprendido de tus cierres de preguntas)
           orumi corregir  REGISTRO CAMPO VALOR     orumi rechazar REGISTRO CAMPO     orumi deshacer REGISTRO [CAMPO]
           orumi eliminar REGISTRO   orumi restaurar REGISTRO   orumi fusionar DESTINO ORIGEN   orumi separar REGISTRO CAPTURA [--titulo T]
           orumi consultar papelera

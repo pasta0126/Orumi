@@ -158,3 +158,4 @@ details.filtros[open] summary { color: var(--texto); }
 .papelera-fila { grid-template-columns: 1fr auto; align-items: center; transition: opacity .35s var(--ease), transform .35s var(--ease); }
 .papelera-fila.sale { opacity: 0; transform: translateX(26px); }
 .papelera-fila h3 a { color: inherit; text-decoration: none; }
+.pregunta > .opciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

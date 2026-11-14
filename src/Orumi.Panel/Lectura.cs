@@ -284,6 +284,22 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
     /// <summary>Activo = sin estado. Los eliminados y fusionados («tumbas») no salen en días, búsquedas ni recuentos.</summary>
     private static bool EsActivo(Documento r) => !r.Frontmatter.ContainsKey("estado");
 
+    /// <summary>
+    /// Lo que Mira ha aprendido de cómo se cierran sus preguntas (X64), con la evidencia que lo sustenta. Las reglas borradas no salen.
+    /// Se lee de los ficheros en cada petición: los aprendizajes no entran en el almacén de documentos.
+    /// </summary>
+    public object Aprendizajes() => new
+    {
+        aprendizajes = Orumi.Core.Aprendizaje.MotorDeAprendizaje.Listar(repositorio.Datos)
+            .OrderBy(r => r.Estado == Orumi.Core.Aprendizaje.ReglaAprendida.Activa ? 0 : 1).ThenBy(r => r.Id, StringComparer.Ordinal)
+            .Select(r => new
+            {
+                id = r.Id, clase = r.Clase, estado = r.Estado, descripcion = r.Descripcion, evidencia = r.Evidencia, fijada = r.FijadaPorUsuario,
+                creada = r.Creada, actualizada = r.Actualizada,
+                historial = r.Historial.Select(h => new { fecha = h.Fecha, accion = h.Accion, origen = h.Origen, motivo = h.Motivo }),
+            }).ToList(),
+    };
+
     /// <summary>Registros eliminados, para poder restaurarlos.</summary>
     public object Papelera() => new
     {

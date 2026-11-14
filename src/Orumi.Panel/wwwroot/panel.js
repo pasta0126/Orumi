@@ -156,7 +156,7 @@
     const barra = $('barra');
     if (!$('marca').firstChild) $('marca').append(Logo(30), el('span', { text: 'ORUMI' }));
     const nav = (id, icono, texto) => { const a = $(id); if (!a.firstChild) a.append(ic(icono), el('span', { text: texto })); if (id === 'nav-pendientes') a.append(el('span', { class: 'contador', id: 'contador', hidden: true })); };
-    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera');
+    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera'); nav('nav-aprendizajes', 'spark', 'Aprendizajes');
     const acc = $('acciones');
     if (!acc.firstChild) {
       const tema = el('button', { type: 'button', class: 'boton fantasma icono-solo', 'aria-label': 'Cambiar tema' });
@@ -317,7 +317,8 @@
         boton('Responder', 'enviar', { class: 'principal', onclick: () => enviar({ valor: valor.value, registro: destino ? destino.value : null }, `/api/preguntas/${p.id}/responder`) }),
         el('div', { class: 'opciones' },
           boton('No lo recuerdo', 'historial', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_recuerda' }, `/api/preguntas/${p.id}/cerrar`) }),
-          boton('No es relevante', 'cerrar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_relevante' }, `/api/preguntas/${p.id}/cerrar`) }))));
+          boton('No es relevante', 'cerrar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_relevante' }, `/api/preguntas/${p.id}/cerrar`) }),
+          boton('No sucedió', 'rechazar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_sucedio' }, `/api/preguntas/${p.id}/cerrar`) }))));
     return tarjeta;
   }
 
@@ -378,6 +379,32 @@
           el('div', { class: 'cuerpo' }, el('h3', {}, el('a', { href: '#/registro/' + r.id, text: r.titulo })), el('div', { class: 'chips' }, chipClase(r.clase), el('span', { class: 'meta', text: 'Eliminado ' + momento(r.eliminadoEl) }))),
           boton('Restaurar', 'deshacer', { class: 'pequeno', onclick: async () => { try { const r2 = await post(`/api/registros/${r.id}/restaurar`, {}); avisar(r2.mensaje, 'ok'); fila.classList.add('sale'); setTimeout(() => fila.remove(), reducido ? 0 : 340); } catch (e) { manejar(e); } } }));
         lista.append(entra(fila, i));
+      });
+    } catch (e) { manejar(e); }
+  }
+
+  // ------------------------------------------------------------ vista: lo que Mira ha aprendido
+  const ESTADO_APRENDIZAJE = { activa: 'Activo', restablecida: 'Restablecido por tus respuestas', desactivada: 'Desactivado por ti' };
+  async function vistaAprendizajes() {
+    const lista = el('div', {}, esqueletos(2));
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Cómo evoluciona Mira' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Aprendizajes' }))),
+      el('p', { class: 'meta', text: 'Mira aprende de cómo cierras sus preguntas. Nada se aplica en secreto: aquí lo ves, lo desactivas o lo borras. Nunca deja de preguntar, solo pasa esas preguntas por detrás de las demás.' })), lista);
+    try {
+      const d = await get('/api/aprendizajes');
+      vaciar(lista);
+      if (!d.aprendizajes.length) { lista.append(estadoVacio('Mira aún no ha aprendido nada de tus cierres de preguntas.')); return; }
+      d.aprendizajes.forEach((a, i) => {
+        const accion = async (ruta, texto) => { try { const r = await post(`/api/aprendizajes/${a.id}/${ruta}`, {}); avisar(r.mensaje || texto, 'ok'); enrutar(); } catch (e) { manejar(e); } };
+        const botones = a.estado === 'activa'
+          ? [boton('Desactivar', 'parar', { class: 'fantasma pequeno', onclick: () => accion('desactivar') })]
+          : [boton('Activar', 'check', { class: 'fantasma pequeno', onclick: () => accion('activar') })];
+        botones.push(conConfirmacion('Borrar', 'papelera', 'fantasma pequeno', '¿Borrar este aprendizaje?', () => accion('borrar')));
+        lista.append(entra(el('div', { class: 'pregunta cristal foco-luz' },
+          el('p', { class: 'texto-pregunta', text: a.descripcion }),
+          el('div', { class: 'contexto' },
+            el('div', {}, ic('spark'), ESTADO_APRENDIZAJE[a.estado] || a.estado, el('span', { class: 'chip c-neutro' }, 'Clase: ' + a.clase)),
+            el('div', {}, ic('historial'), `Evidencia: ${a.evidencia.length} cierre(s) «no relevante»`)),
+          el('div', { class: 'opciones' }, botones)), i));
       });
     } catch (e) { manejar(e); }
   }
@@ -484,6 +511,7 @@
     if (vista === 'buscar') await vistaBuscar(resto || '');
     else if (vista === 'pendientes') await vistaPendientes();
     else if (vista === 'papelera') await vistaPapelera();
+    else if (vista === 'aprendizajes') await vistaAprendizajes();
     else if (vista === 'registro') await vistaRegistro(resto);
     else await vistaDia(vista === 'dia' ? resto : null);
     window.scrollTo({ top: 0 });

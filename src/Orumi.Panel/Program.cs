@@ -114,6 +114,7 @@ app.MapGet("/api/registros/{id}", (string id) => Seguro(() => lectura.Ficha(id))
 app.MapGet("/api/capturas/{id}", (string id) => Seguro(() => lectura.Captura(id)));
 app.MapGet("/api/preguntas", () => Seguro(() => lectura.PreguntasPendientes()));
 app.MapGet("/api/papelera", () => Seguro(() => lectura.Papelera()));
+app.MapGet("/api/aprendizajes", () => Seguro(() => lectura.Aprendizajes()));
 
 app.MapPost("/api/preguntas/{id}/responder", (HttpContext c, string id, RespuestaAPregunta cuerpo) =>
 {
@@ -142,12 +143,27 @@ app.MapPost("/api/preguntas/{id}/cerrar", (HttpContext c, string id, CierreDePre
         return mal;
     }
 
-    if (cuerpo.Estado is not ("no_recuerda" or "no_relevante"))
+    if (cuerpo.Estado is not ("no_recuerda" or "no_relevante" or "no_sucedio"))
     {
-        return Results.Json(new { error = "«estado» debe ser no_recuerda o no_relevante." }, statusCode: 400);
+        return Results.Json(new { error = "«estado» debe ser no_recuerda, no_relevante o no_sucedio." }, statusCode: 400);
     }
 
     return Respuesta(escritura.Ejecutar("cerrar-pregunta", id, Correo(c), op => op.CerrarSinDato(id, cuerpo.Estado)));
+});
+
+app.MapPost("/api/aprendizajes/{id}/{accion}", (HttpContext c, string id, string accion, Vacio _) =>
+{
+    if (!Orumi.Core.Correcciones.Operaciones.IdDeAprendizaje().IsMatch(id))
+    {
+        return Results.Json(new { error = "Identificador no válido." }, statusCode: 400);
+    }
+
+    if (accion is not ("desactivar" or "activar" or "borrar"))
+    {
+        return Results.Json(new { error = "La acción debe ser desactivar, activar o borrar." }, statusCode: 400);
+    }
+
+    return Respuesta(escritura.Ejecutar("aprendizaje-" + accion, id, Correo(c), op => op.CambiarAprendizaje(id, accion)));
 });
 
 app.MapPost("/api/registros/{id}/corregir", (HttpContext c, string id, Correccion cuerpo) =>

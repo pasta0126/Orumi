@@ -219,6 +219,7 @@ orumi/
 ├── lotes/AAAA/MM/lote-….md         # bitácora de ejecuciones de Mira
 ├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
+├── aprendizajes/apr-….yaml         # lo que Mira ha aprendido de los cierres de preguntas (X64)
 ├── clima/AAAA/MM/AAAA-MM-DD-ciudad.yaml   # clima diario por ciudad (contexto derivado y regenerable)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
 └── .indice/                         # índice derivado, desechable (ver docs/indice-derivado.md)
@@ -227,6 +228,26 @@ orumi/
 - La ruta se deduce del identificador (fecha de creación): no cambia al editar el fichero.
 - El estado (`pendiente`, `abierto`…) va en el frontmatter, nunca en la ruta, para no mover ficheros.
 - Nada de `orumi/` se copia a vedlvm ni a su remoto (X12).
+
+### 5.0 Aprendizajes (`aprendizajes/`, X64)
+
+Un fichero YAML por regla, visible y editable por el usuario (desde la terminal o el panel). Se regenera desde las preguntas cerradas; lo que el usuario desactiva o borra prevalece.
+
+```yaml
+id: apr-duracion-actividad
+tipo: aprendizaje
+regla: prioridad_baja
+clase_pregunta: "duracion:actividad"
+descripcion: "Preguntar menos por «duracion» en registros de clase «actividad»: el usuario lo ha cerrado como no relevante 3 veces en 2 días distintos."
+estado: activa                 # activa | restablecida | desactivada | borrada
+evidencia: [preg-20261116-ab12, preg-20261117-cd34, preg-20261118-ef56]   # cierres «no relevante» que la sustentan
+creada_el: "2026-11-19T04:00:11+01:00"
+actualizada_el: "2026-11-19T04:00:11+01:00"
+fijada_por_usuario: true       # solo si el usuario la activó a mano: Mira no la restablece
+borrada_el: "…"                # solo en las borradas: vuelven únicamente con evidencia posterior
+historial:
+  - {fecha: "2026-11-19T04:00:11+01:00", accion: creada, origen: mira, motivo: "3 cierres «no relevante» en 2 días."}
+```
 
 ### 5.1 Clima (`clima/`, X60–X62)
 
@@ -269,7 +290,8 @@ registro: reg-20261110-t5k8
 otros_registros: []             # p. ej. conflictos
 campo: contexto
 texto: "¿Qué te llevó a dejar la automatización para más adelante?"
-estado: no_recuerda             # pendiente | respondida | no_recuerda | no_relevante | cerrada_por_limite
+estado: no_recuerda             # pendiente | respondida | no_recuerda | no_relevante | no_sucedio | cerrada_por_limite
+clase_pregunta: "duracion:actividad"   # campo y clase del registro; opcional (las anteriores se deducen); base del aprendizaje
 valor: media                    # alta | media | baja
 creada_el: 2026-11-13T03:00:00+01:00
 generada_por: {agente: Mira, version: "…", modelo: "…"}

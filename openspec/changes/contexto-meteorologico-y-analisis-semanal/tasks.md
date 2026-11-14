@@ -20,13 +20,13 @@
 
 ## 4. Cierre «no sucedió», preguntas de contraste y aprendizaje
 
-- [ ] 4.1 Nuevo cierre «no sucedió» (formato de preguntas, `orumi responder`/`cerrar`, API y panel); efecto: ausencia confirmada, nunca se repite
-- [ ] 4.2 Clase de pregunta (campo + tema) guardada en cada pregunta y cierre; migración que deja válidas las preguntas existentes
-- [ ] 4.3 Preguntas de contraste: generación determinista de candidatas (día con factor presente, efecto sin dato, hipótesis con evidencia insuficiente, duración de exposición ausente, ciudad mencionada distinta), dentro del máximo de 5 y con tono neutro sin sugerir respuesta
-- [ ] 4.4 Almacén `aprendizajes/apr-*.yaml` y motor: ≥ 3 cierres «no relevante» en ≥ 2 días → prioridad baja de la clase; una respuesta con datos la restablece; la clase nunca se prohíbe; desactivación del usuario prevalece
-- [ ] 4.5 Aplicar los aprendizajes: orden y selección de candidatas (determinista) y preferencias en el prompt de interpretación, sin incluir textos de cierres; el prompt no permite inventar
-- [ ] 4.6 `orumi aprendizajes listar|desactivar|activar|borrar` y su equivalente en el panel
-- [ ] 4.7 Pruebas: umbral de aprendizaje, restablecimiento, «no sucedió» no enseña a callar, desactivación respetada, la clase nunca queda en cero, cierre equivalente sobre el mismo dato no se repite
+- [x] 4.1 Nuevo cierre «no sucedió» (formato de preguntas, `orumi responder`/`cerrar`, API y panel); efecto: ausencia confirmada, nunca se repite
+- [x] 4.2 Clase de pregunta (campo + tema) guardada en cada pregunta y cierre; migración que deja válidas las preguntas existentes
+- [ ] 4.3 (se hace tras las secciones 5 y 6: necesita las hipótesis y las etiquetas) Preguntas de contraste: generación determinista de candidatas (día con factor presente, efecto sin dato, hipótesis con evidencia insuficiente, duración de exposición ausente, ciudad mencionada distinta), dentro del máximo de 5 y con tono neutro sin sugerir respuesta
+- [x] 4.4 Almacén `aprendizajes/apr-*.yaml` y motor: ≥ 3 cierres «no relevante» en ≥ 2 días → prioridad baja de la clase; una respuesta con datos la restablece; la clase nunca se prohíbe; desactivación del usuario prevalece
+- [x] 4.5 Aplicar los aprendizajes: orden y selección de candidatas (determinista) y preferencias en el prompt de interpretación, sin incluir textos de cierres; el prompt no permite inventar
+- [x] 4.6 `orumi aprendizajes listar|desactivar|activar|borrar` y su equivalente en el panel
+- [x] 4.7 Pruebas: umbral de aprendizaje, restablecimiento, «no sucedió» no enseña a callar, desactivación respetada, la clase nunca queda en cero, cierre equivalente sobre el mismo dato no se repite
 
 ## 5. Hipótesis y etiquetado
 

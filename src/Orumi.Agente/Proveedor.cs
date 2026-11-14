@@ -20,7 +20,8 @@ public sealed record SolicitudExtraccion(
     string? FechaAcontecimiento,
     string? Etiqueta,
     IReadOnlyList<string> ClavesExistentes,
-    IReadOnlyList<RegistroRelacionado> Relacionados);
+    IReadOnlyList<RegistroRelacionado> Relacionados,
+    IReadOnlyList<string>? Preferencias = null);
 
 public sealed record RelacionExtraida(string Tipo, string Certeza, string? DestinoId = null, int? DestinoIndice = null);
 

@@ -14,7 +14,7 @@ public static partial class Validador
 {
     private static readonly string[] Certezas = ["dicho", "confirmado", "interpretado", "hipotesis", "recomendacion"];
     private static readonly string[] Clases = ["actividad", "evento", "idea", "decision", "problema", "otro"];
-    private static readonly string[] EstadosPregunta = ["pendiente", "respondida", "no_recuerda", "no_relevante", "cerrada_por_limite"];
+    private static readonly string[] EstadosPregunta = ["pendiente", "respondida", "no_recuerda", "no_relevante", "no_sucedio", "cerrada_por_limite"];
     private static readonly string[] TiposEntidad = ["organizacion", "sistema", "producto", "otro"];
     private static readonly string[] TiposRelacion = ["surge_de", "continua", "relacionado_con"];
     private static readonly string[] CamposConCerteza =
@@ -706,7 +706,7 @@ public static partial class Validador
             E("estado inválido");
         }
 
-        if (estado is "respondida" or "no_recuerda" or "no_relevante" && !fm.ContainsKey("respuesta"))
+        if (estado is "respondida" or "no_recuerda" or "no_relevante" or "no_sucedio" && !fm.ContainsKey("respuesta"))
         {
             E("pregunta cerrada sin respuesta");
         }
