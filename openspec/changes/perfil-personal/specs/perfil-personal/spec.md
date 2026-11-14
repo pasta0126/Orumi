@@ -122,3 +122,34 @@ Los datos del perfil MUST ser ficheros legibles, accesibles con independencia de
 #### Scenario: Sin Noa
 - **WHEN** Noa no está disponible
 - **THEN** el usuario sigue pudiendo leer sus ficheros de perfil
+
+### Requirement: Preguntas de Noa
+Noa MAY formular preguntas al usuario para completar o contrastar el perfil, solo cuando la respuesta pueda convertir una conjetura o un indicio en un patrón, resolver una contradicción o completar un apartado sin datos. Las preguntas de Noa MUST declarar a Noa como agente, MUST ser asíncronas y no bloquear nada, MUST admitir los mismos cierres que las de Mira (respondida, no lo recuerdo, no relevante, no sucedió), MUST NOT repetirse tras un cierre y MUST tener un máximo configurable por ejecución (por defecto 3). Versarán sobre el propio usuario (cómo se siente, qué prefiere, qué le ayuda o le desgasta), MUST NOT preguntar por rasgos o estados de terceras personas ni sugerir la respuesta ni dar consejos, y MUST NOT formularse antes de la etapa de observación.
+
+#### Scenario: Pregunta que cierra una duda
+- **WHEN** una conjetura sobre cómo le afecta una situación al usuario tiene un solo registro de apoyo
+- **THEN** Noa puede preguntarle directamente si eso es así, sin sugerir la respuesta
+
+#### Scenario: Pregunta sobre otra persona
+- **WHEN** Noa quiere entender una relación del usuario
+- **THEN** pregunta por lo que el usuario siente o hace, no por rasgos de la otra persona
+
+#### Scenario: Cierre sin dato
+- **WHEN** el usuario cierra una pregunta de Noa como no relevante
+- **THEN** no se repite y cuenta para el aprendizaje de las preguntas de Noa
+
+#### Scenario: Respuesta del usuario
+- **WHEN** el usuario responde una pregunta de Noa
+- **THEN** la respuesta queda como dicha por el usuario, prevalece sobre las interpretaciones de Noa y se usa en las siguientes versiones del perfil
+
+### Requirement: Las preguntas y respuestas de Noa son de Noa
+Las preguntas de Noa y sus respuestas MUST guardarse en el espacio de Noa y MUST NOT ser leídas por Mira ni mezclarse con las preguntas de Mira, de modo que no condicionen cómo se registran las notas. Que el usuario responda desde el panel MUST escribirse como acción del usuario en ese espacio.
+
+#### Scenario: Mira procesando
+- **WHEN** Mira procesa capturas y planifica sus preguntas
+- **THEN** no ve ni cuenta las preguntas ni las respuestas de Noa
+
+#### Scenario: Responder desde el panel
+- **WHEN** el usuario responde una pregunta de Noa en el panel
+- **THEN** la respuesta se guarda en el espacio de Noa y no cambia ningún registro ni captura
+

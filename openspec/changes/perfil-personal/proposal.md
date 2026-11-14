@@ -13,16 +13,19 @@ El usuario quiere comprenderse mejor y aprender a comunicarse (consigo mismo y c
 - **Terceras personas:** el perfil es solo del usuario; las demás personas, en especial los menores, solo aparecen como contexto de sus interacciones, sin perfiles ni rasgos inferidos de ellas.
 - **Sin fuentes externas:** Noa deduce solo de lo que ORUMI ya conserva; no busca en internet.
 - **Aislamiento y privacidad:** solo lee registros, respuestas e hipótesis; escribe únicamente en `perfil/`; Mira no lee el perfil. Usa el proveedor de IA ya contratado (X38) con envío mínimo y agregado por apartado y fallo cerrado; acceso solo por el login de Google con lista de correos, sin caché ni exposición pública. Se documenta el riesgo (ahora mayor) de concentración de datos sensibles.
-- **Panel:** sección «Perfil» con versiones, calendario y última ejecución, lectura, revisión y borrado.
+- **Preguntas de Noa:** Noa también puede proponer preguntas (pocas, asíncronas, sobre el propio usuario, nunca sobre terceros ni con consejos) para convertir conjeturas en patrones o resolver contradicciones. Viven en el espacio de Noa y Mira no las ve.
+- **Quién pregunta:** toda pregunta declara su agente (Mira o Noa) y el panel lo muestra con **avatares propios** (SVG, sin emojis) y bloques de preguntas por agente; cupo y aprendizaje independientes por agente.
+- **Panel:** sección «Perfil» con versiones, calendario y última ejecución, lectura, revisión y borrado; preguntas agrupadas por agente.
 
 ## Capabilities
 
 ### New Capabilities
+- `origen-de-las-preguntas`: agente de cada pregunta (Mira o Noa), avatares, bloques por agente, cupo y aprendizaje por agente.
 - `perfil-personal`: agente Noa: ejecución periódica o a petición, alcance, niveles de evidencia, certeza, límites de protección y control del perfil del usuario.
 
 ### Modified Capabilities
 - `privacidad-del-procesamiento`: Noa es otro emisor hacia el proveedor de IA y se somete a mínimos y garantías propios.
-- `panel-web`: sección «Perfil» con las mismas garantías de acceso y límites que el resto.
+- `panel-web`: sección «Perfil» con las mismas garantías de acceso y límites que el resto, y preguntas agrupadas por agente con su avatar.
 
 ## Impact
 
