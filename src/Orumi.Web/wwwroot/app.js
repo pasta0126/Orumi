@@ -130,12 +130,37 @@
     actualizarPendientes();
   }
 
+  // La ciudad la indica el usuario; se sugieren las últimas usadas en este dispositivo, sin rellenarla sola
+  // ni usar la geolocalización del navegador.
+  const CLAVE_CIUDADES = 'orumi.ciudades';
+  const CIUDADES_BASE = ['Barcelona', 'Segur de Calafell'];
+  function ciudadIndicada() {
+    const c = ($('ciudad').value || '').trim();
+    return c && c.toLowerCase() !== 'barcelona' ? c : null;
+  }
+  function pintarSugerencias() {
+    const lista = $('ciudades');
+    while (lista.firstChild) lista.removeChild(lista.firstChild);
+    const vistas = new Set();
+    for (const c of [...(leerLS(CLAVE_CIUDADES) || []), ...CIUDADES_BASE]) {
+      if (typeof c !== 'string' || vistas.has(c.toLowerCase())) continue;
+      vistas.add(c.toLowerCase());
+      const o = document.createElement('option'); o.value = c; lista.append(o);
+    }
+  }
+  function recordarCiudad(c) {
+    if (!c) return;
+    const previas = (leerLS(CLAVE_CIUDADES) || []).filter((x) => typeof x === 'string' && x.toLowerCase() !== c.toLowerCase());
+    escribirLS(CLAVE_CIUDADES, [c, ...previas].slice(0, 5));
+    pintarSugerencias();
+  }
+
   async function enviarNota() {
     const t = texto.value;
     if (!t.trim()) { decir('Escribe algo antes de enviar.', 'mal'); return; }
     enviar.disabled = true;
     const nota = {
-      idEnvio: crypto.randomUUID(), texto: t, fechaAcontecimiento: $('fecha').value || null,
+      idEnvio: crypto.randomUUID(), texto: t, ciudad: ciudadIndicada(), fechaAcontecimiento: $('fecha').value || null,
       etiqueta: $('etiqueta').value.trim() || null, dispositivo: dispositivo(), creada: new Date().toISOString(),
     };
     try { await guardar(nota); } catch { /* si no hay almacenamiento local se envía igualmente */ }
@@ -143,6 +168,7 @@
     enviar.disabled = false;
     if (r.resultado === 'ok') {
       try { await quitar(nota.idEnvio); } catch { /* nada */ }
+      recordarCiudad(nota.ciudad); $('ciudad').value = '';
       texto.value = '';
       decir('Nota guardada · ' + r.id, 'ok');
       confirmar();
@@ -153,6 +179,7 @@
       decir(r.prohibido ? 'Esta cuenta no tiene acceso a ORUMI.' : r.bloqueado ? 'Demasiados intentos. Espera unos minutos.' : 'La sesión ha caducado. La nota queda guardada en este dispositivo: inicia sesión para enviarla.', 'mal');
       texto.value = ''; if (!r.prohibido) mostrar(true);
     } else {
+      recordarCiudad(nota.ciudad); $('ciudad').value = '';
       texto.value = '';
       decir('Sin conexión: la nota queda guardada en este dispositivo y se enviará sola.', 'ok');
     }
@@ -186,6 +213,7 @@
   window.addEventListener('offline', () => { estado.textContent = 'sin conexión'; });
 
   iniciarInterfaz();
+  pintarSugerencias();
   (async () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     const vuelta = leerFragmento();

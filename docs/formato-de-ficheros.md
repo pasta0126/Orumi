@@ -63,6 +63,7 @@ contexto_automatico:
 # Opcionales (si el usuario los aporta, cuentan como «dicho»):
 fecha_acontecimiento: 2026-11-08
 etiqueta: casa
+ciudad: Segur de Calafell      # solo si no es la ciudad por defecto; la indica el usuario
 ---
 <texto literal tal como se recibió>
 ```
@@ -70,7 +71,8 @@ etiqueta: casa
 - **Cuerpo:** todo lo que sigue a la línea de cierre `---` y su salto de línea, sin tocar (ni limpieza, ni resumen, ni salto final añadido).
 - **`huella`:** permite comprobar que el cuerpo no se ha alterado. Si no coincide, el fichero se considera dañado.
 - **`comunicada_el`** es siempre la fecha y hora de comunicación; `fecha_acontecimiento` no la altera.
-- **Prohibido:** ubicación y cualquier monitorización. `contexto_automatico` solo admite `dispositivo` (la hora ya está en `comunicada_el`).
+- **`ciudad`** (opcional, X62): texto de 1 a 60 caracteres que **indica el usuario**; sin ella, la ciudad por defecto de la configuración. Es un metadato «dicho por el usuario», no una ubicación.
+- **Prohibido:** coordenadas, ubicación obtenida del dispositivo y cualquier monitorización. `contexto_automatico` solo admite `dispositivo` (la hora ya está en `comunicada_el`).
 - **Fragmentos:** un fragmento se identifica por posición en el cuerpo: `desde` (incluido) y `hasta` (excluido), en caracteres Unicode, base 0. Al ser el cuerpo inmutable, la posición es estable.
 - **Audio:** se guarda fuera de `capturas/` (en `entrada/`, §5) hasta confirmar que la captura quedó escrita y verificada; después se borra (X5/X28). Si la transcripción falla, el audio permanece en `entrada/` con la marca `.pendiente` y no existe fichero de captura.
 
@@ -217,6 +219,7 @@ orumi/
 ├── lotes/AAAA/MM/lote-….md         # bitácora de ejecuciones de Mira
 ├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
+├── clima/AAAA/MM/AAAA-MM-DD-ciudad.yaml   # clima diario por ciudad (contexto derivado y regenerable)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
 └── .indice/                         # índice derivado, desechable (ver docs/indice-derivado.md)
 ```
@@ -224,6 +227,36 @@ orumi/
 - La ruta se deduce del identificador (fecha de creación): no cambia al editar el fichero.
 - El estado (`pendiente`, `abierto`…) va en el frontmatter, nunca en la ruta, para no mover ficheros.
 - Nada de `orumi/` se copia a vedlvm ni a su remoto (X12).
+
+### 5.1 Clima (`clima/`, X60–X62)
+
+Contexto derivado y regenerable obtenido por `orumi clima`; **nunca** se escribe en capturas ni en registros y el modelo no lo recibe al interpretar notas. Un fichero por día y ciudad, en YAML plano (sin frontmatter):
+
+```yaml
+fecha: 2026-11-13
+ciudad: Barcelona
+fuente: open-meteo
+ubicacion: {lat: 41.4, lon: 2.2}      # redondeada a 1 decimal (~10 km): lo único que sale al servicio
+zona_horaria: Europe/Madrid
+obtenido: "2026-11-14T23:22:36+01:00"   # un día guardado el mismo día se vuelve a pedir: está incompleto
+dia:
+  uv_maximo: 3.15
+  amanecer: "07:37"
+  atardecer: "17:33"
+  luz_s: 35770.55
+  sol_s: 32910.12
+  precipitacion_mm: 0
+  temperatura_minima: 16.3
+  temperatura_maxima: 20.8
+  humedad_media: 70.625
+  nubosidad_media: 31.083
+horas:                                 # 24 entradas, hora local
+  - {h: 0, temperatura: 18.8, humedad: 63, precipitacion: 0, nubosidad: 0, radiacion: 0, sol_s: 0, uv: 0}
+```
+
+- **`desconocido`** es un valor explícito: lo que el servicio no ofrece (p. ej. el UV de un día de hace más de 92 días, que el histórico no trae) nunca se estima ni se rellena.
+- La ciudad de un día es la de la captura de origen del registro (la que indicó el usuario o la de por defecto, X62); una ciudad sin reconocer no se supone: no se consulta y se avisa.
+- Unidades: °C, %, mm, nubosidad en %, radiación en W/m², horas de sol y de luz en segundos, UV como índice.
 
 ## 6. Preguntas y lotes
 

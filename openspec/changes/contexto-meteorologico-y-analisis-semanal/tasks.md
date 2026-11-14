@@ -1,22 +1,22 @@
 ## 1. Decisión y verificación del servicio
 
-- [ ] 1.1 Verificar con las condiciones y la documentación oficiales de Open-Meteo: uso gratuito sin clave, variables horarias y diarias disponibles (incluido UV) en previsión con `past_days` e histórico, límites y no reutilización de datos enviados; si no cumple, elegir alternativa y registrarlo
-- [ ] 1.2 Registrar en `docs/decisiones.md` y `docs/tecnologias.md`: X60 (servicio), X61 (privacidad del servicio meteorológico), X62 (ciudad indicada por el usuario: reinterpreta X25), X63 (preguntas de contraste: amplía X36), X64 (aprendizaje de Mira) y las definiciones del usuario (exposición > 1,5 h, trabajo 08:30–18:30, Montbau por defecto); fuente, condiciones y fecha en la configuración
+- [x] 1.1 Verificar con las condiciones y la documentación oficiales de Open-Meteo: uso gratuito sin clave, variables horarias y diarias disponibles (incluido UV) en previsión con `past_days` e histórico, límites y no reutilización de datos enviados; si no cumple, elegir alternativa y registrarlo
+- [x] 1.2 Registrar en `docs/decisiones.md` y `docs/tecnologias.md`: X60 (servicio), X61 (privacidad del servicio meteorológico), X62 (ciudad indicada por el usuario: reinterpreta X25), X63 (preguntas de contraste: amplía X36), X64 (aprendizaje de Mira) y las definiciones del usuario (exposición > 1,5 h, trabajo 08:30–18:30, Montbau por defecto); fuente, condiciones y fecha en la configuración
 
 ## 2. Ciudad en las capturas
 
-- [ ] 2.1 Campo opcional `ciudad` en la captura (formato, validación, `docs/formato-de-ficheros.md`); las capturas existentes siguen válidas; origen «dicho por el usuario»
-- [ ] 2.2 Terminal (`orumi capturar --ciudad`) y web (campo opcional que recuerda la última ciudad solo en el dispositivo, sin geolocalización del navegador); la API de captura web lo acepta y valida
-- [ ] 2.3 Configuración: ciudad por defecto (Montbau, Barcelona), tabla de ciudades conocidas (inicialmente Barcelona y Segur de Calafell) con coordenadas redondeadas; ciudades nuevas confirmadas por el usuario se añaden a la tabla, zona horaria, horario laboral (08:30–18:30, días laborables)
-- [ ] 2.4 Pruebas: sin ciudad → por defecto; ciudad indicada se guarda; el original sigue inmutable y verificado; sin ubicación del dispositivo
+- [x] 2.1 Campo opcional `ciudad` en la captura (formato, validación, `docs/formato-de-ficheros.md`); las capturas existentes siguen válidas; origen «dicho por el usuario»
+- [x] 2.2 Terminal (`orumi capturar --ciudad`) y web (campo opcional que recuerda la última ciudad solo en el dispositivo, sin geolocalización del navegador); la API de captura web lo acepta y valida
+- [x] 2.3 Configuración: ciudad por defecto (Montbau, Barcelona), tabla de ciudades conocidas (inicialmente Barcelona y Segur de Calafell) con coordenadas redondeadas; ciudades nuevas confirmadas por el usuario se añaden a la tabla, zona horaria, horario laboral (08:30–18:30, días laborables)
+- [x] 2.4 Pruebas: sin ciudad → por defecto; ciudad indicada se guarda; el original sigue inmutable y verificado; sin ubicación del dispositivo
 
 ## 3. Contexto meteorológico
 
-- [ ] 3.1 Cliente del servicio de clima (.NET, sin dependencias nuevas, tiempo de espera y reintento acotado, petición solo con coordenadas redondeadas, fechas y variables, sin cabeceras identificativas)
-- [ ] 3.2 Formato `clima/AAAA/MM/AAAA-MM-DD-<ciudad>.yaml`, escritura atómica, variables desconocidas explícitas; documentarlo en `docs/formato-de-ficheros.md`
-- [ ] 3.3 Comando `orumi clima` idempotente: solo día y ciudad con registros y sin clima, refresco de los recientes, relleno histórico inicial; ciudad no reconocida → pregunta y sin consulta; el fallo no bloquea `procesar`
-- [ ] 3.4 Índice: tablas `clima_dia` y `clima_hora` en `reindexar`, con consulta por fecha y ciudad
-- [ ] 3.5 Pruebas: petición mínima (sin datos personales), variable ausente → desconocida, servicio caído, ciudad no reconocida, día con dos ciudades, el modelo no recibe clima
+- [x] 3.1 Cliente del servicio de clima (.NET, sin dependencias nuevas, tiempo de espera y reintento acotado, petición solo con coordenadas redondeadas, fechas y variables, sin cabeceras identificativas)
+- [x] 3.2 Formato `clima/AAAA/MM/AAAA-MM-DD-<ciudad>.yaml`, escritura atómica, variables desconocidas explícitas; documentarlo en `docs/formato-de-ficheros.md`
+- [x] 3.3 Comando `orumi clima` idempotente: solo día y ciudad con registros y sin clima, refresco de los recientes, relleno histórico inicial; ciudad no reconocida → pregunta y sin consulta; el fallo no bloquea `procesar`
+- [x] 3.4 Índice: tablas `clima_dia` y `clima_hora` en `reindexar`, con consulta por fecha y ciudad
+- [x] 3.5 Pruebas: petición mínima (sin datos personales), variable ausente → desconocida, servicio caído, ciudad no reconocida, día con dos ciudades, el modelo no recibe clima
 
 ## 4. Cierre «no sucedió», preguntas de contraste y aprendizaje
 

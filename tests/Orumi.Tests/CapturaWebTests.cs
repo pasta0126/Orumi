@@ -47,6 +47,16 @@ public class CapturaWebTests : IDisposable
     }
 
     [Fact]
+    public void La_ciudad_indicada_en_la_web_se_guarda_y_sin_ella_no_hay_ciudad()
+    {
+        var con = Servicio().Crear(Nota("Partido.") with { Ciudad = "Segur de Calafell" });
+        var sin = Servicio().Crear(Nota("Otra nota."));
+
+        Assert.Equal("Segur de Calafell", Capturada(con.Id).Frontmatter["ciudad"]);
+        Assert.DoesNotContain("ciudad", Capturada(sin.Id).Frontmatter.Keys);
+    }
+
+    [Fact]
     public void El_indicador_de_voz_de_una_pagina_antigua_se_ignora_y_la_captura_es_de_texto()
     {
         var cuerpo = "{\"idEnvio\":\"" + Guid.NewGuid() + "\",\"texto\":\"Nota de una página antigua.\",\"voz\":true,\"dispositivo\":\"web\"}";

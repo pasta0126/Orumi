@@ -52,3 +52,6 @@ details.mas[open] summary { color: var(--texto); }
   .cuenta { display: none; }
   #enviar { flex: 1; }
 }
+
+label.ciudad { display: block; margin: 16px 4px 0; color: var(--tenue); font-size: .9rem; }
+label.ciudad input { display: block; width: 100%; margin-top: 6px; }

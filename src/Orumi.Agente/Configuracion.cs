@@ -22,7 +22,8 @@ public sealed record Configuracion(
     bool ExigirVolumen = false,
     Precios? Precios = null,
     Presupuesto? Presupuesto = null,
-    Procesamiento? Procesamiento = null)
+    Procesamiento? Procesamiento = null,
+    Orumi.Agente.Clima.ConfiguracionDeClima? Clima = null)
 {
     public const int CaducidadPorDefecto = 180;
 
@@ -57,7 +58,8 @@ public sealed record Configuracion(
             Texto(Mapa(raiz, "volumen"), "exigir") == "true",
             LeerPrecios(Mapa(raiz, "precios")),
             LeerPresupuesto(Mapa(raiz, "presupuesto")),
-            LeerProcesamiento(Mapa(raiz, "procesamiento")));
+            LeerProcesamiento(Mapa(raiz, "procesamiento")),
+            raiz.ContainsKey("clima") ? Orumi.Agente.Clima.ConfiguracionDeClima.Leer(Mapa(raiz, "clima")) : null);
     }
 
     private static Precios? LeerPrecios(Dictionary<string, object?> m)

@@ -24,7 +24,7 @@ public static class Indexador
     private static readonly string[] Tablas =
     [
         "captura", "registro", "registro_dato", "registro_entidad", "registro_certeza", "fuente", "entrada", "relacion",
-        "conflicto", "rechazo", "historial", "pregunta", "lote", "lote_captura",
+        "conflicto", "rechazo", "historial", "pregunta", "lote", "lote_captura", "clima_dia", "clima_hora",
     ];
 
     private static readonly string[] CamposDeTexto = ["personas", "lugares", "proyectos", "herramientas", "acciones", "resultados", "problemas", "ideas", "contexto"];
@@ -108,9 +108,11 @@ public static class Indexador
             var fm = d.Frontmatter;
             await Fila("captura",
                 ("id", d.Id), ("ruta", d.Ruta), ("comunicada_el", Instante(Txt(fm, "comunicada_el"))), ("origen", Txt(fm, "origen")),
-                ("fecha_acontecimiento", Fecha(Txt(fm, "fecha_acontecimiento"))), ("etiqueta", Txt(fm, "etiqueta")),
+                ("fecha_acontecimiento", Fecha(Txt(fm, "fecha_acontecimiento"))), ("etiqueta", Txt(fm, "etiqueta")), ("ciudad", Txt(fm, "ciudad")),
                 ("dispositivo", Txt(Mapa(fm, "contexto_automatico"), "dispositivo")), ("huella_ok", Txt(fm, "huella") == Huella.De(d.Cuerpo)));
         }
+
+        await CargarClima(Fila, almacen.Raiz);
 
         foreach (var d in almacen.DeTipo("registro").Where(d => d.Id is not null))
         {
@@ -242,6 +244,66 @@ public static class Indexador
     }
 
     // ------------------------------------------------------------------ utilidades
+
+    /// <summary>
+    /// El clima (<c>clima/AAAA/MM/*.yaml</c>) es contexto derivado y regenerable: un fichero ilegible se omite, no tumba el índice.
+    /// «desconocido» es NULL.
+    /// </summary>
+    private static async Task CargarClima(Func<string, (string Columna, object? Valor)[], Task> fila, string raiz)
+    {
+        var carpeta = Path.Combine(raiz, "clima");
+        if (!Directory.Exists(carpeta))
+        {
+            return;
+        }
+
+        static double? Num(object? v) => v is string t && double.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var n) ? n : null;
+        static string? Tx(object? v) => v is string t && t != "desconocido" ? t : null;
+
+        foreach (var ruta in Directory.EnumerateFiles(carpeta, "*.yaml", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+        {
+            Dictionary<string, object?> r;
+            try
+            {
+                r = Orumi.Core.Yaml.YamlLector.LeerMapa(File.ReadAllText(ruta, System.Text.Encoding.UTF8));
+            }
+            catch (Exception e) when (e is IOException or FormatException or YamlDotNet.Core.YamlException)
+            {
+                continue;
+            }
+
+            if (Fecha(Txt(r, "fecha")) is not { } fecha || Txt(r, "ciudad") is not { } ciudad)
+            {
+                continue;
+            }
+
+            var ub = Mapa(r, "ubicacion");
+            var dia = Mapa(r, "dia");
+            await fila("clima_dia",
+            [
+                ("fecha", fecha), ("ciudad", ciudad), ("fuente", Txt(r, "fuente")), ("latitud", Num(ub.GetValueOrDefault("lat"))), ("longitud", Num(ub.GetValueOrDefault("lon"))),
+                ("obtenido", Instante(Txt(r, "obtenido"))), ("uv_maximo", Num(dia.GetValueOrDefault("uv_maximo"))), ("amanecer", Tx(dia.GetValueOrDefault("amanecer"))),
+                ("atardecer", Tx(dia.GetValueOrDefault("atardecer"))), ("luz_s", Num(dia.GetValueOrDefault("luz_s"))), ("sol_s", Num(dia.GetValueOrDefault("sol_s"))),
+                ("precipitacion_mm", Num(dia.GetValueOrDefault("precipitacion_mm"))), ("temperatura_minima", Num(dia.GetValueOrDefault("temperatura_minima"))),
+                ("temperatura_maxima", Num(dia.GetValueOrDefault("temperatura_maxima"))), ("humedad_media", Num(dia.GetValueOrDefault("humedad_media"))),
+                ("nubosidad_media", Num(dia.GetValueOrDefault("nubosidad_media"))),
+            ]);
+            foreach (var h in Lista(r, "horas"))
+            {
+                if (Num(h.GetValueOrDefault("h")) is not { } hora)
+                {
+                    continue;
+                }
+
+                await fila("clima_hora",
+                [
+                    ("fecha", fecha), ("ciudad", ciudad), ("hora", (int)hora), ("temperatura", Num(h.GetValueOrDefault("temperatura"))), ("humedad", Num(h.GetValueOrDefault("humedad"))),
+                    ("precipitacion", Num(h.GetValueOrDefault("precipitacion"))), ("nubosidad", Num(h.GetValueOrDefault("nubosidad"))), ("radiacion", Num(h.GetValueOrDefault("radiacion"))),
+                    ("sol_s", Num(h.GetValueOrDefault("sol_s"))), ("uv", Num(h.GetValueOrDefault("uv"))),
+                ]);
+            }
+        }
+    }
 
     private static async Task Ejecutar(NpgsqlConnection con, NpgsqlTransaction tx, string sql, CancellationToken ct)
     {

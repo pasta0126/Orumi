@@ -9,6 +9,10 @@ public sealed record FilaPregunta(string Id, string RegistroId, string? Campo, s
 
 public sealed record FilaConflicto(string RegistroId, string ConRegistroId, string? Campo, string? PreguntaId, string? Estado);
 
+public sealed record FilaClimaDia(
+    DateOnly Fecha, string Ciudad, double? UvMaximo, double? PrecipitacionMm, double? TemperaturaMinima, double? TemperaturaMaxima,
+    double? HumedadMedia, double? NubosidadMedia, double? SolSegundos);
+
 /// <summary>Consultas estructuradas sobre el índice derivado (spec <c>indice-y-respaldo</c> y <c>validacion-e-indice</c>). Solo lectura.</summary>
 public sealed class Consultas(string conexion, string esquema = Esquema.Vivo)
 {
@@ -33,6 +37,33 @@ public sealed class Consultas(string conexion, string esquema = Esquema.Vivo)
                 r.IsDBNull(3) ? null : DateOnly.FromDateTime(r.GetDateTime(3)),
                 r.IsDBNull(4) ? null : DateOnly.FromDateTime(r.GetDateTime(4)),
                 r.IsDBNull(5) ? null : TimeOnly.FromTimeSpan(r.GetTimeSpan(5))));
+        }
+
+        return lista;
+    }
+
+    /// <summary>Clima diario de un rango de fechas, opcionalmente de una ciudad (sin distinguir acentos ni mayúsculas).</summary>
+    public async Task<List<FilaClimaDia>> ClimaPorFecha(DateOnly desde, DateOnly hasta, string? ciudad = null, CancellationToken ct = default)
+    {
+        await using var con = new NpgsqlConnection(conexion);
+        await con.OpenAsync(ct);
+        await using var cmd = new NpgsqlCommand(
+            $"SELECT fecha, ciudad, uv_maximo, precipitacion_mm, temperatura_minima, temperatura_maxima, humedad_media, nubosidad_media, sol_s " +
+            $"FROM {_s}.clima_dia WHERE fecha BETWEEN @d AND @h ORDER BY fecha, ciudad", con);
+        cmd.Parameters.AddWithValue("d", desde);
+        cmd.Parameters.AddWithValue("h", hasta);
+        var filtro = ciudad is null ? null : Normalizacion.SinAcentos(ciudad);
+        var lista = new List<FilaClimaDia>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        double? D(int i) => r.IsDBNull(i) ? null : r.GetDouble(i);
+        while (await r.ReadAsync(ct))
+        {
+            if (filtro is not null && Normalizacion.SinAcentos(r.GetString(1)) != filtro)
+            {
+                continue;
+            }
+
+            lista.Add(new FilaClimaDia(DateOnly.FromDateTime(r.GetDateTime(0)), r.GetString(1), D(2), D(3), D(4), D(5), D(6), D(7), D(8)));
         }
 
         return lista;

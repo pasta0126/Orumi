@@ -3,7 +3,7 @@ using Orumi.Core.Ficheros;
 
 namespace Orumi.Web;
 
-public sealed record SolicitudDeCaptura(string? Texto, string? FechaAcontecimiento, string? Etiqueta, string? Dispositivo, string? IdEnvio);
+public sealed record SolicitudDeCaptura(string? Texto, string? FechaAcontecimiento, string? Etiqueta, string? Dispositivo, string? IdEnvio, string? Ciudad = null);
 
 public sealed record RespuestaDeCaptura(string Id, bool Repetida);
 
@@ -45,7 +45,7 @@ public sealed class ServicioDeCaptura(string datos, Func<DateTimeOffset> reloj)
             var dispositivo = s.Dispositivo is not null && Dispositivos.Contains(s.Dispositivo) ? s.Dispositivo : "web";
             var etiqueta = string.IsNullOrWhiteSpace(s.Etiqueta) ? null : s.Etiqueta.Trim();
             var fecha = string.IsNullOrWhiteSpace(s.FechaAcontecimiento) ? null : s.FechaAcontecimiento.Trim();
-            var creada = CreadorDeCapturas.Crear(datos, s.Texto ?? string.Empty, reloj(), dispositivo, fecha, etiqueta, origen: "texto");
+            var creada = CreadorDeCapturas.Crear(datos, s.Texto ?? string.Empty, reloj(), dispositivo, fecha, etiqueta, origen: "texto", ciudad: s.Ciudad);
             EscrituraAtomica.EscribirNuevo(marca, creada.Id + "\n");
             return new RespuestaDeCaptura(creada.Id, false);
         }

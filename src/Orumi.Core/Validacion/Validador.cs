@@ -20,7 +20,7 @@ public static partial class Validador
     private static readonly string[] CamposConCerteza =
         ["fecha", "hora", "duracion", "contexto", "personas", "lugares", "proyectos", "herramientas", "acciones", "resultados", "problemas", "ideas"];
     private static readonly string[] ClavesCaptura =
-        ["id", "tipo", "comunicada_el", "origen", "huella", "contexto_automatico", "fecha_acontecimiento", "etiqueta"];
+        ["id", "tipo", "comunicada_el", "origen", "huella", "contexto_automatico", "fecha_acontecimiento", "etiqueta", "ciudad"];
 
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}$")] private static partial Regex FechaRx();
     [GeneratedRegex(@"^([01]\d|2[0-3]):[0-5]\d$")] private static partial Regex HoraRx();
@@ -149,6 +149,12 @@ public static partial class Validador
         if (Texto(fm, "huella") != Huella.De(d.Cuerpo))
         {
             E("la huella no coincide con el cuerpo");
+        }
+
+        if (fm.TryGetValue("ciudad", out var ciudadFm)
+            && (ciudadFm is not string cs || cs.Length is 0 or > Orumi.Core.Capturas.CreadorDeCapturas.LongitudMaximaCiudad || cs.Any(char.IsControl)))
+        {
+            E("ciudad inválida (texto de 1 a 60 caracteres, sin saltos de línea)");
         }
 
         var extra = fm.Keys.Except(ClavesCaptura).ToList();

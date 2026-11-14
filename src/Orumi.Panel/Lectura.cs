@@ -228,6 +228,7 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
         origen = c.Frontmatter.GetValueOrDefault("origen"),
         fechaAcontecimiento = c.Frontmatter.GetValueOrDefault("fecha_acontecimiento"),
         etiqueta = c.Frontmatter.GetValueOrDefault("etiqueta"),
+        ciudad = c.Frontmatter.GetValueOrDefault("ciudad"),
         texto = c.Cuerpo,
     };
 

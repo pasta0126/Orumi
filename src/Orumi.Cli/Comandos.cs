@@ -14,7 +14,8 @@ namespace Orumi.Cli;
 public sealed class Comandos(
     Func<Stream> entrada, TextWriter salida, TextWriter error, Func<DateTimeOffset> reloj, Func<string, string?> entorno,
     Func<IProveedorIA?>? proveedorDePrueba = null,
-    Func<IProveedorPorLotes?>? proveedorPorLotesDePrueba = null)
+    Func<IProveedorPorLotes?>? proveedorPorLotesDePrueba = null,
+    Func<Orumi.Agente.Clima.ConfiguracionDeClima, Orumi.Agente.Clima.IProveedorDeClima>? proveedorDeClimaDePrueba = null)
 {
     public const string VariableDatos = "ORUMI_DATOS";
     public const string VariableConfiguracion = "ORUMI_CONFIG";
@@ -49,6 +50,7 @@ public sealed class Comandos(
                 "preparar-volumen" => PrepararVolumen(opciones),
                 "reindexar" => Reindexar(opciones),
                 "estado" => Estado(opciones),
+                "clima" => Clima(opciones),
                 _ => Uso($"Comando desconocido: {args[0]}"),
             };
         }
@@ -106,7 +108,8 @@ public sealed class Comandos(
             reloj(),
             o.Valor("dispositivo") ?? "terminal",
             o.Valor("fecha-acontecimiento"),
-            o.Valor("etiqueta"));
+            o.Valor("etiqueta"),
+            ciudad: o.Valor("ciudad"));
         salida.WriteLine($"Captura creada: {creada.Id}");
         salida.WriteLine(creada.Ruta);
         MostrarAvisos(datos, ConfigOpcional(o));
@@ -142,7 +145,29 @@ public sealed class Comandos(
         return 1;
     }
 
+    /// <summary>
+    /// Procesa con Mira y, si el clima está activado, completa después el clima de los días con registros. El clima nunca
+    /// cambia el resultado ni el código de salida de Mira: un fallo solo deja el día pendiente (spec <c>contexto-meteorologico</c>).
+    /// </summary>
     private int Procesar(Opciones o)
+    {
+        var codigo = ProcesarConMira(o);
+        if (o.Valor("simulado") is null && ConfigOpcional(o)?.Clima is not null)
+        {
+            try
+            {
+                Clima(o);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                error.WriteLine($"Clima pendiente: {e.Message}");
+            }
+        }
+
+        return codigo;
+    }
+
+    private int ProcesarConMira(Opciones o)
     {
         var rutaConfig = o.Valor("config") ?? entorno(VariableConfiguracion);
         Configuracion? config = rutaConfig is null ? null : Configuracion.Leer(File.ReadAllText(rutaConfig, Encoding.UTF8));
@@ -334,7 +359,7 @@ public sealed class Comandos(
     {
         if (args.Length == 0)
         {
-            return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | relacion ID | pendientes | sin-procesar | conflictos");
+            return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | clima DESDE HASTA [CIUDAD] | relacion ID | pendientes | sin-procesar | conflictos");
         }
 
         if (args[0] == "papelera")
@@ -370,6 +395,16 @@ public sealed class Comandos(
             case "relacion" when valor != "": Registros(c.PorRelacion(valor).GetAwaiter().GetResult()); break;
             case "fecha" when args.Length == 3 && DateOnly.TryParse(args[1], out var d) && DateOnly.TryParse(args[2], out var h):
                 Registros(c.PorFecha(d, h).GetAwaiter().GetResult());
+                break;
+            case "clima" when args.Length is 3 or 4 && DateOnly.TryParse(args[1], out var cd) && DateOnly.TryParse(args[2], out var ch):
+                var dias = c.ClimaPorFecha(cd, ch, args.Length == 4 ? args[3] : null).GetAwaiter().GetResult();
+                static string N(double? v, string u = "") => v is null ? "desconocido" : v.Value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + u;
+                foreach (var f in dias)
+                {
+                    salida.WriteLine($"{f.Fecha:yyyy-MM-dd}  {f.Ciudad}  {N(f.TemperaturaMinima)}–{N(f.TemperaturaMaxima, " °C")}  hum {N(f.HumedadMedia, " %")}  lluvia {N(f.PrecipitacionMm, " mm")}  nubes {N(f.NubosidadMedia, " %")}  UV máx {N(f.UvMaximo)}");
+                }
+
+                salida.WriteLine(dias.Count == 0 ? "Sin clima guardado para ese rango." : $"{dias.Count} día(s).");
                 break;
             case "pendientes":
                 var preguntas = c.PreguntasPendientes().GetAwaiter().GetResult();
@@ -556,6 +591,42 @@ public sealed class Comandos(
         return 0;
     }
 
+    /// <summary>
+    /// Obtiene el clima de los días con registros (spec <c>contexto-meteorologico</c>). Sin la sección <c>clima</c> en la
+    /// configuración no contacta con ningún servicio. Un fallo del servicio no es un error: el día queda pendiente.
+    /// </summary>
+    private int Clima(Opciones o)
+    {
+        var config = ConfigOpcional(o);
+        if (config?.Clima is not { } clima)
+        {
+            salida.WriteLine("El clima no está activado: falta la sección «clima» en la configuración. No se ha contactado con ningún servicio.");
+            return 0;
+        }
+
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config.Datos) ? null : config.Datos) ?? DirectorioDatos(o);
+        ExigirVolumenSiProcede(o, datos, config);
+        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+        var proveedor = proveedorDeClimaDePrueba?.Invoke(clima) ?? new Orumi.Agente.Clima.ProveedorOpenMeteo(http, clima);
+        var ahora = reloj();
+        var resultado = Orumi.Agente.Clima.ObtencionDeClima
+            .EjecutarAsync(datos, Almacen.Cargar(datos), clima, proveedor, DateOnly.FromDateTime(ahora.DateTime), ahora)
+            .GetAwaiter().GetResult();
+
+        salida.WriteLine($"Clima: {resultado.Obtenidos} día(s) obtenido(s), {resultado.YaGuardados} ya guardado(s).");
+        foreach (var s in resultado.SinReconocer)
+        {
+            salida.WriteLine($"Ciudad sin reconocer en {s.Captura}: «{s.Ciudad}». No se consulta su clima hasta confirmarla.");
+        }
+
+        foreach (var f in resultado.Fallos)
+        {
+            error.WriteLine($"Clima pendiente ({f}). Se reintentará en la siguiente ejecución.");
+        }
+
+        return 0;
+    }
+
     private int Estado(Opciones o)
     {
         var config = ConfigOpcional(o);
@@ -675,8 +746,9 @@ public sealed class Comandos(
 
         Uso:
           orumi capturar  [--datos RUTA] [--texto "…" | --archivo FICHERO]   (o el texto por entrada estándar)
-                          [--fecha-acontecimiento AAAA-MM-DD] [--etiqueta TEXTO] [--dispositivo TEXTO]
+                          [--fecha-acontecimiento AAAA-MM-DD] [--etiqueta TEXTO] [--ciudad TEXTO] [--dispositivo TEXTO]
           orumi validar   [--datos RUTA]
+          orumi clima     [--datos RUTA]   (obtiene el clima de los días con registros; requiere la sección «clima» en la configuración)
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante
@@ -698,7 +770,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo"];
 
     private readonly Dictionary<string, string> _valores = [];
 

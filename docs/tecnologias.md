@@ -139,6 +139,10 @@ Se aplaza a propósito (decisión del usuario): al llegar a la ejecución real d
 3. Declarar en la configuración la garantía de privacidad con su fecha y fuente.
 4. Tras una semana de uso, revisar el coste real y, si hace falta, el modelo.
 
+## 9. Servicio meteorológico (2026-11-14)
+
+Open-Meteo (`api.open-meteo.com` para los últimos 92 días, con UV; `archive-api.open-meteo.com` para días anteriores, sin UV). Sin clave ni cuenta; uso no comercial; límites de 600/min, 5.000/h y 10.000/día por IP. Datos bajo CC-BY 4.0 (ORUMI es privado, no los redistribuye; la fuente consta en cada fichero de clima). Condiciones y privacidad leídas el 2026-11-14 en `open-meteo.com/en/terms`: registra el servidor, con coordenadas, durante 90 días. Peticiones solo con coordenadas redondeadas, fechas y variables (decisión X61). Decisiones X60–X64 en `docs/decisiones.md`.
+
 ## 8. Fuentes (leídas el 2026-11-13)
 
 - Precios de Claude: https://platform.claude.com/docs/en/about-claude/pricing
