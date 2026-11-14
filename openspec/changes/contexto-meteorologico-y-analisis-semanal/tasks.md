@@ -30,10 +30,10 @@
 
 ## 5. Hipótesis y etiquetado
 
-- [ ] 5.1 Formato `hipotesis/hip-*.yaml` (formulación literal, factor, efecto, retardo, estado, historial) y validador; documentar en `docs/formato-de-ficheros.md`
-- [ ] 5.2 Comando `orumi hipotesis añadir|listar` y carga de las cuatro hipótesis iniciales con su formulación literal y las definiciones del usuario (exposición > 1,5 h en día soleado o despejado → cansancio físico; UV alto → dolor de cabeza; lluvia → relajación; socialización → agotamiento y luego soledad o introspección con retardo)
-- [ ] 5.3 Paso de etiquetado por lotes (reutiliza X51 y garantías X38): solo texto de registros, solo lo dicho, con cita; duración de exposición y estar fuera; el trabajo no es socialización; guardado derivado y regenerable en `analisis/etiquetas/`; respeta correcciones del usuario
-- [ ] 5.4 Pruebas del etiquetado con respuestas simuladas: efecto no mencionado → sin dato (no «ausente»); salida malformada rechazada sin escribir
+- [x] 5.1 Formato `hipotesis/hip-*.yaml` (formulación literal, factor, efecto, retardo, estado, historial) y validador; documentar en `docs/formato-de-ficheros.md`
+- [x] 5.2 Comando `orumi hipotesis añadir|listar` y carga de las cuatro hipótesis iniciales con su formulación literal y las definiciones del usuario (exposición > 1,5 h en día soleado o despejado → cansancio físico; UV alto → dolor de cabeza; lluvia → relajación; socialización → agotamiento y luego soledad o introspección con retardo)
+- [x] 5.3 Paso de etiquetado (en modo inmediato, X65; la API de lotes de X51 queda como mejora de coste; mismas garantías X38): solo texto de registros, solo lo dicho, con cita; duración de exposición y estar fuera; el trabajo no es socialización; guardado derivado y regenerable en `analisis/etiquetas/`; respeta correcciones del usuario
+- [x] 5.4 Pruebas del etiquetado con respuestas simuladas: efecto no mencionado → sin dato (no «ausente»); salida malformada rechazada sin escribir
 
 ## 6. Análisis semanal
 

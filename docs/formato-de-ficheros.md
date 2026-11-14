@@ -219,6 +219,9 @@ orumi/
 ├── lotes/AAAA/MM/lote-….md         # bitácora de ejecuciones de Mira
 ├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
+├── hipotesis/hip-….yaml            # hipótesis del usuario, «por verificar» (X65)
+├── analisis/etiquetas/AAAA/MM/reg-….yaml   # conceptos dichos en cada registro (derivado, regenerable)
+├── analisis/ejecuciones/AAAA/MM/eti-….yaml # constancia de cada etiquetado (proveedor, modelo, uso)
 ├── aprendizajes/apr-….yaml         # lo que Mira ha aprendido de los cierres de preguntas (X64)
 ├── clima/AAAA/MM/AAAA-MM-DD-ciudad.yaml   # clima diario por ciudad (contexto derivado y regenerable)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
@@ -228,6 +231,45 @@ orumi/
 - La ruta se deduce del identificador (fecha de creación): no cambia al editar el fichero.
 - El estado (`pendiente`, `abierto`…) va en el frontmatter, nunca en la ruta, para no mover ficheros.
 - Nada de `orumi/` se copia a vedlvm ni a su remoto (X12).
+
+### 5.00 Hipótesis y etiquetas (`hipotesis/`, `analisis/`, X65)
+
+**Hipótesis** del usuario, con sus palabras (certeza `dicho`), a verificar. Cada una tiene uno o varios **contrastes** (factor → efecto con una ventana de retardo en días) y la descripción de los **conceptos** que el modelo debe reconocer:
+
+```yaml
+id: hip-uv-dolor-de-cabeza
+tipo: hipotesis
+formulacion: "un índice UV alto con luz fuerte me provoca dolor de cabeza"
+certeza: dicho
+estado: por_verificar          # por_verificar | confirmada | matizada | descartada (la revisión es del usuario)
+declarada_el: "2026-11-14T23:50:00+01:00"
+conceptos:
+  dolor_de_cabeza: "El usuario dice que tiene o ha tenido dolor de cabeza o jaqueca."
+contrastes:
+  - id: c1
+    factor: ["clima:uv_alto"]  # clima:uv_alto | clima:lluvia | clima:soleado | registro:CONCEPTO[>=MINUTOS]; todas deben cumplirse
+    efecto: dolor_de_cabeza
+    retardo_dias: {desde: 0, hasta: 0}
+historial:
+  - {fecha: "2026-11-14T23:50:00+01:00", accion: declarada, origen: usuario, motivo: ninguno}
+```
+
+**Etiquetas** de un registro: qué conceptos aparecen **explícitamente** en lo que el usuario dijo (el fragmento de su captura, no la paráfrasis de Mira). `presente` si lo dijo; `negado` solo si dijo expresamente que no ocurrió; `quitado` si el usuario descarta la etiqueta. **Lo no mencionado no se etiqueta** y no cuenta como ausencia. Certeza `interpretado`; se regeneran cuando cambia el texto o los conceptos (`entrada` es la huella de lo enviado); lo que corrige el usuario (`origen: usuario`) prevalece. Cada cita se verifica literalmente contra el texto del usuario: una etiqueta sin cita literal se descarta.
+
+```yaml
+registro: reg-20261118-ab12
+tipo: etiquetas
+entrada: "sha256:…"
+generada_el: "2026-11-19T04:00:11+01:00"
+proveedor: anthropic
+modelo: claude-sonnet-5-5
+certeza: interpretado
+etiquetas:
+  - {concepto: exterior, estado: presente, origen: mira, cita: "tres horas en la playa", minutos: 180}
+  - {concepto: dolor_de_cabeza, estado: negado, origen: usuario, cita: "no tuve dolor de cabeza", minutos: desconocido}
+```
+
+La constancia de cada ejecución (`analisis/ejecuciones/…/eti-AAAAMMDD-HHMM.yaml`) lleva proveedor, modelo, registros enviados, etiquetas, descartadas, tokens y coste estimado; nunca texto del usuario. Al modelo solo le llegan los conceptos y el texto del usuario: **ningún dato meteorológico**.
 
 ### 5.0 Aprendizajes (`aprendizajes/`, X64)
 

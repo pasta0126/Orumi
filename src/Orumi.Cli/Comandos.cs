@@ -15,7 +15,8 @@ public sealed class Comandos(
     Func<Stream> entrada, TextWriter salida, TextWriter error, Func<DateTimeOffset> reloj, Func<string, string?> entorno,
     Func<IProveedorIA?>? proveedorDePrueba = null,
     Func<IProveedorPorLotes?>? proveedorPorLotesDePrueba = null,
-    Func<Orumi.Agente.Clima.ConfiguracionDeClima, Orumi.Agente.Clima.IProveedorDeClima>? proveedorDeClimaDePrueba = null)
+    Func<Orumi.Agente.Clima.ConfiguracionDeClima, Orumi.Agente.Clima.IProveedorDeClima>? proveedorDeClimaDePrueba = null,
+    Func<Orumi.Agente.Etiquetado.IProveedorDeTexto?>? proveedorDeTextoDePrueba = null)
 {
     public const string VariableDatos = "ORUMI_DATOS";
     public const string VariableConfiguracion = "ORUMI_CONFIG";
@@ -34,6 +35,16 @@ public sealed class Comandos(
             if (args[0] == "consultar")
             {
                 return Consultar(args.Skip(1).ToArray());
+            }
+
+            if (args[0] == "hipotesis")
+            {
+                return Hipotesis(args.Skip(1).ToArray());
+            }
+
+            if (args[0] == "etiquetas")
+            {
+                return EtiquetasDeRegistros(args.Skip(1).ToArray());
             }
 
             if (args[0] == "aprendizajes")
@@ -56,6 +67,7 @@ public sealed class Comandos(
                 "reindexar" => Reindexar(opciones),
                 "estado" => Estado(opciones),
                 "clima" => Clima(opciones),
+                "etiquetar" => Etiquetar(opciones),
                 _ => Uso($"Comando desconocido: {args[0]}"),
             };
         }
@@ -564,6 +576,194 @@ public sealed class Comandos(
     }
 
     /// <summary>
+    /// Hipótesis del usuario (spec <c>contraste-de-hipotesis</c>): se declaran con sus palabras y quedan «por verificar».
+    /// Mira las contrasta con evidencia; nunca las convierte en hechos por sí sola.
+    /// </summary>
+    private int Hipotesis(string[] args)
+    {
+        var accion = args.Length > 0 ? args[0] : "listar";
+        var o = Opciones.Analizar([.. args.Skip(1)]);
+        var datos = DirectorioDatos(o);
+        if (!Directory.Exists(datos))
+        {
+            error.WriteLine($"No existe el directorio de datos: {datos}");
+            return 2;
+        }
+
+        switch (accion)
+        {
+            case "listar":
+                var hs = Orumi.Core.Hipotesis.AlmacenDeHipotesis.Listar(datos);
+                foreach (var h in hs)
+                {
+                    salida.WriteLine($"{h.Id}  [{h.Estado}]  «{h.Formulacion}»");
+                    foreach (var c in h.Contrastes)
+                    {
+                        salida.WriteLine($"    {c.Id}: {string.Join(" + ", c.Factor)} → {c.Efecto}  (retardo {c.RetardoDesde}–{c.RetardoHasta} días)");
+                    }
+                }
+
+                salida.WriteLine(hs.Count == 0 ? "No hay hipótesis declaradas. Usa «orumi hipotesis iniciales» o «añadir»." : $"{hs.Count} hipótesis.");
+                return 0;
+            case "iniciales":
+            case "añadir" or "anadir":
+                using (var bloqueo = BloqueoDeEjecucion.Adquirir(datos))
+                {
+                    if (bloqueo is null)
+                    {
+                        error.WriteLine("Mira está procesando ahora mismo: no se ha modificado nada. Vuelve a intentarlo dentro de unos minutos.");
+                        return 3;
+                    }
+
+                    try
+                    {
+                        if (accion == "iniciales")
+                        {
+                            var nuevas = Orumi.Core.Hipotesis.AlmacenDeHipotesis.CargarIniciales(datos, reloj());
+                            salida.WriteLine(nuevas.Count == 0 ? "Las hipótesis iniciales ya estaban cargadas." : $"Cargadas {nuevas.Count} hipótesis iniciales: {string.Join(", ", nuevas)}.");
+                            return 0;
+                        }
+
+                        var retardo = (o.Valor("retardo") ?? "0").Split('-');
+                        var desde = int.Parse(retardo[0], System.Globalization.CultureInfo.InvariantCulture);
+                        var hasta = retardo.Length > 1 ? int.Parse(retardo[1], System.Globalization.CultureInfo.InvariantCulture) : desde;
+                        var conceptos = (o.Valor("descripciones") ?? string.Empty).Split('|', StringSplitOptions.RemoveEmptyEntries)
+                            .Select(x => x.Split('=', 2)).Where(x => x.Length == 2).ToDictionary(x => x[0].Trim(), x => x[1].Trim());
+                        var h = Orumi.Core.Hipotesis.AlmacenDeHipotesis.Anadir(
+                            datos, o.Valor("formulacion") ?? throw new ArgumentException("Falta --formulacion con tus palabras."),
+                            (o.Valor("factor") ?? throw new ArgumentException("Falta --factor (p. ej. clima:uv_alto).")).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
+                            o.Valor("efecto") ?? throw new ArgumentException("Falta --efecto (p. ej. dolor_de_cabeza)."), desde, hasta, conceptos, reloj());
+                        salida.WriteLine($"Hipótesis {h.Id} declarada: queda «por verificar».");
+                        return 0;
+                    }
+                    catch (Orumi.Core.Hipotesis.HipotesisInvalidaException e)
+                    {
+                        error.WriteLine($"No se ha modificado nada: {e.Message}");
+                        return 2;
+                    }
+                    catch (FormatException)
+                    {
+                        error.WriteLine("No se ha modificado nada: --retardo debe ser un número de días o un rango (p. ej. 1-2).");
+                        return 2;
+                    }
+                }
+
+            default:
+                return Uso("Uso: orumi hipotesis listar | iniciales | añadir --formulacion \"…\" --factor clima:uv_alto[,…] --efecto CONCEPTO [--retardo 0-1] [--descripciones \"concepto=descripción|…\"]");
+        }
+    }
+
+    /// <summary>
+    /// Etiqueta con el modelo qué conceptos de las hipótesis aparecen explícitamente en lo que el usuario dijo (solo su texto; nunca el clima).
+    /// Con <c>--simulado FICHERO</c> usa esa respuesta en lugar del proveedor, sin enviar nada.
+    /// </summary>
+    private int Etiquetar(Opciones o)
+    {
+        var rutaConfig = o.Valor("config") ?? entorno(VariableConfiguracion);
+        Configuracion? config = rutaConfig is null ? null : Configuracion.Leer(File.ReadAllText(rutaConfig, Encoding.UTF8));
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config?.Datos) ? null : config.Datos) ?? entorno(VariableDatos);
+        if (string.IsNullOrWhiteSpace(datos) || !Directory.Exists(datos))
+        {
+            error.WriteLine($"Indica un directorio de datos existente con --datos, en la configuración o con la variable {VariableDatos}.");
+            return 2;
+        }
+
+        Orumi.Agente.Etiquetado.IProveedorDeTexto proveedor;
+        if (proveedorDeTextoDePrueba?.Invoke() is { } inyectado)
+        {
+            proveedor = inyectado;
+        }
+        else if (o.Valor("simulado") is { } fichero)
+        {
+            var respuesta = File.ReadAllText(fichero, Encoding.UTF8);
+            proveedor = new Orumi.Agente.Etiquetado.ProveedorDeTextoSimulado((_, _) => respuesta);
+        }
+        else if (config is { Proveedor: "anthropic" })
+        {
+            proveedor = new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(config.Modelo);
+        }
+        else
+        {
+            throw new ArgumentException("Indica el proveedor en la configuración (--config) o usa --simulado FICHERO para una prueba sin enviar nada.");
+        }
+
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: esta ejecución termina sin etiquetar nada.");
+            return 3;
+        }
+
+        var r = new Orumi.Agente.Etiquetado.Etiquetador(datos, proveedor, reloj, config, entorno).EjecutarAsync().GetAwaiter().GetResult();
+        if (r.Detenida.Count > 0)
+        {
+            error.WriteLine("No se envió nada: las comprobaciones de privacidad no se cumplen.");
+            r.Detenida.ToList().ForEach(m => error.WriteLine($"  - {m}"));
+            return 4;
+        }
+
+        salida.WriteLine($"Etiquetado: {r.Enviados} registro(s) enviados, {r.Etiquetados} etiqueta(s), {r.Omitidos} sin cambios, {r.EtiquetasDescartadas} descartada(s) por no cumplir las reglas.");
+        if (r.TokensEntrada + r.TokensSalida > 0)
+        {
+            salida.WriteLine($"Uso: {r.TokensEntrada} tokens de entrada y {r.TokensSalida} de salida; coste estimado " + (r.CosteUsd is { } c ? $"{Formato.Usd2(c)} US$." : "desconocido."));
+        }
+
+        r.Problemas.ToList().ForEach(p => error.WriteLine($"  {p}"));
+        return r.Problemas.Count == 0 ? 0 : 1;
+    }
+
+    /// <summary>El usuario corrige una etiqueta de un registro (presente, negado o quitar): su palabra prevalece al regenerar.</summary>
+    private int EtiquetasDeRegistros(string[] args)
+    {
+        var pos = args.TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+        var o = Opciones.Analizar([.. args.Skip(pos.Count)]);
+        var datos = DirectorioDatos(o);
+        if (!Directory.Exists(datos))
+        {
+            error.WriteLine($"No existe el directorio de datos: {datos}");
+            return 2;
+        }
+
+        if (pos.Count == 2 && pos[0] == "ver")
+        {
+            var e = Orumi.Core.Hipotesis.AlmacenDeEtiquetas.Leer(datos, pos[1]);
+            if (e is null)
+            {
+                salida.WriteLine("Ese registro aún no tiene etiquetas.");
+                return 0;
+            }
+
+            e.Etiquetas.ToList().ForEach(t => salida.WriteLine($"{t.Concepto}  [{t.Estado}, {t.Origen}]  {(t.Minutos is { } m ? m + " min  " : "")}{(t.Cita is null ? "" : "«" + t.Cita + "»")}"));
+            salida.WriteLine(e.Etiquetas.Count == 0 ? "Sin etiquetas: no se mencionó ningún concepto." : $"{e.Etiquetas.Count} etiqueta(s).");
+            return 0;
+        }
+
+        if (pos.Count != 4 || pos[0] != "corregir")
+        {
+            return Uso("Uso: orumi etiquetas ver REGISTRO | corregir REGISTRO CONCEPTO presente|negado|quitar");
+        }
+
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: no se ha modificado nada. Vuelve a intentarlo dentro de unos minutos.");
+            return 3;
+        }
+
+        try
+        {
+            Orumi.Core.Hipotesis.AlmacenDeEtiquetas.Corregir(datos, pos[1], pos[2], pos[3], reloj());
+            salida.WriteLine($"Etiqueta «{pos[2]}» de {pos[1]}: {pos[3]}. Tu corrección prevalece al regenerar.");
+            return 0;
+        }
+        catch (Orumi.Core.Hipotesis.HipotesisInvalidaException e)
+        {
+            error.WriteLine($"No se ha modificado nada: {e.Message}");
+            return 2;
+        }
+    }
+
+    /// <summary>
     /// Lo que Mira ha aprendido de cómo se cierran sus preguntas (X64): se ve con su evidencia y el usuario lo desactiva, activa o borra.
     /// Nada se aplica en secreto y ninguna clase de pregunta queda prohibida: solo pasa por detrás de las demás.
     /// </summary>
@@ -835,6 +1035,9 @@ public sealed class Comandos(
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante | PREGUNTA --no-sucedio
+          orumi hipotesis listar | iniciales | añadir --formulacion "…" --factor clima:uv_alto --efecto CONCEPTO [--retardo 0-1]   (tus hipótesis, «por verificar»)
+          orumi etiquetar [--datos RUTA] [--simulado RESPUESTA.json]   (el modelo señala qué conceptos dijiste explícitamente en cada registro)
+          orumi etiquetas ver REGISTRO | corregir REGISTRO CONCEPTO presente|negado|quitar
           orumi aprendizajes listar | desactivar ID | activar ID | borrar ID   (lo que Mira ha aprendido de tus cierres de preguntas)
           orumi corregir  REGISTRO CAMPO VALOR     orumi rechazar REGISTRO CAMPO     orumi deshacer REGISTRO [CAMPO]
           orumi eliminar REGISTRO   orumi restaurar REGISTRO   orumi fusionar DESTINO ORIGEN   orumi separar REGISTRO CAPTURA [--titulo T]
@@ -854,7 +1057,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo"];
 
     private readonly Dictionary<string, string> _valores = [];
 
