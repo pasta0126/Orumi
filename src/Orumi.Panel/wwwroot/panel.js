@@ -156,7 +156,7 @@
     const barra = $('barra');
     if (!$('marca').firstChild) $('marca').append(Logo(30), el('span', { text: 'ORUMI' }));
     const nav = (id, icono, texto) => { const a = $(id); if (!a.firstChild) a.append(ic(icono), el('span', { text: texto })); if (id === 'nav-pendientes') a.append(el('span', { class: 'contador', id: 'contador', hidden: true })); };
-    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera'); nav('nav-aprendizajes', 'spark', 'Aprendizajes');
+    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera'); nav('nav-descubrimientos', 'spark', 'Descubrimientos');
     const acc = $('acciones');
     if (!acc.firstChild) {
       const tema = el('button', { type: 'button', class: 'boton fantasma icono-solo', 'aria-label': 'Cambiar tema' });
@@ -383,6 +383,116 @@
     } catch (e) { manejar(e); }
   }
 
+  // ------------------------------------------------------------ vista: descubrimientos (revisión semanal y tus hipótesis)
+  const VEREDICTOS = {
+    apoyada: ['Apoyada por los datos', 'c-confirmado', 'check'],
+    sin_apoyo: ['Sin apoyo en los datos', 'c-desconocido', 'rechazar'],
+    insuficiente: ['Evidencia insuficiente', 'c-interpretado', 'historial'],
+  };
+  const REVISIONES = { confirmada: 'Lo confirmaste', matizada: 'Lo matizaste', descartada: 'Lo descartaste' };
+  const FACTORES = [
+    ['clima:uv_alto', 'Índice UV alto'], ['clima:lluvia', 'Lluvia'], ['clima:soleado', 'Día soleado o despejado'],
+    ['registro:socializacion', 'Socializar'], ['registro:exterior>=90', 'Más de 90 min al aire libre'],
+  ];
+  const pct = (x) => (x === undefined || x === null || x === 'desconocido' || x === '') ? '—' : Math.round(Number(x) * 100) + ' %';
+  const lista = (v) => (Array.isArray(v) ? v : []);
+  const slug = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+
+  function tarjetaDeContraste(c) {
+    const [hip, con] = c.id.split('#');
+    const v = VEREDICTOS[c.veredicto] || VEREDICTOS.insuficiente;
+    const r = c.resumen || {};
+    const accion = async (ruta, cuerpo) => {
+      try { const x = await post(`/api/hipotesis/${hip}/${ruta}`, { contraste: con, ...cuerpo }); avisar(x.mensaje || 'Hecho.', 'ok'); enrutar(); } catch (e) { manejar(e); }
+    };
+    const comentario = el('input', { type: 'text', maxlength: 500, placeholder: 'Cómo lo matizas, con tus palabras', 'aria-label': 'Comentario para matizar' });
+    const dias = lista(c.evidencia);
+    const evidencia = dias.length ? el('details', { class: 'nota-original' },
+      el('summary', {}, ic('nota'), `Ver los ${dias.length} día(s) en que se basa`),
+      el('div', { class: 'evidencia' }, dias.map((e) => el('div', { class: 'dia-evidencia' },
+        el('strong', { text: `${fmtCorto.format(aFecha(e.fecha))} · ${e.ciudad}` }),
+        el('span', { class: 'meta', text: ` · factor: ${e.factor === 'si' ? 'sí' : 'no'} · efecto: ${e.efecto} · ${e.clima}` }),
+        lista(e.registros).map((id) => ID_REG.test(id) ? el('a', { href: '#/registro/' + id, text: ' ' + id }) : null),
+        lista(e.citas).map((q) => el('div', { class: 'meta', text: `«${q}»` })))))) : null;
+    const revision = c.revision && c.revision.estado ? el('p', { class: 'meta' }, ic('dicho'), `${REVISIONES[c.revision.estado] || c.revision.estado}` + (c.revision.comentario && c.revision.comentario !== 'ninguno' ? `: «${c.revision.comentario}»` : '.')) : null;
+    return el('div', { class: 'pregunta cristal foco-luz contraste' },
+      el('p', { class: 'meta', text: 'Tu hipótesis' }),
+      el('p', { class: 'texto-pregunta', text: `«${c.formulacion}»` }),
+      el('div', { class: 'chips' }, el('span', { class: 'chip ' + v[1] }, ic(v[2]), v[0]),
+        el('span', { class: 'chip c-neutro' }, 'Factor: ' + c.factor), el('span', { class: 'chip c-neutro' }, 'Efecto: ' + String(c.efecto).replaceAll('_', ' ')),
+        c.reabierto === 'true' ? el('span', { class: 'chip c-hipotesis' }, 'Reabierto: evidencia nueva') : null),
+      el('p', { text: c.texto }),
+      el('div', { class: 'cifras' },
+        el('span', {}, el('strong', { text: `${r.efecto_con_factor ?? 0} de ${r.dias_con_factor ?? 0}` }), ` con el factor (${pct(r.tasa_con_factor)})`),
+        el('span', {}, el('strong', { text: `${r.efecto_sin_factor ?? 0} de ${r.dias_sin_factor ?? 0}` }), ` sin él (${pct(r.tasa_sin_factor)})`)),
+      revision, evidencia,
+      el('div', { class: 'respuesta' }, comentario,
+        boton('Matizar', 'editar', { class: 'pequeno', onclick: () => { if (!comentario.value.trim()) { avisar('Para matizar escribe cómo, con tus palabras.', 'mal'); return; } accion('matizar', { comentario: comentario.value.trim() }); } }),
+        el('div', { class: 'opciones' },
+          boton('Confirmar', 'check', { class: 'fantasma pequeno', onclick: () => accion('confirmar', {}) }),
+          conConfirmacion('Descartar', 'cerrar', 'fantasma pequeno', '¿Descartar este contraste?', () => accion('descartar', {})))));
+  }
+
+  function formularioDeHipotesis() {
+    const t = el('input', { type: 'text', maxlength: 400, placeholder: 'Con tus palabras: «el calor me quita el apetito»', 'aria-label': 'Tu hipótesis' });
+    const f = el('select', { 'aria-label': 'Factor' }, FACTORES.map(([v, n]) => el('option', { value: v, text: n })));
+    const e = el('input', { type: 'text', maxlength: 40, placeholder: 'Efecto, en pocas palabras (p. ej. sin apetito)', 'aria-label': 'Efecto' });
+    const d = el('input', { type: 'text', maxlength: 300, placeholder: 'Cómo lo dirías tú cuando ocurre (para que Mira lo reconozca)', 'aria-label': 'Descripción del efecto' });
+    const a = el('input', { type: 'number', min: 0, max: 14, value: 0, 'aria-label': 'Retardo desde (días)' });
+    const b = el('input', { type: 'number', min: 0, max: 14, value: 0, 'aria-label': 'Retardo hasta (días)' });
+    return el('details', { class: 'filtros' },
+      el('summary', {}, ic('editar'), 'Declarar una hipótesis'),
+      el('div', { class: 'rejilla-mas' },
+        el('label', {}, 'Tu hipótesis', t), el('label', {}, 'Factor', f), el('label', {}, 'Efecto', e), el('label', {}, 'Cómo reconocerlo', d),
+        el('label', {}, 'Retardo: de (días)', a), el('label', {}, 'a (días)', b),
+        boton('Declarar', 'enviar', { class: 'principal', onclick: async () => {
+          try {
+            const r = await post('/api/hipotesis', { formulacion: t.value.trim(), factor: f.value, efecto: slug(e.value), descripcionEfecto: d.value.trim(), retardoDesde: Number(a.value), retardoHasta: Number(b.value) });
+            avisar(r.mensaje || 'Hipótesis declarada.', 'ok'); enrutar();
+          } catch (x) { manejar(x); }
+        } })));
+  }
+
+  async function vistaDescubrimientos() {
+    const caja = el('div', {}, esqueletos(2));
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que dicen tus datos' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Descubrimientos' }))),
+      el('p', { class: 'meta', text: 'Mira contrasta tus hipótesis con tus registros y con el clima, una vez por semana. Describe lo observado: no indica causas ni aconseja.' })), caja);
+    try {
+      const d = await get('/api/descubrimientos');
+      vaciar(caja);
+      const r = d.revision;
+      if (!r) { caja.append(estadoVacio('Aún no hay revisión semanal: Mira la genera la primera noche de cada semana.')); caja.append(formularioDeHipotesis()); return; }
+      const per = r.periodo || {};
+      caja.append(el('p', { class: 'meta', text: `${r.id} · del ${per.desde} al ${per.hasta} · generada ${momento(r.generada_el)}` }));
+      if (r.estado === 'observacion') {
+        const o = r.observacion || {};
+        const hecho = Math.min(Number(o.dias_transcurridos) || 0, Number(o.dias_necesarios) || 28), total = Number(o.dias_necesarios) || 28;
+        const barra = el('div', { class: 'progreso', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': total, 'aria-valuenow': hecho, 'aria-label': 'Etapa de observación' }, el('div', { class: 'progreso-lleno' }));
+        barra.firstChild.style.setProperty('--p', Math.round(hecho / total * 100) + '%');
+        caja.append(entra(el('div', { class: 'pregunta cristal' },
+          el('p', { class: 'texto-pregunta', text: 'Mira está observando antes de sacar conclusiones' }),
+          el('p', { text: `Lleva ${hecho} de ${total} días desde tu primer registro (${o.primer_registro}), con ${o.dias_con_registros} día(s) con registros. Hasta entonces no hay contrastes: un patrón no se afirma con evidencias aisladas.` }), barra), 0));
+      } else {
+        const cs = lista(r.contrastes);
+        if (!cs.length) caja.append(estadoVacio('Esta semana no hay contrastes que mostrar.'));
+        cs.forEach((c, i) => caja.append(entra(tarjetaDeContraste(c), i + 1)));
+        if (lista(r.descartados).length) caja.append(el('p', { class: 'meta', text: `${lista(r.descartados).length} contraste(s) descartado(s) por ti, sin evidencia nueva sustancial.` }));
+      }
+      const sug = lista(r.sugerencias);
+      if (sug.length) caja.append(el('div', { class: 'pregunta cristal' }, el('p', { class: 'texto-pregunta', text: 'Sugerencias de ajuste' }), sug.map((x) => el('p', { class: 'meta', text: x }))));
+      caja.append(formularioDeHipotesis());
+      const ap = r.aprendizaje || {};
+      const sem = lista(ap.tendencia);
+      caja.append(el('div', { class: 'pregunta cristal' },
+        el('p', { class: 'texto-pregunta' }, ic('spark'), ' Qué ha aprendido Mira'),
+        el('p', { class: 'meta', text: `${ap.reglas_activas ?? 0} regla(s) activa(s). ` }, el('a', { href: '#/aprendizajes', text: 'Verlas y gestionarlas' })),
+        lista(ap.cambios).map((x) => el('p', { text: `${momento(x.fecha)} · ${x.accion}: ${x.descripcion}` })),
+        sem.length ? el('div', { class: 'tendencia' }, sem.map((x) => el('div', { class: 'semana' },
+          el('strong', { text: `${fmtCorto.format(aFecha(x.desde))} – ${fmtCorto.format(aFecha(x.hasta))}` }),
+          el('span', { class: 'meta', text: `${x.formuladas} preguntas · ${x.respondidas} respondidas · ${x.no_relevantes} no relevantes · ${x.no_sucedio} no sucedió · respuesta ${pct(x.tasa_respuesta)}` })))) : null));
+    } catch (e) { manejar(e); }
+  }
+
   // ------------------------------------------------------------ vista: lo que Mira ha aprendido
   const ESTADO_APRENDIZAJE = { activa: 'Activo', restablecida: 'Restablecido por tus respuestas', desactivada: 'Desactivado por ti' };
   async function vistaAprendizajes() {
@@ -506,12 +616,13 @@
     pintarBarra();
     const m = (location.hash.replace(/^#/, '') || '/dia').match(/^\/([^/?]*)(?:[/?](.*))?$/) || [];
     const vista = m[1] || 'dia', resto = m[2];
-    vistaActual = vista === 'registro' ? 'dia' : vista;
+    vistaActual = vista === 'registro' ? 'dia' : vista === 'aprendizajes' ? 'descubrimientos' : vista;
     moverIndicador(vistaActual); actualizarContador();
     if (vista === 'buscar') await vistaBuscar(resto || '');
     else if (vista === 'pendientes') await vistaPendientes();
     else if (vista === 'papelera') await vistaPapelera();
     else if (vista === 'aprendizajes') await vistaAprendizajes();
+    else if (vista === 'descubrimientos') await vistaDescubrimientos();
     else if (vista === 'registro') await vistaRegistro(resto);
     else await vistaDia(vista === 'dia' ? resto : null);
     window.scrollTo({ top: 0 });

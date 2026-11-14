@@ -48,8 +48,8 @@
 
 ## 7. Panel
 
-- [ ] 7.1 API: lectura de la revisión, contrastes (con enlaces a registros) y aprendizajes; operaciones declarar/confirmar/matizar/descartar y gestionar aprendizajes, con las mismas guardias, límites y conflicto 409 frente a Mira; cierre «no sucedió» en preguntas
-- [ ] 7.2 Vista «Descubrimientos» (X57: sin emojis, sin scripts ni estilos en línea, texto siempre como texto) con la sección «Qué ha aprendido Mira»; pruebas de reglas de la interfaz
+- [x] 7.1 API: lectura de la revisión, contrastes (con enlaces a registros) y aprendizajes; operaciones declarar/confirmar/matizar/descartar y gestionar aprendizajes, con las mismas guardias, límites y conflicto 409 frente a Mira; cierre «no sucedió» en preguntas
+- [x] 7.2 Vista «Descubrimientos» (X57: sin emojis, sin scripts ni estilos en línea, texto siempre como texto) con la sección «Qué ha aprendido Mira»; pruebas de reglas de la interfaz
 
 ## 8. Documentación y cierre
 

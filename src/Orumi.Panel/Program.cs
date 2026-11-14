@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Orumi.Acceso;
 using Orumi.Core.Ficheros;
+using Orumi.Core.Hipotesis;
 using Orumi.Panel;
 
 var datos = Environment.GetEnvironmentVariable("ORUMI_DATOS");
@@ -115,6 +116,7 @@ app.MapGet("/api/capturas/{id}", (string id) => Seguro(() => lectura.Captura(id)
 app.MapGet("/api/preguntas", () => Seguro(() => lectura.PreguntasPendientes()));
 app.MapGet("/api/papelera", () => Seguro(() => lectura.Papelera()));
 app.MapGet("/api/aprendizajes", () => Seguro(() => lectura.Aprendizajes()));
+app.MapGet("/api/descubrimientos", () => Seguro(() => lectura.Descubrimientos()));
 
 app.MapPost("/api/preguntas/{id}/responder", (HttpContext c, string id, RespuestaAPregunta cuerpo) =>
 {
@@ -164,6 +166,45 @@ app.MapPost("/api/aprendizajes/{id}/{accion}", (HttpContext c, string id, string
     }
 
     return Respuesta(escritura.Ejecutar("aprendizaje-" + accion, id, Correo(c), op => op.CambiarAprendizaje(id, accion)));
+});
+
+app.MapPost("/api/hipotesis", (HttpContext c, NuevaHipotesis cuerpo) =>
+{
+    if (Largo(cuerpo.Formulacion, cuerpo.Factor, cuerpo.Efecto, cuerpo.DescripcionEfecto) is { } largo)
+    {
+        return largo;
+    }
+
+    var desde = Math.Clamp(cuerpo.RetardoDesde ?? 0, 0, 14);
+    var hasta = Math.Clamp(cuerpo.RetardoHasta ?? desde, desde, 14);
+    return Respuesta(escritura.Ejecutar("hipotesis-declarar", null, Correo(c),
+        op => op.DeclararHipotesis(cuerpo.Formulacion ?? string.Empty, cuerpo.Factor ?? string.Empty, cuerpo.Efecto ?? string.Empty, cuerpo.DescripcionEfecto ?? string.Empty, desde, hasta)));
+});
+
+app.MapPost("/api/hipotesis/{id}/{accion}", (HttpContext c, string id, string accion, RevisionDeHipotesis cuerpo) =>
+{
+    if (!AlmacenDeHipotesis.EsIdValido(id))
+    {
+        return Results.Json(new { error = "Identificador no válido." }, statusCode: 400);
+    }
+
+    if (accion is not ("confirmar" or "matizar" or "descartar"))
+    {
+        return Results.Json(new { error = "La acción debe ser confirmar, matizar o descartar." }, statusCode: 400);
+    }
+
+    if (Largo(cuerpo.Contraste, cuerpo.Comentario) is { } largo)
+    {
+        return largo;
+    }
+
+    return Respuesta(escritura.Ejecutar("hipotesis-" + accion, id, Correo(c), op =>
+    {
+        var efectos = Orumi.Agente.Analisis.MotorDeContraste
+            .Analizar(repositorio.Datos, Orumi.Agente.Clima.ConfiguracionDeClima.Leer([])!, new Orumi.Agente.Analisis.UmbralesDeAnalisis(), DateOnly.FromDateTime(DateTime.Now))
+            .Contrastes.FirstOrDefault(r => r.Hipotesis == id && (string.IsNullOrEmpty(cuerpo.Contraste) || r.Contraste == cuerpo.Contraste))?.EfectosTotales ?? 0;
+        return op.RevisarHipotesis(id, string.IsNullOrEmpty(cuerpo.Contraste) ? null : cuerpo.Contraste, accion, cuerpo.Comentario, efectos);
+    }));
 });
 
 app.MapPost("/api/registros/{id}/corregir", (HttpContext c, string id, Correccion cuerpo) =>
@@ -268,6 +309,10 @@ internal sealed record Rechazo(string? Campo);
 internal sealed record Deshaciendo(string? Campo);
 
 internal sealed record Vacio;
+
+internal sealed record NuevaHipotesis(string? Formulacion, string? Factor, string? Efecto, string? DescripcionEfecto, int? RetardoDesde, int? RetardoHasta);
+
+internal sealed record RevisionDeHipotesis(string? Contraste, string? Comentario);
 
 internal sealed record Fusionando(string? Origen);
 

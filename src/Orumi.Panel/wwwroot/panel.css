@@ -159,3 +159,13 @@ details.filtros[open] summary { color: var(--texto); }
 .papelera-fila.sale { opacity: 0; transform: translateX(26px); }
 .papelera-fila h3 a { color: inherit; text-decoration: none; }
 .pregunta > .opciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+
+.contraste .cifras { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 10px 0; color: var(--suave); }
+.contraste .cifras strong { color: var(--texto); }
+.contraste .respuesta { margin-top: 12px; }
+.evidencia { display: grid; gap: 8px; margin-top: 10px; }
+.dia-evidencia { padding: 8px 0; border-top: 1px solid var(--borde); }
+.progreso { height: 10px; border-radius: 999px; background: color-mix(in srgb, var(--acento-1) 14%, transparent); overflow: hidden; margin-top: 12px; }
+.progreso-lleno { height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--grad); }
+.tendencia { display: grid; gap: 8px; margin-top: 10px; }
+.tendencia .semana { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--borde); }

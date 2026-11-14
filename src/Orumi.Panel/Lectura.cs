@@ -300,6 +300,41 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
             }).ToList(),
     };
 
+    /// <summary>
+    /// La última revisión semanal (X21) tal como la escribió Mira, las hipótesis del usuario con su estado y la evidencia que hay para reabrir lo
+    /// descartado. Se lee de los ficheros en cada petición. Sin revisión, <c>revision</c> es <c>null</c>.
+    /// </summary>
+    public object Descubrimientos()
+    {
+        var carpeta = Path.Combine(repositorio.Datos, "analisis");
+        var ultima = Directory.Exists(carpeta)
+            ? Directory.EnumerateFiles(carpeta, "semana-*.yaml", SearchOption.AllDirectories).OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).LastOrDefault()
+            : null;
+        object? revision = null;
+        if (ultima is not null)
+        {
+            try
+            {
+                revision = Orumi.Core.Yaml.YamlLector.LeerMapa(File.ReadAllText(ultima, System.Text.Encoding.UTF8));
+            }
+            catch (Exception e) when (e is IOException or FormatException or YamlDotNet.Core.YamlException)
+            {
+                revision = null; // derivado y regenerable
+            }
+        }
+
+        var hipotesis = Orumi.Core.Hipotesis.AlmacenDeHipotesis.Listar(repositorio.Datos).Select(h => new
+        {
+            id = h.Id, formulacion = h.Formulacion, estado = h.Estado, declarada = h.Declarada,
+            contrastes = h.Contrastes.Select(c => new
+            {
+                id = c.Id, factor = c.Factor, efecto = c.Efecto, retardoDesde = c.RetardoDesde, retardoHasta = c.RetardoHasta,
+                revision = c.Revision is null ? null : new { estado = c.Revision.Estado, comentario = c.Revision.Comentario, fecha = c.Revision.Fecha },
+            }),
+        }).ToList();
+        return new { revision, hipotesis };
+    }
+
     /// <summary>Registros eliminados, para poder restaurarlos.</summary>
     public object Papelera() => new
     {

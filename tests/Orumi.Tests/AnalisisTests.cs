@@ -679,4 +679,117 @@ public class AnalisisTests : IDisposable
         Assert.Contains("Revisión semana-2026-W49 escrita", salida.ToString());
         Assert.NotEqual(4, codigo);
     }
+
+    // ---------------------------------------------------------------- panel
+
+    private (Orumi.Panel.Lectura L, Orumi.Panel.EscrituraDelPanel E) Panel()
+    {
+        var repo = new Orumi.Panel.RepositorioDeDatos(_datos, () => DateTimeOffset.UtcNow, TimeSpan.Zero);
+        return (new Orumi.Panel.Lectura(repo), new Orumi.Panel.EscrituraDelPanel(repo, () => Ahora, _ => { }));
+    }
+
+    private static string Json(object o) => System.Text.Json.JsonSerializer.Serialize(o);
+
+    [Fact]
+    public void El_panel_sin_revision_devuelve_las_hipotesis_y_ninguna_revision()
+    {
+        AlmacenDeHipotesis.CargarIniciales(_datos, Ahora);
+
+        var json = Json(Panel().L.Descubrimientos());
+
+        Assert.Contains("\"revision\":null", json);
+        Assert.Contains("la lluvia me relaja", json);
+        Assert.Contains("\"estado\":\"por_verificar\"", json);
+    }
+
+    [Fact]
+    public void El_panel_muestra_la_ultima_revision_con_sus_contrastes_y_su_evidencia()
+    {
+        var vistos = new Dictionary<bool, int> { [true] = 0, [false] = 0 };
+        DiasConUv((i, alto) => { var k = vistos[alto]++; return alto ? (k < 9 ? "presente" : "negado") : (k < 1 ? "presente" : "negado"); });
+        RevisionSemanal.Generar(_datos, null, Clima, U, Ahora);
+
+        var json = Json(Panel().L.Descubrimientos());
+
+        Assert.Contains("semana-2026-W49", json);
+        Assert.Contains("hip-uv-dolor-de-cabeza#c1", json);
+        Assert.Contains("apoyada", json);
+        Assert.Contains("aprendizaje", json);
+    }
+
+    [Fact]
+    public void Desde_el_panel_se_declara_una_hipotesis_y_se_revisa_un_contraste()
+    {
+        AlmacenDeHipotesis.CargarIniciales(_datos, Ahora);
+        var (l, e) = Panel();
+
+        var d = e.Ejecutar("hipotesis-declarar", null, "a@b.c", op => op.DeclararHipotesis("Socializar me deja sin ganas de cocinar", "registro:socializacion", "sin_ganas_de_cocinar", "El usuario dice que no le apetece cocinar.", 0, 1));
+        Assert.Equal(200, d.Estado);
+        Assert.Contains("sin ganas de cocinar", Json(l.Descubrimientos()));
+        Assert.Contains("registro:socializacion", Json(l.Descubrimientos()));
+
+        var r = e.Ejecutar("hipotesis-matizar", "hip-uv-dolor-de-cabeza", "a@b.c", op => op.RevisarHipotesis("hip-uv-dolor-de-cabeza", "c1", "matizar", "Solo sin gafas", 0));
+        Assert.Equal(200, r.Estado);
+        Assert.Equal("matizada", AlmacenDeHipotesis.Leer(_datos, "hip-uv-dolor-de-cabeza")!.Estado);
+    }
+
+    [Theory]
+    [InlineData("", "clima:uv_alto", "x_y", 400)]
+    [InlineData("Hipótesis válida de prueba", "clima:viento", "x_y", 400)]
+    [InlineData("Hipótesis válida de prueba", "registro:inventado", "x_y", 400)] // concepto sin descripción
+    [InlineData("Hipótesis válida de prueba", "clima:lluvia", "Efecto Con Mayúsculas", 400)]
+    public void El_panel_rechaza_hipotesis_mal_formadas_sin_escribir_nada(string formulacion, string factor, string efecto, int estado)
+    {
+        AlmacenDeHipotesis.CargarIniciales(_datos, Ahora);
+        var antes = Directory.GetFiles(Path.Combine(_datos, "hipotesis")).Length;
+        var (_, e) = Panel();
+
+        var r = e.Ejecutar("hipotesis-declarar", null, null, op => op.DeclararHipotesis(formulacion, factor, efecto, "El usuario lo dice así de claro.", 0, 0));
+
+        Assert.Equal(estado, r.Estado);
+        Assert.Equal(antes, Directory.GetFiles(Path.Combine(_datos, "hipotesis")).Length);
+    }
+
+    [Theory]
+    [InlineData("hip-sol-cansancio", null, "confirmar", 400)]   // tiene dos contrastes: hay que indicar cuál
+    [InlineData("hip-uv-dolor-de-cabeza", null, "matizar", 400)] // sin comentario
+    [InlineData("hip-no-existe", null, "descartar", 404)]
+    [InlineData("hip-uv-dolor-de-cabeza", "c7", "confirmar", 404)]
+    public void El_panel_rechaza_revisiones_invalidas_sin_modificar_nada(string id, string? contraste, string accion, int estado)
+    {
+        AlmacenDeHipotesis.CargarIniciales(_datos, Ahora);
+        var antes = File.ReadAllText(AlmacenDeHipotesis.Ruta(_datos, "hip-uv-dolor-de-cabeza"));
+        var (_, e) = Panel();
+
+        var r = e.Ejecutar("hipotesis", id, null, op => op.RevisarHipotesis(id, contraste, accion, null, 0));
+
+        Assert.Equal(estado, r.Estado);
+        Assert.Equal(antes, File.ReadAllText(AlmacenDeHipotesis.Ruta(_datos, "hip-uv-dolor-de-cabeza")));
+    }
+
+    [Fact]
+    public void Las_escrituras_de_hipotesis_se_rechazan_con_409_mientras_Mira_procesa()
+    {
+        AlmacenDeHipotesis.CargarIniciales(_datos, Ahora);
+        var (_, e) = Panel();
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(_datos);
+
+        var r = e.Ejecutar("hipotesis-descartar", "hip-lluvia-relajacion", null, op => op.RevisarHipotesis("hip-lluvia-relajacion", null, "descartar", null, 0));
+
+        Assert.Equal(409, r.Estado);
+        Assert.Equal(Hipotesis.PorVerificar, AlmacenDeHipotesis.Leer(_datos, "hip-lluvia-relajacion")!.Estado);
+    }
+
+    [Theory]
+    [InlineData("hip-uv-dolor-de-cabeza", true)]
+    [InlineData("hip-x", true)]
+    [InlineData("../etc/passwd", false)]
+    [InlineData("HIP-MAYUS", false)]
+    [InlineData("hip-con espacio", false)]
+    [InlineData("reg-20261118-ab12", false)]
+    public void Solo_se_aceptan_identificadores_de_hipotesis_bien_formados(string id, bool valido)
+    {
+        Assert.Equal(valido, AlmacenDeHipotesis.EsIdValido(id));
+    }
 }
+
