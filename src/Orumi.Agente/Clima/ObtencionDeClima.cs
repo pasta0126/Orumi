@@ -5,11 +5,11 @@ namespace Orumi.Agente.Clima;
 
 public sealed record DiaYCiudad(DateOnly Fecha, Ciudad Ciudad);
 
-public sealed record CiudadSinReconocer(string Captura, string Ciudad);
+public sealed record CiudadSinReconocer(string Captura, string Ciudad, string? Registro = null);
 
 public sealed record PlanDeClima(IReadOnlyList<DiaYCiudad> Necesarios, IReadOnlyList<CiudadSinReconocer> SinReconocer);
 
-public sealed record ResultadoDeClima(int Obtenidos, int YaGuardados, IReadOnlyList<CiudadSinReconocer> SinReconocer, IReadOnlyList<string> Fallos);
+public sealed record ResultadoDeClima(int Obtenidos, int YaGuardados, IReadOnlyList<CiudadSinReconocer> SinReconocer, IReadOnlyList<string> Fallos, ResultadoDeCiudades? Ciudades = null);
 
 /// <summary>Qué días y ciudades necesitan clima, y su obtención. Nunca bloquea el procesamiento (spec <c>contexto-meteorologico</c>).</summary>
 public static class ObtencionDeClima
@@ -44,7 +44,7 @@ public static class ObtencionDeClima
                 ? fuentes.OfType<Dictionary<string, object?>>().FirstOrDefault()?.GetValueOrDefault("captura") as string
                 : null;
             var ciudadDicha = captura is not null && capturas.TryGetValue(captura, out var c) ? c.Frontmatter.GetValueOrDefault("ciudad") as string : null;
-            var res = config.Resolver(ciudadDicha);
+            var res = config.ResolverDeCaptura(captura, ciudadDicha);
             if (res.Ciudad is { } ciudad)
             {
                 if (necesarios.Add((dia, ciudad.Clave)))
@@ -54,27 +54,40 @@ public static class ObtencionDeClima
             }
             else if (captura is not null)
             {
-                sin[(captura, res.NoReconocida!)] = new CiudadSinReconocer(captura, res.NoReconocida!);
+                sin[(captura, res.NoReconocida!)] = new CiudadSinReconocer(captura, res.NoReconocida!, r.Id);
             }
         }
 
         return new PlanDeClima([.. lista.OrderBy(x => x.Fecha).ThenBy(x => x.Ciudad.Clave)], [.. sin.Values.OrderBy(s => s.Captura)]);
     }
 
+    /// <summary>Si la ciudad se corrigió (otras coordenadas), el clima guardado era de otro sitio y se vuelve a pedir.</summary>
+    internal static bool MismaUbicacion(ClimaDia guardado, Ciudad ciudad) =>
+        Math.Abs(guardado.Latitud - ciudad.LatitudRedondeada) < 0.05 && Math.Abs(guardado.Longitud - ciudad.LongitudRedondeada) < 0.05;
+
     /// <summary>Un día se vuelve a pedir si se guardó el mismo día (los datos de las últimas horas cambian).</summary>
     internal static bool Incompleto(ClimaDia guardado) => DateOnly.FromDateTime(guardado.Obtenido.Date) <= guardado.Fecha;
 
     public static async Task<ResultadoDeClima> EjecutarAsync(
         string raizDatos, Almacen almacen, ConfiguracionDeClima config, IProveedorDeClima proveedor,
-        DateOnly hoy, DateTimeOffset ahora, CancellationToken cancelacion = default)
+        DateOnly hoy, DateTimeOffset ahora, CancellationToken cancelacion = default, IGeocodificador? geocodificador = null, int cupoDePreguntas = 5)
     {
+        // Ciudades aprendidas y respuestas del usuario (X67): con un geocodificador, Mira ubica las ciudades que no conoce y pregunta.
+        config = config.ConAprendidas(raizDatos);
+        ResultadoDeCiudades? ciudades = null;
+        if (geocodificador is not null)
+        {
+            (config, ciudades) = await ResolutorDeCiudades.ResolverAsync(raizDatos, config, geocodificador, cupoDePreguntas, ahora, cancelacion);
+            almacen = Almacen.Cargar(raizDatos);
+        }
+
         var plan = Planificar(almacen, config);
         var pendientes = new List<DiaYCiudad>();
         var yaGuardados = 0;
         foreach (var necesario in plan.Necesarios)
         {
             var ruta = FormatoDeClima.Ruta(raizDatos, necesario.Fecha, necesario.Ciudad);
-            if (File.Exists(ruta) && Guardado(ruta) is { } g && !Incompleto(g))
+            if (File.Exists(ruta) && Guardado(ruta) is { } g && !Incompleto(g) && MismaUbicacion(g, necesario.Ciudad))
             {
                 yaGuardados++;
                 continue;
@@ -107,7 +120,7 @@ public static class ObtencionDeClima
             }
         }
 
-        return new ResultadoDeClima(obtenidos, yaGuardados, plan.SinReconocer, fallos);
+        return new ResultadoDeClima(obtenidos, yaGuardados, plan.SinReconocer, fallos, ciudades);
     }
 
     private static ClimaDia? Guardado(string ruta)

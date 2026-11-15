@@ -51,7 +51,8 @@ public sealed record ConfiguracionDeClima(
     IReadOnlyList<Ciudad> Ciudades,
     string ZonaHoraria,
     Umbrales Umbrales,
-    HorarioLaboral Laboral)
+    HorarioLaboral Laboral,
+    IReadOnlyDictionary<string, string>? CiudadPorCaptura = null)
 {
     public const string FuentePorDefecto = "open-meteo";
 
@@ -79,6 +80,29 @@ public sealed record ConfiguracionDeClima(
         var clave = Ciudad.Normalizar(nombre);
         return Ciudades.FirstOrDefault(c => c.Clave == clave);
     }
+
+    /// <summary>
+    /// Suma las ciudades que ORUMI ha aprendido (no rechazadas) y las ciudades que el usuario indicó para notas concretas al responder a Mira.
+    /// Lo de la configuración manda sobre lo aprendido.
+    /// </summary>
+    public ConfiguracionDeClima ConAprendidas(string datos)
+    {
+        var d = CiudadesAprendidasStore.Leer(datos);
+        var nuevas = d.Ciudades.Where(c => c.Estado != CiudadAprendida.Rechazada && Ciudades.All(x => x.Clave != c.Clave)).Select(c => c.ACiudad()).ToList();
+        return this with
+        {
+            Ciudades = [.. Ciudades, .. nuevas],
+            CiudadPorCaptura = d.Notas.GroupBy(n => n.Captura).ToDictionary(g => g.Key, g => g.Last().Ciudad),
+        };
+    }
+
+    /// <summary>La misma configuración con las ciudades que el usuario fijó para notas concretas (se usa mientras se resuelven respuestas).</summary>
+    public ConfiguracionDeClima ConNotas(IEnumerable<NotaConCiudad> notas) =>
+        this with { CiudadPorCaptura = notas.GroupBy(n => n.Captura).ToDictionary(g => g.Key, g => g.Last().Ciudad) };
+
+    /// <summary>Ciudad de una captura concreta: la que el usuario fijó al responder a Mira, o la indicada en la captura, o la de por defecto.</summary>
+    public ResolucionDeCiudad ResolverDeCaptura(string? capturaId, string? ciudadDeLaCaptura) =>
+        capturaId is not null && CiudadPorCaptura?.GetValueOrDefault(capturaId) is { } fijada ? Resolver(fijada) : Resolver(ciudadDeLaCaptura);
 
     /// <summary>Ciudad de una captura: la indicada por el usuario o, si no indicó ninguna, la de por defecto.</summary>
     public ResolucionDeCiudad Resolver(string? ciudadDeLaCaptura) =>

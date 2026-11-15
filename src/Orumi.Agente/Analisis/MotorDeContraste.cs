@@ -76,6 +76,7 @@ public static class MotorDeContraste
     public static ResultadoDelAnalisis Analizar(string datos, ConfiguracionDeClima clima, UmbralesDeAnalisis u, DateOnly hoy)
     {
         var almacen = Almacen.Cargar(datos);
+        clima = clima.ConAprendidas(datos);
         var ctx = Cargar(almacen, datos, clima, hoy);
         var primero = PrimerRegistro(almacen);
         var observacion = primero is null ? 0 : Math.Max(0, hoy.DayNumber - primero.Value.DayNumber);
@@ -131,7 +132,7 @@ public static class MotorDeContraste
 
             var cap = (r.Frontmatter.GetValueOrDefault("fuentes") as List<object?> ?? []).OfType<Dictionary<string, object?>>().FirstOrDefault()?.GetValueOrDefault("captura") as string;
             var ciudadDicha = cap is not null && capturas.TryGetValue(cap, out var cd) ? cd.Frontmatter.GetValueOrDefault("ciudad") as string : null;
-            registros.Add(new RegistroDelDia(r.Id!, dia, clima.Resolver(ciudadDicha).Ciudad));
+            registros.Add(new RegistroDelDia(r.Id!, dia, clima.ResolverDeCaptura(cap, ciudadDicha).Ciudad));
         }
 
         var ayer = hoy.AddDays(-1);
@@ -480,6 +481,7 @@ public static class MotorDeContraste
     /// <summary>Huecos por los que Mira puede preguntar: días del contraste con el efecto (o la duración de estar fuera) sin dato.</summary>
     public static IReadOnlyList<HuecoDeContraste> Huecos(string datos, ConfiguracionDeClima clima, UmbralesDeAnalisis u, DateOnly hoy, IReadOnlyList<ResultadoDeContraste> resultados)
     {
+        clima = clima.ConAprendidas(datos);
         var ctx = Cargar(Almacen.Cargar(datos), datos, clima, hoy);
         var uc = new UmbralesDeClima(clima.Umbrales.UvAlto, clima.Umbrales.LluviaMmDia, clima.Umbrales.NubosidadDespejadoMax, clima.Umbrales.SolDespejadoMinPct);
         var huecos = new List<HuecoDeContraste>();

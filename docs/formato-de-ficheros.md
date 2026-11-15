@@ -225,6 +225,7 @@ orumi/
 ├── analisis/AAAA/semana-AAAA-Www.yaml      # revisión semanal: contrastes, evidencia y aprendizaje de Mira
 ├── aprendizajes/apr-….yaml         # lo que Mira ha aprendido de los cierres de preguntas (X64)
 ├── clima/AAAA/MM/AAAA-MM-DD-ciudad.yaml   # clima diario por ciudad (contexto derivado y regenerable)
+├── clima/ciudades.yaml             # ciudades aprendidas y ciudad fijada para notas concretas (X67)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
 └── .indice/                         # índice derivado, desechable (ver docs/indice-derivado.md)
 ```
@@ -350,6 +351,7 @@ horas:                                 # 24 entradas, hora local
 
 - **`desconocido`** es un valor explícito: lo que el servicio no ofrece (p. ej. el UV de un día de hace más de 92 días, que el histórico no trae) nunca se estima ni se rellena.
 - La ciudad de un día es la de la captura de origen del registro (la que indicó el usuario o la de por defecto, X62); una ciudad sin reconocer no se supone: no se consulta y se avisa.
+- **`clima/ciudades.yaml`** (X67): `ciudades` (clave, nombre, descripción, `lat`/`lon` ya redondeadas, `estado`: `por_confirmar` | `confirmada` | `rechazada`, `origen`: `geocodificada` | `usuario`), `notas` (la ciudad que el usuario fijó para una captura concreta al responder «¿estabas allí?») y `aplicadas` (preguntas de ciudad ya aplicadas). Lo de la configuración manda sobre lo aprendido. Las preguntas de ciudad llevan `campo: ciudad`, `ciudad_tipo` (`confirmar` | `elegir` | `mencion`), `ciudad_clave`, `ciudad_nombre` y, en las de mención, `ciudad_captura`.
 - Unidades: °C, %, mm, nubosidad en %, radiación en W/m², horas de sol y de luz en segundos, UV como índice.
 
 ## 6. Preguntas y lotes

@@ -16,7 +16,8 @@ public sealed class Comandos(
     Func<IProveedorIA?>? proveedorDePrueba = null,
     Func<IProveedorPorLotes?>? proveedorPorLotesDePrueba = null,
     Func<Orumi.Agente.Clima.ConfiguracionDeClima, Orumi.Agente.Clima.IProveedorDeClima>? proveedorDeClimaDePrueba = null,
-    Func<Orumi.Agente.Etiquetado.IProveedorDeTexto?>? proveedorDeTextoDePrueba = null)
+    Func<Orumi.Agente.Etiquetado.IProveedorDeTexto?>? proveedorDeTextoDePrueba = null,
+    Func<Orumi.Agente.Clima.IGeocodificador>? geocodificadorDePrueba = null)
 {
     public const string VariableDatos = "ORUMI_DATOS";
     public const string VariableConfiguracion = "ORUMI_CONFIG";
@@ -1034,17 +1035,37 @@ public sealed class Comandos(
 
         var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config.Datos) ? null : config.Datos) ?? DirectorioDatos(o);
         ExigirVolumenSiProcede(o, datos, config);
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: el clima se pedirá en la siguiente ejecución.");
+            return 0;
+        }
+
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var proveedor = proveedorDeClimaDePrueba?.Invoke(clima) ?? new Orumi.Agente.Clima.ProveedorOpenMeteo(http, clima);
+        var geocodificador = geocodificadorDePrueba?.Invoke() ?? new Orumi.Agente.Clima.GeocodificadorOpenMeteo(http);
         var ahora = reloj();
         var resultado = Orumi.Agente.Clima.ObtencionDeClima
-            .EjecutarAsync(datos, Almacen.Cargar(datos), clima, proveedor, DateOnly.FromDateTime(ahora.DateTime), ahora)
+            .EjecutarAsync(datos, Almacen.Cargar(datos), clima, proveedor, DateOnly.FromDateTime(ahora.DateTime), ahora, geocodificador: geocodificador, cupoDePreguntas: config.MaximoPendientes)
             .GetAwaiter().GetResult();
 
         salida.WriteLine($"Clima: {resultado.Obtenidos} día(s) obtenido(s), {resultado.YaGuardados} ya guardado(s).");
+        if (resultado.Ciudades is { } c)
+        {
+            c.Aprendidas.ToList().ForEach(n => salida.WriteLine($"Ciudad nueva ubicada: «{n}». Ya se usa su clima; Mira te pedirá que la confirmes."));
+            if (c.PreguntasCreadas.Count > 0)
+            {
+                salida.WriteLine($"Preguntas de ciudad creadas: {c.PreguntasCreadas.Count} ({string.Join(", ", c.PreguntasCreadas)}).");
+            }
+
+            c.RespuestasAplicadas.ToList().ForEach(n => salida.WriteLine($"Respuesta de ciudad aplicada: {n}."));
+            c.Avisos.ToList().ForEach(n => error.WriteLine($"Ciudad pendiente: {n}"));
+        }
+
         foreach (var s in resultado.SinReconocer)
         {
-            salida.WriteLine($"Ciudad sin reconocer en {s.Captura}: «{s.Ciudad}». No se consulta su clima hasta confirmarla.");
+            salida.WriteLine($"Ciudad sin ubicar en {s.Captura}: «{s.Ciudad}». No se consulta su clima hasta confirmarla.");
         }
 
         foreach (var f in resultado.Fallos)

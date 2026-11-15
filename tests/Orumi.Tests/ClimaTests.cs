@@ -7,6 +7,26 @@ using Orumi.Core.Ficheros;
 
 namespace Orumi.Tests;
 
+/// <summary>Geocodificador de pruebas: nunca sale a la red. Devuelve lo que se le haya configurado y anota los nombres que recibe.</summary>
+internal sealed class GeocodificadorFalso(Dictionary<string, CandidatoDeCiudad[]>? respuestas = null) : IGeocodificador
+{
+    public List<string> Consultas { get; } = [];
+
+    public bool Falla { get; set; }
+
+    public Task<IReadOnlyList<CandidatoDeCiudad>> BuscarAsync(string nombre, CancellationToken ct = default)
+    {
+        Consultas.Add(nombre);
+        if (Falla)
+        {
+            throw new ClimaNoDisponibleException("caído");
+        }
+
+        IReadOnlyList<CandidatoDeCiudad> r = respuestas is not null && respuestas.TryGetValue(Ciudad.Normalizar(nombre), out var c) ? c : [];
+        return Task.FromResult(r);
+    }
+}
+
 public class ClimaTests : IDisposable
 {
     private readonly string _datos = Path.Combine(Path.GetTempPath(), "orumi-clima-" + Guid.NewGuid().ToString("N")[..8]);
@@ -237,7 +257,7 @@ public class ClimaTests : IDisposable
             }
 
             IReadOnlyList<ClimaDia> dias = [.. Enumerable.Range(0, hasta.DayNumber - desde.DayNumber + 1)
-                .Select(i => Dia(desde.AddDays(i)) with { Ciudad = ciudad.Nombre, Obtenido = ahora })];
+                .Select(i => Dia(desde.AddDays(i)) with { Ciudad = ciudad.Nombre, Obtenido = ahora, Latitud = ciudad.LatitudRedondeada, Longitud = ciudad.LongitudRedondeada })];
             return Task.FromResult(dias);
         }
     }
@@ -360,7 +380,7 @@ public class ClimaTests : IDisposable
         }
 
         var cmd = new Comandos(() => new MemoryStream(), salida, error, reloj ?? (() => Ahora),
-            k => k == Comandos.VariableConfiguracion ? rutaConfig : null, proveedorDeClimaDePrueba: _ => proveedor);
+            k => k == Comandos.VariableConfiguracion ? rutaConfig : null, proveedorDeClimaDePrueba: _ => proveedor, geocodificadorDePrueba: () => new GeocodificadorFalso());
         return (cmd, salida, error, proveedor);
     }
 

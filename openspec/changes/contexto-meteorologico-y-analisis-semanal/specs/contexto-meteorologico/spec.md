@@ -16,23 +16,35 @@ Mira MUST obtener, para cada día y ciudad en que existan registros, temperatura
 - **THEN** pueden volver a generarse desde el servicio sin pérdida de nada original
 
 ### Requirement: Ciudad de cada nota y ciudad por defecto
-Cada captura MUST pertenecer a una ciudad: la que el usuario indique en ella o, si no indica ninguna, la ciudad por defecto de la configuración (Montbau, Barcelona). El clima de cada registro MUST corresponder a la ciudad de su captura. Las coordenadas MUST proceder de la configuración o de una tabla de ciudades conocida, MUST guardarse redondeadas a unos 10 km y MUST NOT obtenerse del dispositivo. Si una ciudad indicada no se reconoce, Mira MUST preguntar al usuario en lugar de suponer, y MUST NOT consultar el clima de esa nota hasta resolverlo.
+Cada captura MUST pertenecer a una ciudad: la que el usuario indique en ella o, si no indica ninguna, la ciudad por defecto de la configuración (Montbau, Barcelona). El clima de cada registro MUST corresponder a la ciudad de su captura. Las coordenadas MUST proceder de la configuración, de las ciudades que ORUMI haya aprendido o de la geocodificación del nombre que escribió el usuario, MUST guardarse redondeadas a unos 10 km y MUST NOT obtenerse del dispositivo. Una ciudad que no se conoce MUST ubicarse buscando solo su nombre: si la tiene clara (un único candidato o uno que domina claramente) Mira MUST usarla ya para obtener el clima y MUST preguntar después para confirmarla; si tiene dudas MUST preguntar y MUST NOT consultar el clima de esa nota hasta tener respuesta. Si el usuario corrige, Mira MUST corregir la ciudad y volver a obtener el clima del lugar correcto.
 
 #### Scenario: Sin ciudad indicada
 - **WHEN** una captura no indica ciudad
 - **THEN** su clima es el de la ciudad por defecto
 
-#### Scenario: Otra ciudad
-- **WHEN** el usuario indica que estuvo en otra ciudad
+#### Scenario: Otra ciudad conocida
+- **WHEN** el usuario indica que estuvo en una ciudad conocida
 - **THEN** el clima de ese día para esa nota se obtiene de esa ciudad
 
-#### Scenario: Ciudad no reconocida
-- **WHEN** la ciudad indicada no está en la tabla ni se resuelve con certeza
-- **THEN** Mira pregunta qué ciudad es y no consulta el clima de esa nota hasta tener respuesta
+#### Scenario: Ciudad desconocida y clara
+- **WHEN** el usuario indica una ciudad que ORUMI no conoce y su nombre identifica claramente un solo lugar
+- **THEN** Mira la ubica, obtiene su clima sin esperar y pregunta al usuario si es correcta
+
+#### Scenario: Ciudad desconocida y dudosa
+- **WHEN** el nombre podría corresponder a varios lugares o no se encuentra
+- **THEN** Mira pregunta cuál es, con las opciones que haya, y no consulta el clima de esa nota hasta tener respuesta
+
+#### Scenario: Corrección del usuario
+- **WHEN** el usuario responde que la ciudad no es la ubicada y dice cuál es
+- **THEN** Mira sustituye la ubicación y vuelve a obtener el clima de los días afectados
+
+#### Scenario: Cierre sin responder
+- **WHEN** el usuario cierra la pregunta de ciudad sin contestar
+- **THEN** Mira no insiste y la nota sigue sin clima de esa ciudad
 
 #### Scenario: Texto que menciona otra ciudad
-- **WHEN** el texto de una captura menciona una ciudad distinta de la de la captura
-- **THEN** Mira puede preguntar en qué ciudad estaba, sin cambiar la ciudad por sí sola
+- **WHEN** una nota sin ciudad menciona una ciudad conocida distinta de la de por defecto
+- **THEN** Mira pregunta si estaba allí, sin cambiar la ciudad por sí sola, y si el usuario lo confirma solo esa nota pasa a esa ciudad
 
 #### Scenario: Día con varias ciudades
 - **WHEN** las notas de un mismo día pertenecen a ciudades distintas

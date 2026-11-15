@@ -44,6 +44,8 @@
   const ID_REG = /^reg-\d{8}-[a-z0-9]{4}$/;
 
   const CAMPOS = { titulo: 'Título', fecha: 'Fecha', hora: 'Hora', duracion: 'Duración', personas: 'Personas', entidades: 'Entidades', lugares: 'Lugares', proyectos: 'Proyectos', herramientas: 'Herramientas', contexto: 'Contexto', acciones: 'Acciones', resultados: 'Resultados', problemas: 'Problemas', ideas: 'Ideas', multidia: 'Varios días' };
+  // Preguntas que no son de un campo del registro: su etiqueta y el icono con que se pintan.
+  const CAMPOS_EXTRA = { ciudad: ['Ciudad', 'lugares'], contraste: ['Contraste con tus hipótesis', 'hipotesis'] };
   const CLASES = { actividad: 'Actividad', evento: 'Evento', idea: 'Idea', decision: 'Decisión', problema: 'Problema', otro: 'Otro' };
   const CERTEZAS = { dicho: 'Dicho por ti', confirmado: 'Confirmado', interpretado: 'Interpretado', hipotesis: 'Hipótesis', recomendacion: 'Recomendación' };
   const FORMATOS = { fecha: 'AAAA-MM-DD o AAAA-MM-DD..AAAA-MM-DD', hora: 'HH:MM', duracion: '90, 2h, 1h30', entidades: 'Nombre:tipo, Nombre:tipo' };
@@ -311,7 +313,7 @@
       el('p', { class: 'texto-pregunta', text: p.texto }),
       el('div', { class: 'contexto' },
         el('div', {}, ic('nota'), 'Registro: ', registroLink(p.registro)),
-        el('div', {}, ic(p.campo === 'coincidencia' ? 'enlace' : p.campo), `Campo: ${CAMPOS[p.campo] || p.campo}`, el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + p.registro.valorActual)),
+        el('div', {}, ic(p.campo === 'coincidencia' ? 'enlace' : (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][1] : p.campo)), `Campo: ${CAMPOS[p.campo] || (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][0] : p.campo)}`, el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + p.registro.valorActual)),
         p.otros.map((o) => el('div', {}, ic('enlace'), 'Con: ', registroLink(o), el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + o.valorActual)))),
       el('div', { class: 'respuesta' + (conflicto ? ' conflicto' : '') }, valor, destino,
         boton('Responder', 'enviar', { class: 'principal', onclick: () => enviar({ valor: valor.value, registro: destino ? destino.value : null }, `/api/preguntas/${p.id}/responder`) }),
