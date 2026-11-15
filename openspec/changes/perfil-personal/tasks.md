@@ -44,5 +44,5 @@
 
 ## 6. Documentación y cierre
 
-- [ ] 6.1 Documentar el agente en `docs/` (alcance, límites, privacidad y riesgos) y actualizar README
+- [x] 6.1 Documentar el agente en `docs/` (alcance, límites, privacidad y riesgos) y actualizar README
 - [ ] 6.2 Desplegar en el servidor vía `infra` y revisar con el usuario el primer perfil real, ajustando el prompt y los umbrales
