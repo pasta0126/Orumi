@@ -10,7 +10,7 @@ namespace Orumi.Noa;
 public sealed record ConfiguracionDeNoa(
     int CadenciaDias = 14, int SemanasDeObservacion = 4, int MinimoRegistrosNuevos = 20, int MinimoDiasNuevos = 10,
     int RegistrosParaPatron = 3, int SemanasParaPatron = 2, int RegistrosParaIndicio = 2, int MaximoCaracteres = 150_000,
-    bool SeudonimizarTerceros = true, IReadOnlyList<string>? TerminosClinicos = null)
+    bool SeudonimizarTerceros = true, IReadOnlyList<string>? TerminosClinicos = null, int MaximoPreguntas = 3)
 {
     /// <summary>Nombres de trastornos y etiquetas clínicas que Noa nunca emite como conclusión (sin acentos, en minúsculas). El prompt y las pruebas adversas lo refuerzan.</summary>
     public static readonly IReadOnlyList<string> TerminosClinicosPorDefecto =
@@ -38,6 +38,6 @@ public sealed record ConfiguracionDeNoa(
             E("cadencia_dias", d.CadenciaDias), E("semanas_de_observacion", d.SemanasDeObservacion), E("minimo_registros_nuevos", d.MinimoRegistrosNuevos),
             E("minimo_dias_nuevos", d.MinimoDiasNuevos), E("registros_para_patron", d.RegistrosParaPatron), E("semanas_para_patron", d.SemanasParaPatron),
             E("registros_para_indicio", d.RegistrosParaIndicio), E("maximo_caracteres", d.MaximoCaracteres),
-            (m.GetValueOrDefault("seudonimizar_terceros") as string) != "false", terminos);
+            (m.GetValueOrDefault("seudonimizar_terceros") as string) != "false", terminos, E("maximo_preguntas", d.MaximoPreguntas));
     }
 }

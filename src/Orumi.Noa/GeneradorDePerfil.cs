@@ -47,17 +47,18 @@ public sealed class GeneradorDePerfil(
           No escribas guiones de ataque ni contactos de terceros.
         - "recomendaciones": formas de comunicarse el usuario con otros y de comunicarse con él. Cada una se apoya en "rasgos" (claves) que sean patrones o indicios, nunca en conjeturas.
           Son recomendaciones del sistema y se separan de lo observado.
+        - "contradicciones": solo si dos rasgos tuyos se contradicen con claridad, las claves de ambos. No las resuelvas ni elijas uno: se le preguntará al usuario.
 
         Formato:
         {"rasgos":[{"clave":"snake_case","apartado":"slug","texto":"","contexto":null,"sujeto":"usuario","certeza":"interpretado|hipotesis|dicho","sensible":false,
-        "evidencia":[{"fuente":"reg-…","cita":""}],"hipotesis":[]}],"recomendaciones":[{"texto":"","rasgos":["clave"]}],"sin_datos":["slug"]}
+        "evidencia":[{"fuente":"reg-…","cita":""}],"hipotesis":[]}],"recomendaciones":[{"texto":"","rasgos":["clave"]}],"contradicciones":[{"rasgos":["clave_a","clave_b"]}],"sin_datos":["slug"]}
         """;
 
     public async Task<ResultadoDeNoa> EjecutarAsync(bool aPeticion, CancellationToken ct = default)
     {
         var ahora = reloj();
         var motivo = aPeticion ? "peticion" : "periodica";
-        var almacen = Almacen.Cargar(datos);
+        var almacen = Almacen.Cargar(datos, incluirPerfil: true);
         var corpus = Corpus.Construir(almacen, config);
         var previo = AlmacenDePerfil.Leer(datos);
         var ultima = AlmacenDePerfil.Generaciones(datos).Where(g => g.Resultado == Generacion.Generada).OrderBy(g => g.Fecha).LastOrDefault();
@@ -126,6 +127,8 @@ public sealed class GeneradorDePerfil(
             corpus.Fuentes.Count, corpus.Excluidas, v.Rasgos.Count, v.TotalDescartes, v.Descartes, tin, tout, coste, version);
         AlmacenDePerfil.Guardar(datos, perfil with { Generacion = gen.Id }, copiaDeVersion: true);
         AlmacenDePerfil.GuardarGeneracion(datos, gen);
+        // Tras la etapa de observación (ya superada aquí) y con su propio cupo: pocas preguntas para afianzar lo poco sólido.
+        PreguntasDeNoa.Formular(datos, perfil, config, ahora, v.Contradicciones);
         return new ResultadoDeNoa(ResultadoDeNoa.Generado, null, gen, perfil with { Generacion = gen.Id }, []);
     }
 

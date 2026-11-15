@@ -59,7 +59,8 @@ public static partial class Validador
             {
                 E("el identificador no tiene un formato válido");
             }
-            else if (!d.Ruta.StartsWith(esperado + "/", StringComparison.Ordinal))
+            else if (!d.Ruta.StartsWith(esperado + "/", StringComparison.Ordinal)
+                     && !(d.Tipo == "pregunta" && d.Ruta.StartsWith("perfil/preguntas/", StringComparison.Ordinal))) // las de Noa viven en su espacio
             {
                 E($"ruta esperada {esperado}/");
             }
@@ -695,7 +696,31 @@ public static partial class Validador
             E("id de pregunta mal formado");
         }
 
-        if (doc("registro", Texto(fm, "registro")) is null)
+        var agenteEscrito = fm.GetValueOrDefault("generada_por") is Dictionary<string, object?> gp ? Texto(gp, "agente") : null;
+        if (!Orumi.Core.Correcciones.AgentesDePregunta.EsValido(agenteEscrito))
+        {
+            E("agente de la pregunta no válido (Mira | Noa)");
+        }
+
+        if (Orumi.Core.Correcciones.AgentesDePregunta.De(fm) == Orumi.Core.Correcciones.AgentesDePregunta.Noa)
+        {
+            // Las de Noa no van atadas a un registro: hablan de un rasgo del perfil o de un apartado, y viven en su espacio.
+            if (!d.Ruta.StartsWith("perfil/preguntas/", StringComparison.Ordinal))
+            {
+                E("una pregunta de Noa vive en perfil/preguntas/");
+            }
+
+            if (fm.ContainsKey("registro") || fm.ContainsKey("otros_registros"))
+            {
+                E("una pregunta de Noa no se ata a un registro");
+            }
+
+            if (Texto(fm, "rasgo") is null && Texto(fm, "apartado") is null)
+            {
+                E("una pregunta de Noa indica su rasgo o su apartado");
+            }
+        }
+        else if (doc("registro", Texto(fm, "registro")) is null)
         {
             E("registro inexistente");
         }

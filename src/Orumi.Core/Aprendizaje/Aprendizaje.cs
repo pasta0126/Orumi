@@ -28,9 +28,19 @@ public static class ClaseDePregunta
 
     public static string Construir(string campo, string? claseDeRegistro) => $"{campo}:{claseDeRegistro ?? Desconocida}";
 
+    /// <summary>Prefijo de las clases de Noa (<c>noa:&lt;apartado&gt;</c>): su aprendizaje es suyo y no cambia lo que pregunta Mira.</summary>
+    public const string PrefijoDeNoa = "noa:";
+
+    public static bool EsDeNoa(string clase) => clase.StartsWith(PrefijoDeNoa, StringComparison.Ordinal);
+
     /// <summary>Texto legible de lo que se preguntaría menos, sin ningún dato del usuario.</summary>
     public static string Describir(string clase)
     {
+        if (EsDeNoa(clase))
+        {
+            return $"las preguntas de Noa sobre «{clase[PrefijoDeNoa.Length..]}»";
+        }
+
         var partes = clase.Split(':', 2);
         return partes.Length == 2 && partes[0] != "contraste"
             ? $"«{partes[0]}» en registros de clase «{partes[1]}»"
@@ -86,7 +96,7 @@ public static class MotorDeAprendizaje
     public static ResultadoDeAprendizaje Actualizar(string datos, DateTimeOffset ahora, UmbralesDeAprendizaje? umbrales = null)
     {
         var u = umbrales ?? new UmbralesDeAprendizaje();
-        var almacen = Almacen.Cargar(datos);
+        var almacen = Almacen.Cargar(datos, incluirPerfil: true);
         var nuevas = new List<string>();
         var restablecidas = new List<string>();
         var reactivadas = new List<string>();
@@ -145,11 +155,15 @@ public static class MotorDeAprendizaje
 
     /// <summary>Clases cuya prioridad está reducida ahora mismo.</summary>
     public static HashSet<string> ClasesRebajadas(string datos) =>
-        Listar(datos).Where(r => r.EstaActiva).Select(r => r.Clase).ToHashSet(StringComparer.Ordinal);
+        Listar(datos).Where(r => r.EstaActiva && !ClaseDePregunta.EsDeNoa(r.Clase)).Select(r => r.Clase).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Clases de Noa con la prioridad reducida: solo las suyas.</summary>
+    public static HashSet<string> ClasesRebajadasDeNoa(string datos) =>
+        Listar(datos).Where(r => r.EstaActiva && ClaseDePregunta.EsDeNoa(r.Clase)).Select(r => r.Clase).ToHashSet(StringComparer.Ordinal);
 
     /// <summary>Descripciones de las reglas activas, las únicas que se envían al modelo (sin textos del usuario).</summary>
     public static IReadOnlyList<string> Preferencias(string datos) =>
-        [.. Listar(datos).Where(r => r.EstaActiva).OrderBy(r => r.Id, StringComparer.Ordinal).Select(r => r.Descripcion)];
+        [.. Listar(datos).Where(r => r.EstaActiva && !ClaseDePregunta.EsDeNoa(r.Clase)).OrderBy(r => r.Id, StringComparer.Ordinal).Select(r => r.Descripcion)];
 
     private static DateTimeOffset? Cierre(Documento p) =>
         p.Frontmatter.GetValueOrDefault("estado") as string is "respondida" or "no_relevante"

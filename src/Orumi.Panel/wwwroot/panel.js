@@ -45,7 +45,10 @@
 
   const CAMPOS = { titulo: 'Título', fecha: 'Fecha', hora: 'Hora', duracion: 'Duración', personas: 'Personas', entidades: 'Entidades', lugares: 'Lugares', proyectos: 'Proyectos', herramientas: 'Herramientas', contexto: 'Contexto', acciones: 'Acciones', resultados: 'Resultados', problemas: 'Problemas', ideas: 'Ideas', multidia: 'Varios días' };
   // Preguntas que no son de un campo del registro: su etiqueta y el icono con que se pintan.
-  const CAMPOS_EXTRA = { ciudad: ['Ciudad', 'lugares'], contraste: ['Contraste con tus hipótesis', 'hipotesis'] };
+  const CAMPOS_EXTRA = { ciudad: ['Ciudad', 'lugares'], contraste: ['Contraste con tus hipótesis', 'hipotesis'], perfil: ['Perfil', 'personas'] };
+  // Los agentes se distinguen por su nombre escrito y por su imagen (emotes propios); la imagen nunca es lo único que dice quién pregunta.
+  const AGENTES = { Mira: 'mira', Noa: 'noa' };
+  const avatar = (agente, expresion, clase) => el('img', { class: 'avatar ' + (clase || ''), src: `agentes/${AGENTES[agente] || 'mira'}/${expresion || 'neutra'}.png`, alt: agente, loading: 'lazy', decoding: 'async' });
   const CLASES = { actividad: 'Actividad', evento: 'Evento', idea: 'Idea', decision: 'Decisión', problema: 'Problema', otro: 'Otro' };
   const CERTEZAS = { dicho: 'Dicho por ti', confirmado: 'Confirmado', interpretado: 'Interpretado', hipotesis: 'Hipótesis', recomendacion: 'Recomendación' };
   const FORMATOS = { fecha: 'AAAA-MM-DD o AAAA-MM-DD..AAAA-MM-DD', hora: 'HH:MM', duracion: '90, 2h, 1h30', entidades: 'Nombre:tipo, Nombre:tipo' };
@@ -287,18 +290,30 @@
   }
 
   // ------------------------------------------------------------ vista: preguntas pendientes
-  async function vistaPendientes() {
+  async function vistaPendientes(resto) {
+    const filtro = new URLSearchParams(resto || '').get('agente');
+    const agenteFiltro = AGENTES[filtro] ? filtro : '';
     const lista = el('div', {}, esqueletos(2));
-    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Mira necesita saber' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Preguntas' })))), lista);
+    const enlace = (valor, texto) => el('a', { class: 'chip c-neutro' + (agenteFiltro === valor ? ' activo' : ''), href: '#/pendientes' + (valor ? '?agente=' + valor : ''), 'aria-current': agenteFiltro === valor ? 'true' : null, text: texto });
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Mira y Noa necesitan saber' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Preguntas' }))),
+      el('nav', { class: 'chips', 'aria-label': 'Filtrar por agente' }, enlace('', 'Todas'), enlace('Mira', 'Mira'), enlace('Noa', 'Noa'))), lista);
     try {
-      const preguntas = await get('/api/preguntas');
+      const preguntas = await get('/api/preguntas', { agente: agenteFiltro });
       vaciar(lista);
-      if (!preguntas.length) { lista.append(estadoVacio('Todo al día: no hay preguntas pendientes.')); return; }
-      preguntas.forEach((p, i) => lista.append(entra(tarjetaDePregunta(p), i)));
+      if (!preguntas.length) { lista.append(estadoVacio('Todo al día: no hay preguntas pendientes.', avatar('Mira', 'dormida', 'grande'))); return; }
+      let i = 0;
+      ['Mira', 'Noa'].forEach((ag) => {
+        const del = preguntas.filter((p) => (p.agente || 'Mira') === ag);
+        if (!del.length) return;
+        lista.append(el('section', { class: 'bloque-agente' },
+          el('div', { class: 'cabecera-agente' }, avatar(ag, 'neutra', 'grande'), el('h3', { class: 'titulo-apartado', text: ag }), el('span', { class: 'chip c-neutro', text: del.length === 1 ? '1 pregunta' : `${del.length} preguntas` })),
+          del.map((p) => entra(tarjetaDePregunta(p), i++))));
+      });
     } catch (e) { manejar(e); }
   }
 
   function tarjetaDePregunta(p) {
+    const agente = p.agente || 'Mira';
     const conflicto = p.otros.length > 0 && p.campo !== 'coincidencia';
     const valor = el('input', { type: 'text', placeholder: conflicto ? 'Valor correcto' : p.campo === 'coincidencia' ? 'misma o distinta' : (FORMATOS[p.campo] ? FORMATOS[p.campo] : 'Tu respuesta'), maxlength: 500, 'aria-label': 'Respuesta' });
     const destino = conflicto ? el('select', { 'aria-label': 'Registro al que corresponde el valor' }, [p.registro, ...p.otros].map((r) => el('option', { value: r.id, text: `${r.titulo || r.id} (${r.valorActual})` }))) : null;
@@ -309,9 +324,10 @@
       } catch (e) { manejar(e); }
     };
     const registroLink = (r) => el('a', { href: '#/registro/' + r.id, text: r.titulo || r.id });
-    const tarjeta = el('div', { class: 'pregunta cristal foco-luz' },
+    const tarjeta = el('div', { class: 'pregunta cristal foco-luz agente-' + agente.toLowerCase() },
+      el('div', { class: 'chip-agente' }, avatar(agente, 'pregunta', 'chico'), el('span', { text: 'Pregunta de ' + agente })),
       el('p', { class: 'texto-pregunta', text: p.texto }),
-      el('div', { class: 'contexto' },
+      agente === 'Noa' ? el('div', { class: 'contexto' }, el('div', {}, ic('personas'), p.rasgo ? `Sobre un rasgo de tu perfil (${p.rasgo})` : 'Sobre un apartado de tu perfil sin datos')) : el('div', { class: 'contexto' },
         el('div', {}, ic('nota'), 'Registro: ', registroLink(p.registro)),
         el('div', {}, ic(p.campo === 'coincidencia' ? 'enlace' : (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][1] : p.campo)), `Campo: ${CAMPOS[p.campo] || (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][0] : p.campo)}`, el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + p.registro.valorActual)),
         p.otros.map((o) => el('div', {}, ic('enlace'), 'Con: ', registroLink(o), el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + o.valorActual)))),
@@ -678,7 +694,7 @@
 
   async function vistaPerfil() {
     const caja = el('div', {}, esqueletos(2));
-    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Noa ve de ti' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Perfil' }))),
+    cont.append(el('div', { class: 'cabecera' }, avatar('Noa', 'neutra', 'grande'), el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Noa ve de ti' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Perfil' }))),
       el('p', { class: 'meta', text: 'Noa deduce a partir de lo que has contado. Nada de esto es un hecho hasta que tú lo confirmes, no incluye diagnósticos y lo tuyo manda: puedes corregir, matizar, ocultar o borrar.' })), caja);
     clearTimeout(sondeoDeNoa);
     const recargar = () => { vaciar(cont); vistaPerfil(); };
@@ -693,7 +709,7 @@
           u ? el('p', { class: 'meta', text: `Última ejecución: ${u.fecha} · ${u.resultado}${u.detalle ? ' · ' + u.detalle : ''}` }) : el('p', { class: 'meta', text: 'Aún no ha habido ninguna ejecución.' }),
           d.proxima ? el('p', { class: 'meta', text: `Próxima versión a partir del ${d.proxima}.` }) : null);
         if (d.generando) {
-          estado.append(el('p', { text: 'Noa está trabajando en una versión nueva. Esta página se actualizará sola.' }));
+          estado.append(avatar('Noa', 'trabajando', 'grande'), el('p', { text: 'Noa está trabajando en una versión nueva. Esta página se actualizará sola.' }));
           sondeoDeNoa = setTimeout(() => { if (vistaActual === 'perfil') recargar(); }, 5000);
         } else if (d.puedeGenerar) {
           estado.append(boton('Pedir una versión ahora', 'spark', { class: 'principal', onclick: async () => {
@@ -744,7 +760,7 @@
     vistaActual = vista === 'registro' ? 'dia' : vista === 'aprendizajes' ? 'descubrimientos' : vista;
     moverIndicador(vistaActual); actualizarContador();
     if (vista === 'buscar') await vistaBuscar(resto || '');
-    else if (vista === 'pendientes') await vistaPendientes();
+    else if (vista === 'pendientes') await vistaPendientes(resto);
     else if (vista === 'papelera') await vistaPapelera();
     else if (vista === 'aprendizajes') await vistaAprendizajes();
     else if (vista === 'descubrimientos') await vistaDescubrimientos();

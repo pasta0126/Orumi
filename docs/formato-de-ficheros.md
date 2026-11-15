@@ -456,7 +456,11 @@ El apartado `energia_animo` solo admite rasgos con `hipotesis: [ids]` de hipóte
 
 **`perfil/generaciones/gen-….yaml`**: motivo (`periodica` o `peticion`), resultado (`generada`, `omitida` con su motivo o `fallida`), proveedor, modelo, registros enviados y excluidos, rasgos aceptados y descartados (con el recuento de descartes por causa), tokens y coste estimado. **Nunca contiene texto del usuario.**
 
-Borrar el perfil elimina `perfil/` entero (versiones y generaciones) y no toca capturas, registros ni preguntas.
+**Preguntas de Noa** (`perfil/preguntas/preg-….md`): mismo formato que las de Mira (sección 6), con `generada_por: {agente: Noa}`, **sin `registro`** (no se atan a un registro) y con `rasgo` (la clave del rasgo del perfil) o `apartado` (un apartado sin datos), más `contradice` si pregunta por dos rasgos que no encajan, `campo: perfil` y `clase_pregunta: "noa:<apartado>"` (el aprendizaje de Noa es aparte). Las candidatas las elige el código (conjeturas e indicios no sensibles, contradicciones señaladas por el modelo y comprobadas, apartados sin datos); el cupo por ejecución es `noa.maximo_preguntas` (3). Lo que responde el usuario se guarda en la propia pregunta y entra, como dicho por él, en la siguiente versión. Mira no las carga (el almacén de Mira excluye `perfil/`).
+
+En toda pregunta, `generada_por.agente` es `Mira` o `Noa`; una pregunta anterior sin agente escrito se entiende de Mira sin tocar el fichero.
+
+Borrar el perfil elimina `perfil/` entero (versiones, generaciones y preguntas de Noa) y no toca capturas, registros ni preguntas de Mira.
 
 ## 7. Lectura sin herramientas
 

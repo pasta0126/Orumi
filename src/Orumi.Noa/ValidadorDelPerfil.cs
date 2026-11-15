@@ -14,6 +14,9 @@ public sealed record ResultadoDeValidacion(
     IReadOnlyDictionary<string, int> Descartes, string? Error)
 {
     public int TotalDescartes => Descartes.Values.Sum();
+
+    /// <summary>Pares de claves de rasgos que el modelo señaló como contradictorios (ya comprobados contra los rasgos aceptados).</summary>
+    public IReadOnlyList<(string A, string B)> Contradicciones { get; init; } = [];
 }
 
 /// <summary>
@@ -103,7 +106,22 @@ public static class ValidadorDelPerfil
 
             var sinDatos = raiz.TryGetProperty("sin_datos", out var sd) && sd.ValueKind == JsonValueKind.Array
                 ? sd.EnumerateArray().Select(x => x.GetString()).OfType<string>().Where(Apartados.Existe).Distinct().ToList() : [];
-            return new ResultadoDeValidacion(aceptados, recomendaciones, sinDatos, descartes, null);
+            // Contradicciones señaladas por el modelo: solo cuentan si ambas claves son rasgos visibles y distintos (la pregunta la redacta el código).
+            var contradicciones = new List<(string, string)>();
+            if (raiz.TryGetProperty("contradicciones", out var cs) && cs.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var c in cs.EnumerateArray().Take(5))
+                {
+                    var claves2 = c.ValueKind == JsonValueKind.Object && c.TryGetProperty("rasgos", out var rs) && rs.ValueKind == JsonValueKind.Array
+                        ? rs.EnumerateArray().Select(x => x.GetString()).OfType<string>().Distinct().Order(StringComparer.Ordinal).ToList() : [];
+                    if (claves2.Count == 2 && claves2.All(baseDeRecomendacion.ContainsKey) && !contradicciones.Contains((claves2[0], claves2[1])))
+                    {
+                        contradicciones.Add((claves2[0], claves2[1]));
+                    }
+                }
+            }
+
+            return new ResultadoDeValidacion(aceptados, recomendaciones, sinDatos, descartes, null) { Contradicciones = contradicciones };
         }
     }
 

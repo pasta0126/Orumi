@@ -192,4 +192,62 @@ public class PerfilPanelTests : IDisposable
         Assert.Null(AlmacenDePerfil.Leer(_datos));
         Assert.Equal("intacto", File.ReadAllText(Path.Combine(_datos, "registros", "r.md")));
     }
+
+    // ---------------------------------------------------------------- preguntas por agente (4b)
+
+    private void PreguntaDeNoa(string id)
+    {
+        Directory.CreateDirectory(Path.Combine(_datos, "perfil", "preguntas"));
+        File.WriteAllText(Path.Combine(_datos, "perfil", "preguntas", id + ".md"),
+            $"---\nid: {id}\ntipo: pregunta\ncampo: perfil\nclase_pregunta: \"noa:personalidad\"\nrasgo: valora_la_calma\ntexto: \"Noa deduce algo. ¿Cómo lo describirías?\"\nestado: pendiente\nvalor: media\ncreada_el: 2026-11-20T05:00:00+01:00\ngenerada_por: {{agente: Noa}}\n---\nPregunta de Noa.\n");
+    }
+
+    [Fact]
+    public void El_panel_lista_las_preguntas_de_cada_agente_y_filtra_por_agente()
+    {
+        PreguntaDeNoa("preg-20261120-ab12");
+        var lectura = new Lectura(new RepositorioDeDatos(_datos, () => DateTimeOffset.UtcNow, TimeSpan.Zero));
+
+        var todas = lectura.PreguntasPendientes();
+        var deNoa = lectura.PreguntasPendientes("noa");
+        var deMira = lectura.PreguntasPendientes("Mira");
+
+        var p = Assert.Single(todas);
+        Assert.Equal(("Noa", "valora_la_calma", null), (p.Agente, p.Rasgo, p.Registro));
+        Assert.Single(deNoa);
+        Assert.Empty(deMira);
+        Assert.Throws<SolicitudInvalidaException>(() => lectura.PreguntasPendientes("Zira"));
+        Assert.Contains("\"agente\":\"Noa\"", Json(todas));
+    }
+
+    [Fact]
+    public void Responder_a_una_pregunta_de_Noa_desde_el_panel_la_cierra_con_auditoria_sin_valores()
+    {
+        PreguntaDeNoa("preg-20261120-cd34");
+        var escritura = new EscrituraDelPanel(new RepositorioDeDatos(_datos, () => DateTimeOffset.UtcNow, TimeSpan.Zero), () => Ahora, _auditoria.Add);
+
+        var r = escritura.Ejecutar("responder", "preg-20261120-cd34", "yo@ejemplo.com", op => op.Responder("preg-20261120-cd34", "Con mis palabras: sí."));
+
+        Assert.Equal(200, r.Estado);
+        Assert.Contains("respondida", File.ReadAllText(Path.Combine(_datos, "perfil", "preguntas", "preg-20261120-cd34.md")));
+        Assert.DoesNotContain("Con mis palabras", Assert.Single(_auditoria));
+    }
+
+    [Theory]
+    [InlineData("mira", "neutra")]
+    [InlineData("mira", "pregunta")]
+    [InlineData("mira", "dormida")]
+    [InlineData("noa", "neutra")]
+    [InlineData("noa", "pregunta")]
+    [InlineData("noa", "trabajando")]
+    public void Las_imagenes_de_los_agentes_que_usa_el_panel_existen(string agente, string expresion)
+    {
+        var dir = Path.GetDirectoryName(typeof(PerfilPanelTests).Assembly.Location)!;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "Orumi.slnx")))
+        {
+            dir = Path.GetDirectoryName(dir);
+        }
+
+        Assert.True(File.Exists(Path.Combine(dir!, "src", "Orumi.Panel", "wwwroot", "agentes", agente, expresion + ".png")));
+    }
 }

@@ -29,7 +29,7 @@ public sealed class RepositorioDeDatos(string datos, Func<DateTimeOffset> reloj,
                 var firma = Firma();
                 if (firma != _firma || _almacen is null)
                 {
-                    _almacen = Almacen.Cargar(datos);
+                    _almacen = Almacen.Cargar(datos, incluirPerfil: true);
                     _firma = firma;
                 }
 

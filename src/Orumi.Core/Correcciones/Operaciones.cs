@@ -105,20 +105,35 @@ public sealed partial class Operaciones(string datos, Func<DateTimeOffset> ahora
             "no_sucedio" => "No sucedió.",
             _ => throw new OperacionInvalidaException("Una pregunta solo se cierra sin dato como no_recuerda, no_relevante o no_sucedio."),
         };
-        var almacen = Almacen.Cargar(datos);
+        var almacen = Almacen.Cargar(datos, incluirPerfil: true);
         var pregunta = Buscar(almacen, preguntaId, "pregunta");
         var fm = Clonar(pregunta.Frontmatter);
         ExigirPendiente(fm, preguntaId);
         Cerrar(fm, estado, texto);
-        return Guardar(almacen, [pregunta with { Frontmatter = fm }], $"Pregunta {preguntaId} cerrada como «{estado}»; el registro no cambia y Mira no volverá a preguntarlo.");
+        var agente = AgentesDePregunta.De(fm);
+        return Guardar(almacen, [pregunta with { Frontmatter = fm }],
+            $"Pregunta {preguntaId} cerrada como «{estado}»; " + (agente == AgentesDePregunta.Noa ? "el perfil no cambia y Noa no volverá a preguntarlo." : "el registro no cambia y Mira no volverá a preguntarlo."));
     }
 
     public ResultadoOperacion Responder(string preguntaId, string texto, string? registroDestino = null)
     {
-        var almacen = Almacen.Cargar(datos);
+        var almacen = Almacen.Cargar(datos, incluirPerfil: true);
         var pregunta = Buscar(almacen, preguntaId, "pregunta");
         var pfm = Clonar(pregunta.Frontmatter);
         ExigirPendiente(pfm, preguntaId);
+
+        // Una pregunta de Noa no toca ningún registro: lo que el usuario contesta es «dicho por él» y entra en la siguiente versión del perfil.
+        if (AgentesDePregunta.De(pfm) == AgentesDePregunta.Noa)
+        {
+            var respuesta = texto.Trim();
+            if (respuesta.Length is 0 or > 1000)
+            {
+                throw new OperacionInvalidaException("La respuesta debe tener entre 1 y 1000 caracteres.");
+            }
+
+            Cerrar(pfm, "respondida", respuesta);
+            return Guardar(almacen, [pregunta with { Frontmatter = pfm }], $"Pregunta {preguntaId} respondida: Noa la tendrá en cuenta en la próxima versión del perfil.");
+        }
 
         var campo = pfm.GetValueOrDefault("campo") as string ?? string.Empty;
         var principal = pfm.GetValueOrDefault("registro") as string ?? string.Empty;

@@ -129,7 +129,7 @@ app.MapGet("/api/registros", (HttpContext c) => Seguro(() =>
 }));
 app.MapGet("/api/registros/{id}", (string id) => Seguro(() => lectura.Ficha(id)));
 app.MapGet("/api/capturas/{id}", (string id) => Seguro(() => lectura.Captura(id)));
-app.MapGet("/api/preguntas", () => Seguro(() => lectura.PreguntasPendientes()));
+app.MapGet("/api/preguntas", (HttpContext c) => Seguro(() => lectura.PreguntasPendientes(Q(c, "agente"))));
 app.MapGet("/api/papelera", () => Seguro(() => lectura.Papelera()));
 app.MapGet("/api/aprendizajes", () => Seguro(() => lectura.Aprendizajes()));
 app.MapGet("/api/descubrimientos", () => Seguro(() => lectura.Descubrimientos()));

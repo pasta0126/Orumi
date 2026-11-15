@@ -234,7 +234,16 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
 
     // ---------------------------------------------------------------- preguntas
 
-    public IReadOnlyList<PreguntaConContexto> PreguntasPendientes() => PreguntasConContexto.Pendientes(repositorio.Actual());
+    /// <summary>Preguntas pendientes de todos los agentes o solo de uno (Mira o Noa).</summary>
+    public IReadOnlyList<PreguntaConContexto> PreguntasPendientes(string? agente = null)
+    {
+        if (agente is not null && !AgentesDePregunta.EsValido(agente))
+        {
+            throw new SolicitudInvalidaException("«agente» debe ser Mira o Noa.");
+        }
+
+        return PreguntasConContexto.Pendientes(repositorio.Actual(), agente is null ? null : char.ToUpperInvariant(agente[0]) + agente[1..].ToLowerInvariant());
+    }
 
     // ---------------------------------------------------------------- utilidades
 

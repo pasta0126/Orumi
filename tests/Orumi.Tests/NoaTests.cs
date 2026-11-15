@@ -3,6 +3,7 @@ using Orumi.Agente;
 using Orumi.Agente.Etiquetado;
 using Orumi.Cli;
 using Orumi.Core.Capturas;
+using Orumi.Core.Correcciones;
 using Orumi.Core.Ficheros;
 using Orumi.Core.Hipotesis;
 using Orumi.Noa;
@@ -930,5 +931,194 @@ public class NoaTests : IDisposable
 
         Assert.Contains("Aún no toca", salida.ToString());
         Assert.Single(AlmacenDePerfil.Generaciones(_datos).Where(g => g.Resultado == Generacion.Generada));
+    }
+
+    // ---------------------------------------------------------------- preguntas de Noa (4b)
+
+    private string[] RasgosParaPreguntar() =>
+    [
+        .. RasgosBasicos(),
+        R("valora_la_calma", "personalidad", "Valora la calma por encima de casi todo.", "interpretado", [Ev(_ids[0], "mensajes cortos y directos")]),
+        R("prefiere_lo_directo", "comunicacion", "Prefiere que le hablen sin adornos.", "interpretado", [Ev(_ids[2], "mensajes cortos y directos")]),
+    ];
+
+    private IReadOnlyList<Documento> PreguntasDeNoaEnDisco() =>
+        [.. Almacen.Cargar(_datos, incluirPerfil: true).DeTipo("pregunta").Where(p => AgentesDePregunta.De(p.Frontmatter) == AgentesDePregunta.Noa)];
+
+    [Fact]
+    public async Task Noa_formula_preguntas_de_conjeturas_y_apartados_sin_datos_con_su_agente_en_su_espacio_y_sin_registro()
+    {
+        Dataset();
+
+        await GenerarCon(RasgosParaPreguntar());
+
+        var preguntas = PreguntasDeNoaEnDisco();
+        Assert.Equal(3, preguntas.Count); // cupo por defecto
+        Assert.All(preguntas, p =>
+        {
+            Assert.StartsWith("perfil/preguntas/", p.Ruta);
+            Assert.Equal("pendiente", p.Frontmatter["estado"]);
+            Assert.False(p.Frontmatter.ContainsKey("registro"));
+            Assert.StartsWith("noa:", (string)p.Frontmatter["clase_pregunta"]!);
+            Assert.DoesNotContain("Marta", (string)p.Frontmatter["texto"]!);
+        });
+        Assert.Contains(preguntas, p => (p.Frontmatter.GetValueOrDefault("rasgo") as string) == "valora_la_calma");
+        Assert.Contains(preguntas, p => p.Frontmatter.GetValueOrDefault("apartado") is string a && Apartados.Existe(a)); // un apartado sin datos
+        Assert.Empty(Orumi.Core.Validacion.Validador.Validar(Almacen.Cargar(_datos, incluirPerfil: true)).Where(i => i.Fichero.StartsWith("perfil/")));
+    }
+
+    [Fact]
+    public async Task Mira_no_ve_ni_cuenta_las_preguntas_de_Noa()
+    {
+        Dataset();
+        await GenerarCon(RasgosParaPreguntar());
+
+        var comoMira = Almacen.Cargar(_datos);
+
+        Assert.DoesNotContain(comoMira.DeTipo("pregunta"), p => AgentesDePregunta.De(p.Frontmatter) == AgentesDePregunta.Noa);
+        Assert.Empty(PreguntasConContexto.Pendientes(comoMira));
+        Assert.Equal(3, PreguntasConContexto.Pendientes(Almacen.Cargar(_datos, incluirPerfil: true), AgentesDePregunta.Noa).Count);
+        Assert.Empty(PreguntasConContexto.Pendientes(Almacen.Cargar(_datos, incluirPerfil: true), AgentesDePregunta.Mira));
+    }
+
+    [Fact]
+    public async Task Una_pregunta_sin_agente_escrito_se_entiende_de_Mira_y_Noa_se_reconoce_sin_importar_las_mayusculas()
+    {
+        Assert.Equal(AgentesDePregunta.Mira, AgentesDePregunta.De(new Dictionary<string, object?> { ["texto"] = "x" }));
+        Assert.Equal(AgentesDePregunta.Mira, AgentesDePregunta.De(new Dictionary<string, object?> { ["generada_por"] = new Dictionary<string, object?> { ["agente"] = "Mira" } }));
+        Assert.Equal(AgentesDePregunta.Noa, AgentesDePregunta.De(new Dictionary<string, object?> { ["generada_por"] = new Dictionary<string, object?> { ["agente"] = "noa" } }));
+        await Task.CompletedTask;
+    }
+
+    [Fact]
+    public async Task El_cupo_de_Noa_es_el_suyo_y_lo_preguntado_no_se_repite_aunque_se_cierre()
+    {
+        Dataset();
+        var cfg = new ConfiguracionDeNoa(MaximoPreguntas: 1);
+        var p = Prov(() => Resp(RasgosParaPreguntar()));
+
+        await Gen(p, cfg).EjecutarAsync(aPeticion: true);
+        await Gen(p, cfg, ahora: Ahora.AddDays(30)).EjecutarAsync(aPeticion: true); // sigue pendiente la primera: no se añade otra
+        var primera = Assert.Single(PreguntasDeNoaEnDisco());
+        new Operaciones(_datos, () => Ahora.AddDays(31)).CerrarSinDato((string)primera.Frontmatter["id"]!, "no_recuerda");
+        await Gen(p, cfg, ahora: Ahora.AddDays(60)).EjecutarAsync(aPeticion: true);
+
+        var todas = PreguntasDeNoaEnDisco();
+        Assert.Equal(2, todas.Count);
+        Assert.Single(todas, x => x.Frontmatter["estado"] as string == "pendiente");
+        Assert.Equal(2, todas.Select(x => (x.Frontmatter.GetValueOrDefault("rasgo") ?? x.Frontmatter.GetValueOrDefault("apartado")) as string).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task La_respuesta_del_usuario_a_Noa_se_guarda_sin_tocar_registros_y_entra_en_la_siguiente_version_como_dicho_por_el_usuario()
+    {
+        Dataset();
+        await GenerarCon(RasgosParaPreguntar());
+        var pregunta = PreguntasDeNoaEnDisco().First(x => (x.Frontmatter.GetValueOrDefault("rasgo") as string) == "valora_la_calma");
+        var id = (string)pregunta.Frontmatter["id"]!;
+        var registrosAntes = Directory.GetFiles(Path.Combine(_datos, "registros"), "*.md", SearchOption.AllDirectories).Select(File.ReadAllText).ToList();
+
+        var r = new Operaciones(_datos, () => Ahora.AddDays(1)).Responder(id, "Sí, necesito calma para trabajar bien.");
+
+        Assert.Contains("próxima versión del perfil", r.Mensaje);
+        Assert.Equal(registrosAntes, Directory.GetFiles(Path.Combine(_datos, "registros"), "*.md", SearchOption.AllDirectories).Select(File.ReadAllText).ToList());
+        var p = Prov(() => Resp(RasgosBasicos()));
+        await Gen(p, ahora: Ahora.AddDays(30)).EjecutarAsync(aPeticion: true);
+        var enviado = p.Peticiones.Single().Mensaje;
+        Assert.Contains(id, enviado);
+        Assert.Contains("Respuesta del usuario: Sí, necesito calma para trabajar bien.", enviado);
+    }
+
+    [Fact]
+    public async Task Una_respuesta_vacia_o_un_cierre_invalido_a_una_pregunta_de_Noa_se_rechazan_sin_cambios()
+    {
+        Dataset();
+        await GenerarCon(RasgosParaPreguntar());
+        var id = (string)PreguntasDeNoaEnDisco().First().Frontmatter["id"]!;
+        var op = new Operaciones(_datos, () => Ahora);
+
+        Assert.Throws<OperacionInvalidaException>(() => op.Responder(id, "   "));
+        Assert.Throws<OperacionInvalidaException>(() => op.CerrarSinDato(id, "otro"));
+        Assert.All(PreguntasDeNoaEnDisco(), x => Assert.Equal("pendiente", x.Frontmatter["estado"]));
+    }
+
+    [Fact]
+    public async Task El_aprendizaje_es_por_agente_lo_no_relevante_de_Noa_no_cambia_lo_que_pregunta_Mira()
+    {
+        Dataset();
+        var cfg = new ConfiguracionDeNoa(MaximoPreguntas: 3);
+        var tres = new[]
+        {
+            R("calma_uno", "personalidad", "Valora la calma uno.", "interpretado", [Ev(_ids[0], "mensajes cortos y directos")]),
+            R("calma_dos", "personalidad", "Valora la calma dos.", "interpretado", [Ev(_ids[2], "mensajes cortos y directos")]),
+            R("calma_tres", "personalidad", "Valora la calma tres.", "interpretado", [Ev(_ids[3], "mensajes cortos y directos")]),
+        };
+        await Gen(Prov(() => Resp(tres)), cfg).EjecutarAsync(aPeticion: true);
+        var ids = PreguntasDeNoaEnDisco().Where(x => (x.Frontmatter["clase_pregunta"] as string) == "noa:personalidad").Select(x => (string)x.Frontmatter["id"]!).ToList();
+        Assert.Equal(3, ids.Count);
+
+        for (var i = 0; i < ids.Count; i++)
+        {
+            new Operaciones(_datos, () => Ahora.AddDays(1 + i)).CerrarSinDato(ids[i], "no_relevante");
+        }
+
+        var r = Orumi.Core.Aprendizaje.MotorDeAprendizaje.Actualizar(_datos, Ahora.AddDays(5));
+
+        Assert.Single(r.Nuevas);
+        Assert.Contains("noa:personalidad", Orumi.Core.Aprendizaje.MotorDeAprendizaje.ClasesRebajadasDeNoa(_datos));
+        Assert.Empty(Orumi.Core.Aprendizaje.MotorDeAprendizaje.ClasesRebajadas(_datos)); // Mira no cambia
+        Assert.Empty(Orumi.Core.Aprendizaje.MotorDeAprendizaje.Preferencias(_datos)); // y su modelo no recibe nada de Noa
+    }
+
+    [Fact]
+    public async Task Una_contradiccion_entre_rasgos_se_pregunta_con_las_dos_cosas_y_las_sensibles_se_omiten()
+    {
+        Dataset();
+        var rasgos = new[]
+        {
+            R("prefiere_lo_corto", "comunicacion", "Prefiere lo corto.", "hipotesis", [Ev(_ids[0], "mensajes cortos y directos"), Ev(_ids[2], "mensajes cortos y directos"), Ev(_ids[3], "mensajes cortos y directos")]),
+            R("le_gusta_extenderse", "comunicacion", "Le gusta extenderse al hablar.", "interpretado", [Ev(_ids[0], "mensajes cortos y directos")]),
+            R("preocupacion_economica", "situacion", "Le preocupa el dinero de la hipoteca.", "interpretado", [Ev(_ids[1], "me preocupa el dinero de la hipoteca")]),
+        };
+        var resp = Resp(rasgos).Replace("\"sin_datos\"", "\"contradicciones\":[{\"rasgos\":[\"le_gusta_extenderse\",\"prefiere_lo_corto\"]},{\"rasgos\":[\"preocupacion_economica\",\"prefiere_lo_corto\"]},{\"rasgos\":[\"no_existe\",\"prefiere_lo_corto\"]}],\"sin_datos\"");
+
+        await Gen(Prov(() => resp), new ConfiguracionDeNoa(MaximoPreguntas: 5)).EjecutarAsync(aPeticion: true);
+
+        var contradichas = PreguntasDeNoaEnDisco().Where(x => x.Frontmatter.ContainsKey("contradice")).ToList();
+        var c = Assert.Single(contradichas);
+        Assert.Contains("Prefiere lo corto.", (string)c.Frontmatter["texto"]!);
+        Assert.Contains("Le gusta extenderse al hablar.", (string)c.Frontmatter["texto"]!);
+        Assert.DoesNotContain("hipoteca", string.Join(" ", PreguntasDeNoaEnDisco().Select(x => (string)x.Frontmatter["texto"]!)));
+    }
+
+    [Fact]
+    public async Task Antes_de_la_observacion_Noa_no_formula_ninguna_pregunta()
+    {
+        for (var i = 0; i < 12; i++)
+        {
+            Registro(D(i), $"Nota {i} cualquiera.");
+        }
+
+        await Gen(Prov(() => Resp(RasgosParaPreguntar())), ahora: new DateTimeOffset(2026, 10, 15, 5, 0, 0, TimeSpan.FromHours(2))).EjecutarAsync(aPeticion: true);
+
+        Assert.Empty(PreguntasDeNoaEnDisco());
+    }
+
+    [Theory]
+    [InlineData("registro: reg-20261001-ab12\n", "una pregunta de Noa no se ata a un registro")]
+    [InlineData("rasgo-fuera\n", "una pregunta de Noa indica su rasgo o su apartado")]
+    public async Task El_validador_distingue_las_preguntas_de_Noa_de_las_de_Mira(string extra, string esperado)
+    {
+        Dataset();
+        await GenerarCon(RasgosParaPreguntar());
+        var mala = PreguntasDeNoaEnDisco().First();
+        var ruta = Path.Combine(_datos, mala.Ruta);
+        var texto = File.ReadAllText(ruta);
+        texto = extra.StartsWith("registro") ? texto.Replace("campo: perfil", "campo: perfil\n" + extra.TrimEnd()) : texto.Replace("rasgo: ", "x: ").Replace("apartado: ", "y: ");
+        File.WriteAllText(ruta, texto);
+
+        var incidencias = Orumi.Core.Validacion.Validador.Validar(Almacen.Cargar(_datos, incluirPerfil: true)).Select(i => i.ToString()).ToList();
+
+        Assert.Contains(incidencias, i => i.Contains(esperado));
     }
 }

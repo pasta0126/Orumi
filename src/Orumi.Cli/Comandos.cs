@@ -150,7 +150,7 @@ public sealed class Comandos(
             return 2;
         }
 
-        var almacen = Almacen.Cargar(datos);
+        var almacen = Almacen.Cargar(datos, incluirPerfil: true);
         var incidencias = Validador.Validar(almacen);
         MostrarAvisos(datos, ConfigOpcional(o)); // el aviso va por la salida de error y no cambia el resultado de la validación
         if (incidencias.Count == 0)
@@ -415,7 +415,7 @@ public sealed class Comandos(
     {
         if (args.Length == 0)
         {
-            return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | clima DESDE HASTA [CIUDAD] | relacion ID | pendientes | sin-procesar | conflictos");
+            return Uso("Indica qué consultar: entidad X | proyecto X | clase X | certeza X [campo] | fecha DESDE HASTA | clima DESDE HASTA [CIUDAD] | relacion ID | pendientes [--agente Mira|Noa] | sin-procesar | conflictos");
         }
 
         if (args[0] == "papelera")
@@ -1172,12 +1172,28 @@ public sealed class Comandos(
     /// <summary>Preguntas pendientes con el contexto necesario para contestar, leídas de los ficheros (sin depender del índice).</summary>
     private int PendientesConContexto(Opciones o)
     {
-        var preguntas = PreguntasConContexto.Pendientes(Almacen.Cargar(DirectorioDatos(o)));
+        var agente = o.Valor("agente");
+        if (agente is not null && !AgentesDePregunta.EsValido(agente))
+        {
+            throw new ArgumentException("--agente debe ser Mira o Noa.");
+        }
+
+        var preguntas = PreguntasConContexto.Pendientes(Almacen.Cargar(DirectorioDatos(o), incluirPerfil: true), agente is null ? null : char.ToUpperInvariant(agente[0]) + agente[1..].ToLowerInvariant());
         string Titulo(RegistroImplicado r) => r.Titulo is null ? r.Id : $"{r.Id} «{r.Titulo}»";
         foreach (var p in preguntas)
         {
-            salida.WriteLine($"{p.Id}  [{p.Valor}] {p.Texto}");
-            salida.WriteLine($"    registro: {Titulo(p.Registro)} · campo: {p.Campo} · valor actual: {p.Registro.ValorActual}");
+            salida.WriteLine($"{p.Id}  [{p.Agente}] [{p.Valor}] {p.Texto}");
+            if (p.Agente == AgentesDePregunta.Noa)
+            {
+                salida.WriteLine(p.Rasgo is null ? $"    perfil: apartado {p.Apartado}" : $"    perfil: rasgo {p.Rasgo}");
+                continue;
+            }
+
+            if (p.Registro is not null)
+            {
+                salida.WriteLine($"    registro: {Titulo(p.Registro)} · campo: {p.Campo} · valor actual: {p.Registro.ValorActual}");
+            }
+
             foreach (var otro in p.Otros)
             {
                 salida.WriteLine($"    con: {Titulo(otro)} · valor actual: {otro.ValorActual}");
@@ -1367,7 +1383,7 @@ public sealed class Comandos(
           orumi validar   [--datos RUTA]
           orumi clima     [--datos RUTA]   (obtiene el clima de los días con registros; requiere la sección «clima» en la configuración)
           orumi reindexar [--datos RUTA] [--forzar si]   (regenera el índice en PostgreSQL; ORUMI_DATABASE_URL)
-          orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
+          orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes [--agente Mira|Noa] | sin-procesar | conflictos
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante | PREGUNTA --no-sucedio
           orumi hipotesis listar | iniciales | añadir --formulacion "…" --factor clima:uv_alto --efecto CONCEPTO [--retardo 0-1]   (tus hipótesis, «por verificar»)
           orumi noa ver [--markdown si] | estado | ejecutar | generar | corregir CLAVE TEXTO | matizar CLAVE COMENTARIO | descartar CLAVE | borrar CLAVE | ocultar|mostrar CLAVE|apartado:SLUG | borrar-todo --confirmar si   (el perfil que Noa elabora de ti)

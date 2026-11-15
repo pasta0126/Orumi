@@ -27,13 +27,13 @@
 
 ## 4b. Preguntas de Noa y avatares
 
-- [ ] 4b.1 Etiqueta de agente: `generada_por.agente` obligatorio para las preguntas nuevas, las anteriores se entienden de Mira; `registro` opcional con `rasgo` para las de Noa; validador y `docs/formato-de-ficheros.md`
-- [ ] 4b.2 Avatares de Mira y Noa en `iconos.js` (SVG propios, sin emojis, tema claro y oscuro, nombre accesible) y su prueba de reglas de la interfaz (X57)
-- [ ] 4b.3 Panel y terminal: la pregunta muestra el avatar y el nombre de su agente; bloques por agente con cabecera (avatar, nombre, número); filtro por agente (`orumi consultar pendientes --agente`)
-- [ ] 4b.4 Espacio propio: `perfil/preguntas/`; el almacén de Mira excluye `perfil/` y sus cupos, deduplicación y aprendizaje no ven las de Noa; el panel y la terminal cargan ambos orígenes
-- [ ] 4b.5 Generación de preguntas de Noa: candidatas deterministas (conjetura o indicio que una respuesta podría confirmar, contradicción entre rasgos, apartado sin datos), redacción sin sugerir respuesta ni aconsejar, solo sobre el usuario, cupo propio (3 por defecto), solo tras la etapa de observación
-- [ ] 4b.6 Cierres y aprendizaje por agente: clase `noa:<tema>`; mismos cierres que las de Mira; la respuesta se guarda como «dicho por el usuario» y entra en la siguiente versión del perfil
-- [ ] 4b.7 Pruebas: Mira no ve ni cuenta las preguntas de Noa; cupos independientes; aprendizaje por agente; una pregunta anterior sin agente se muestra como de Mira; Noa no pregunta por terceros ni antes de la observación
+- [x] 4b.1 Etiqueta de agente: `generada_por.agente` obligatorio para las preguntas nuevas, las anteriores se entienden de Mira; `registro` opcional con `rasgo` para las de Noa; validador y `docs/formato-de-ficheros.md`
+- [x] 4b.2 Avatares de Mira y Noa: los emotes ilustrados (PNG con transparencia, decisión 18 revisada) servidos desde `wwwroot/agentes/`, con nombre accesible (`alt`) y probados
+- [x] 4b.3 Panel y terminal: la pregunta muestra el avatar y el nombre de su agente; bloques por agente con cabecera (avatar, nombre, número); filtro por agente (`orumi consultar pendientes --agente`)
+- [x] 4b.4 Espacio propio: `perfil/preguntas/`; el almacén de Mira excluye `perfil/` y sus cupos, deduplicación y aprendizaje no ven las de Noa; el panel y la terminal cargan ambos orígenes
+- [x] 4b.5 Generación de preguntas de Noa: candidatas deterministas (conjetura o indicio que una respuesta podría confirmar, contradicción entre rasgos, apartado sin datos), redacción sin sugerir respuesta ni aconsejar, solo sobre el usuario, cupo propio (3 por defecto), solo tras la etapa de observación
+- [x] 4b.6 Cierres y aprendizaje por agente: clase `noa:<tema>`; mismos cierres que las de Mira; la respuesta se guarda como «dicho por el usuario» y entra en la siguiente versión del perfil
+- [x] 4b.7 Pruebas: Mira no ve ni cuenta las preguntas de Noa; cupos independientes; aprendizaje por agente; una pregunta anterior sin agente se muestra como de Mira; Noa no pregunta por terceros ni antes de la observación
 
 ## 5. Pruebas
 

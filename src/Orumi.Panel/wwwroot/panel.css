@@ -176,3 +176,14 @@ details.filtros[open] summary { color: var(--texto); }
 .titulo-apartado { font-size: 1.05rem; margin: 0; letter-spacing: .01em; }
 .rasgo.oculto, .pregunta.oculto, .apartado.oculto .meta { opacity: .6; }
 .zona-peligro { margin-top: 28px; justify-content: flex-end; }
+
+/* Avatares de los agentes (emotes propios) y bloques de preguntas por agente */
+.avatar { display: block; object-fit: contain; flex: none; }
+.avatar.chico { width: 40px; height: 40px; }
+.avatar.grande { width: 84px; height: 84px; }
+.cabecera .avatar.grande { width: 72px; height: 72px; }
+.bloque-agente { margin: 8px 0 22px; }
+.cabecera-agente { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; flex-wrap: wrap; }
+.chip-agente { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; color: var(--suave); font-size: .88rem; font-weight: 600; }
+.chip.activo { --c: var(--acento-1); font-weight: 700; }
+.vacio .avatar.grande { margin: 0 auto 8px; }
