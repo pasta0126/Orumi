@@ -31,7 +31,7 @@ El repaso MUST tener una capa determinista, que pregunta por los campos estructu
 - **THEN** se descarta, se cuenta y no se escribe nada de ella
 
 ### Requirement: Tope de creación por repaso
-Para que la primera pasada sobre el histórico no inunde al usuario, cada repaso MUST crear como máximo un número configurable de preguntas nuevas (20 por defecto), eligiendo las de mayor valor; las demás MUST quedar para el siguiente repaso, sin perderse ni cerrarse.
+Para que la primera pasada sobre el histórico no inunde al usuario, cada repaso MUST crear como máximo un número configurable de preguntas nuevas (200 por defecto), eligiendo las de mayor valor; las demás MUST quedar para el siguiente repaso, sin perderse ni cerrarse.
 
 #### Scenario: Muchos huecos
 - **WHEN** hay más candidatas que el tope de creación

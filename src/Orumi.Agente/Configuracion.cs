@@ -10,7 +10,7 @@ public sealed record Procesamiento(string Modo = "inmediato", int EsperaMaximaMi
 }
 
 /// <summary>Repaso de los registros existentes (spec <c>repaso-de-registros</c>): activo por defecto; <c>maximo_nuevas</c> acota las preguntas que crea cada ejecución (0 = no crear).</summary>
-public sealed record ConfiguracionDeRepaso(bool Activado = true, int MaximoNuevas = 20, int RegistrosPorLlamada = 15);
+public sealed record ConfiguracionDeRepaso(bool Activado = true, int MaximoNuevas = 200, int RegistrosPorLlamada = 15);
 
 public sealed record GarantiaDePrivacidad(bool Declarada, DateOnly? VerificadaEl, string? Fuente, int CaducidadDias);
 

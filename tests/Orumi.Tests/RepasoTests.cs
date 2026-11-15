@@ -236,7 +236,7 @@ public class RepasoTests
         var con = Configuracion.Leer("preguntas:\n  maximo_pendientes: 7\nrepaso:\n  maximo_nuevas: 4\n  activado: false\n  registros_por_llamada: 9\n");
 
         Assert.Null(sin.MaximoPendientes);
-        Assert.Equal(new ConfiguracionDeRepaso(true, 20, 15), sin.Repaso);
+        Assert.Equal(new ConfiguracionDeRepaso(true, 200, 15), sin.Repaso);
         Assert.Equal(7, con.MaximoPendientes);
         Assert.Equal(new ConfiguracionDeRepaso(false, 4, 9), con.Repaso);
     }
