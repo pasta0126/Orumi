@@ -220,6 +220,10 @@ orumi/
 ├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
 ├── hipotesis/hip-….yaml            # hipótesis del usuario, «por verificar» (X65)
+├── perfil/                          # Noa (X68): lo único que escribe
+│   ├── perfil.yaml                  # versión vigente
+│   ├── historial/perfil-vNNN-AAAAMMDD-HHMM.yaml   # una copia por versión
+│   └── generaciones/gen-….yaml      # constancia de cada ejecución (sin texto del usuario)
 ├── analisis/etiquetas/AAAA/MM/reg-….yaml   # conceptos dichos en cada registro (derivado, regenerable)
 ├── analisis/ejecuciones/AAAA/MM/eti-….yaml # constancia de cada etiquetado (proveedor, modelo, uso)
 ├── analisis/AAAA/semana-AAAA-Www.yaml      # revisión semanal: contrastes, evidencia y aprendizaje de Mira
@@ -412,6 +416,47 @@ lote: lote-20261114-0320                 # lote de Mira donde quedó el resultad
 ```
 
 Los `ofrecidos` se guardan para comprobar, al recoger, que el proveedor solo cita registros que se le enviaron. El proveedor retiene los datos de un lote 29 días y no admite retención cero. El lote de Mira lleva `modo` (`lotes` | `inmediato`) y, si procede, `envios`.
+
+## 8. Perfil de Noa (X68, change `perfil-personal`)
+
+Noa escribe **solo** en `perfil/` y Mira no lo lee (el almacén de Mira no carga `perfil/`). Son YAML legibles a mano.
+
+**`perfil/perfil.yaml`** (versión vigente; cada versión nueva se copia además en `perfil/historial/`):
+
+```yaml
+version: 3
+generada: 2026-12-04T05:00:00+01:00
+generacion: gen-20261204-0500
+registros_vistos: 64
+apartados_sin_datos: [miedos_preocupaciones]
+apartados_ocultos: []           # los oculta el usuario
+rasgos:
+  - clave: prefiere_mensajes_cortos       # a-z, 0-9 y _; identifica el rasgo entre versiones
+    apartado: comunicacion
+    texto: "Prefiere mensajes cortos y directos, sin rodeos."
+    certeza: hipotesis                    # dicho | confirmado | interpretado | hipotesis
+    nivel: patron                         # patron | indicio | conjetura (lo calcula el código)
+    sensible: false
+    fuentes: 3                            # registros distintos con cita literal verificada
+    semanas: 3
+    evidencia: [{fuente: reg-20261001-ab12, fecha: 2026-10-01, cita: "mensajes cortos y directos"}]
+    estado: activo                        # activo | matizado | descartado | borrado
+    origen: noa                           # noa | usuario (corregido por el usuario: prevalece)
+    oculto: false
+    comentario_usuario: "Solo cuando voy con prisa"   # opcional
+    evidencia_al_descartar: 3             # opcional: con cuántas fuentes se descartó
+    version_creada: 1
+    actualizado: 2026-12-04T05:00:00+01:00
+    historial: [{fecha: …, accion: propuesto, origen: noa, detalle: "patron; 3 fuente(s) en 3 semana(s)"}]
+recomendaciones:                           # del sistema, no son hechos; solo sobre patrones o indicios
+  - {id: rec-0a1b2c3d, texto: "…", rasgos: [prefiere_mensajes_cortos], estado: activo, oculta: false}
+```
+
+El apartado `energia_animo` solo admite rasgos con `hipotesis: [ids]` de hipótesis que el usuario confirmó. `superficie` es el apartado de ingeniería social (qué podría deducir un tercero), para que el usuario se proteja.
+
+**`perfil/generaciones/gen-….yaml`**: motivo (`periodica` o `peticion`), resultado (`generada`, `omitida` con su motivo o `fallida`), proveedor, modelo, registros enviados y excluidos, rasgos aceptados y descartados (con el recuento de descartes por causa), tokens y coste estimado. **Nunca contiene texto del usuario.**
+
+Borrar el perfil elimina `perfil/` entero (versiones y generaciones) y no toca capturas, registros ni preguntas.
 
 ## 7. Lectura sin herramientas
 

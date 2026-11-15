@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.HttpOverrides;
 using Orumi.Acceso;
+using Orumi.Agente;
 using Orumi.Core.Ficheros;
+using Orumi.Noa;
 using Orumi.Core.Hipotesis;
 using Orumi.Panel;
 
@@ -67,6 +69,20 @@ var repositorio = new RepositorioDeDatos(datos, () => DateTimeOffset.UtcNow);
 var lectura = new Lectura(repositorio);
 var escritura = new EscrituraDelPanel(repositorio, Ahora, Console.WriteLine);
 
+// Noa (perfil). Se activa con la sección «noa» de la configuración (ORUMI_CONFIG); sin ella solo se puede leer y gestionar lo que ya exista.
+Configuracion? configuracionGeneral = null;
+ConfiguracionDeNoa? configuracionDeNoa = null;
+if (Environment.GetEnvironmentVariable("ORUMI_CONFIG") is { Length: > 0 } rutaConfig && File.Exists(rutaConfig))
+{
+    var yamlConfig = File.ReadAllText(rutaConfig, System.Text.Encoding.UTF8);
+    configuracionGeneral = Configuracion.Leer(yamlConfig);
+    configuracionDeNoa = ConfiguracionDeNoa.Leer(yamlConfig);
+}
+
+var perfil = new PerfilDelPanel(repositorio, Ahora, Console.WriteLine, configuracionDeNoa, configuracionGeneral,
+    () => configuracionGeneral is { Proveedor: "anthropic" } ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(configuracionGeneral.Modelo) : null,
+    Environment.GetEnvironmentVariable);
+
 IResult Seguro(Func<object> f)
 {
     try
@@ -117,6 +133,76 @@ app.MapGet("/api/preguntas", () => Seguro(() => lectura.PreguntasPendientes()));
 app.MapGet("/api/papelera", () => Seguro(() => lectura.Papelera()));
 app.MapGet("/api/aprendizajes", () => Seguro(() => lectura.Aprendizajes()));
 app.MapGet("/api/descubrimientos", () => Seguro(() => lectura.Descubrimientos()));
+
+app.MapGet("/api/perfil", () => Seguro(() => perfil.Ver()));
+app.MapGet("/api/perfil/descarga", (HttpContext c) =>
+{
+    var md = perfil.Descarga();
+    if (md is null)
+    {
+        return Results.Json(new { error = "Noa aún no ha generado ningún perfil." }, statusCode: 404);
+    }
+
+    c.Response.Headers.ContentDisposition = "attachment; filename=\"perfil-noa.md\"";
+    return Results.Text(md, "text/markdown; charset=utf-8");
+});
+
+app.MapPost("/api/perfil/generar", (HttpContext c, Vacio _) => Respuesta(perfil.Generar(Correo(c))));
+
+app.MapPost("/api/perfil/rasgos/{objetivo}/{accion}", (HttpContext c, string objetivo, string accion, CambioDePerfil cuerpo) =>
+{
+    if (!PerfilDelPanel.EsObjetivoValido(objetivo))
+    {
+        return Results.Json(new { error = "Identificador no válido." }, statusCode: 400);
+    }
+
+    if (accion is not ("corregir" or "matizar" or "descartar" or "borrar" or "ocultar" or "mostrar"))
+    {
+        return Results.Json(new { error = "La acción debe ser corregir, matizar, descartar, borrar, ocultar o mostrar." }, statusCode: 400);
+    }
+
+    if (Largo(cuerpo.Texto) is { } largo)
+    {
+        return largo;
+    }
+
+    var texto = cuerpo.Texto ?? string.Empty;
+    return Respuesta(perfil.Accion(accion, objetivo, Correo(c), (datos, ahora) =>
+    {
+        switch (accion)
+        {
+            case "corregir":
+                Orumi.Noa.OperacionesDelPerfil.Corregir(datos, objetivo, texto, ahora);
+                return "Corregido: ahora es tu versión y Noa no la vuelve a escribir.";
+            case "matizar":
+                Orumi.Noa.OperacionesDelPerfil.Matizar(datos, objetivo, texto, ahora);
+                return "Matizado: tu comentario prevalece sobre la interpretación de Noa.";
+            case "descartar":
+                Orumi.Noa.OperacionesDelPerfil.Descartar(datos, objetivo, ahora);
+                return "Descartado: no volverá a proponerse salvo evidencia nueva sustancial.";
+            case "borrar":
+                Orumi.Noa.OperacionesDelPerfil.Borrar(datos, objetivo, ahora);
+                return "Borrado: no volverá a proponerse salvo evidencia nueva sustancial.";
+            default:
+                Orumi.Noa.OperacionesDelPerfil.Ocultar(datos, objetivo, accion == "ocultar", ahora);
+                return accion == "ocultar" ? "Oculto: sale de la vista y de la descarga, pero no se borra." : "Visible de nuevo.";
+        }
+    }));
+});
+
+app.MapPost("/api/perfil/borrar-todo", (HttpContext c, BorradoTotal cuerpo) =>
+{
+    if (cuerpo.Confirmar is not true)
+    {
+        return Results.Json(new { error = "Borrar el perfil elimina todas sus versiones y su historial. Confírmalo." }, statusCode: 400);
+    }
+
+    return Respuesta(perfil.Accion("borrar-todo", null, Correo(c), (datos, _) =>
+    {
+        Orumi.Noa.OperacionesDelPerfil.BorrarTodo(datos);
+        return "Perfil borrado con todo su historial. Capturas, registros y preguntas no se han tocado.";
+    }));
+});
 
 app.MapPost("/api/preguntas/{id}/responder", (HttpContext c, string id, RespuestaAPregunta cuerpo) =>
 {
@@ -309,6 +395,10 @@ internal sealed record Rechazo(string? Campo);
 internal sealed record Deshaciendo(string? Campo);
 
 internal sealed record Vacio;
+
+internal sealed record CambioDePerfil(string? Texto);
+
+internal sealed record BorradoTotal(bool? Confirmar);
 
 internal sealed record NuevaHipotesis(string? Formulacion, string? Factor, string? Efecto, string? DescripcionEfecto, int? RetardoDesde, int? RetardoHasta);
 

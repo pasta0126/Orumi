@@ -169,3 +169,10 @@ details.filtros[open] summary { color: var(--texto); }
 .progreso-lleno { height: 100%; width: var(--p, 0%); border-radius: inherit; background: var(--grad); }
 .tendencia { display: grid; gap: 8px; margin-top: 10px; }
 .tendencia .semana { display: grid; gap: 2px; padding: 8px 0; border-top: 1px solid var(--borde); }
+
+/* Perfil (Noa) */
+.apartado { margin: 22px 0 8px; }
+.cabecera-apartado { justify-content: space-between; margin-bottom: 8px; }
+.titulo-apartado { font-size: 1.05rem; margin: 0; letter-spacing: .01em; }
+.rasgo.oculto, .pregunta.oculto, .apartado.oculto .meta { opacity: .6; }
+.zona-peligro { margin-top: 28px; justify-content: flex-end; }

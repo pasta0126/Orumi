@@ -407,7 +407,7 @@ public class PanelTests
         Assert.DoesNotContain(rutas, r => r.Item1 == "Post" && r.Item2.Contains("capturas"));
         // toda escritura es una de las operaciones conocidas (ninguna sobre capturas)
         Assert.Equal(
-            ["/api/aprendizajes/{id}/{accion}", "/api/hipotesis", "/api/hipotesis/{id}/{accion}", "/api/preguntas/{id}/cerrar", "/api/preguntas/{id}/responder", "/api/registros/{id}/corregir", "/api/registros/{id}/deshacer", "/api/registros/{id}/eliminar",
+            ["/api/aprendizajes/{id}/{accion}", "/api/hipotesis", "/api/hipotesis/{id}/{accion}", "/api/perfil/borrar-todo", "/api/perfil/generar", "/api/perfil/rasgos/{objetivo}/{accion}", "/api/preguntas/{id}/cerrar", "/api/preguntas/{id}/responder", "/api/registros/{id}/corregir", "/api/registros/{id}/deshacer", "/api/registros/{id}/eliminar",
                 "/api/registros/{id}/fusionar", "/api/registros/{id}/rechazar", "/api/registros/{id}/restaurar", "/api/registros/{id}/separar"],
             rutas.Where(r => r.Item1 == "Post").Select(r => r.Item2).Order().ToArray());
     }
