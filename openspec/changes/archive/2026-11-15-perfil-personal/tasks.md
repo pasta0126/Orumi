@@ -11,7 +11,7 @@
 - [x] 2.4 Contrato de salida del modelo y validador: sujeto solo «el usuario», categoría de certeza obligatoria, evidencia enlazada y verificable, rechazo de terceros, de diagnósticos y etiquetas clínicas, de afirmaciones sensibles presentadas como hechos y de afirmaciones sin nivel de evidencia declarado; una salida inválida no escribe nada
 - [x] 2.5 Generación por apartados con el proveedor de Mira (X38): envío mínimo agregado, fallo cerrado sin garantías, constancia de proveedor, modelo, fecha y coste; apartados de superficie de ingeniería social y de recomendaciones, estas enlazadas a sus patrones o indicios
 
-- [ ] 2.6 Ejecución periódica: `orumi noa ejecutar` comprueba la cadencia y la información nueva suficiente, omite y anota si no la hay; temporizador de sistema vía `infra` (lo instala el usuario con `sudo`) cada 2 semanas, sin recuperación de ejecuciones perdidas
+- [x] 2.6 Ejecución periódica: `orumi noa ejecutar` comprueba la cadencia y la información nueva suficiente, omite y anota si no la hay; temporizador de sistema vía `infra` (lo instala el usuario con `sudo`) cada 2 semanas, sin recuperación de ejecuciones perdidas
 - [x] 2.7 Sin acceso a internet ni a otras fuentes: Noa solo lee los ficheros de ORUMI
 
 ## 3. Control del usuario
@@ -45,4 +45,4 @@
 ## 6. Documentación y cierre
 
 - [x] 6.1 Documentar el agente en `docs/` (alcance, límites, privacidad y riesgos) y actualizar README
-- [ ] 6.2 Desplegar en el servidor vía `infra` y revisar con el usuario el primer perfil real, ajustando el prompt y los umbrales
+- [x] 6.2 Desplegar en el servidor vía `infra` y revisar con el usuario el primer perfil real, ajustando el prompt y los umbrales — **Desplegado el 2026-11-15** (imágenes, configuración y `orumi-noa.timer`); la revisión del primer perfil real (desde el 2026-12-11) queda en «Pendientes con fecha» de `docs/decisiones.md`

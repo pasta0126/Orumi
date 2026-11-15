@@ -17,10 +17,14 @@ Mira MUST formular las preguntas como pendientes, asociadas a un registro y a un
 - **THEN** indica el registro y el campo que pretende completar
 
 ### Requirement: Máximo por revisión y orden por valor
-Mira MUST limitar el número de preguntas pendientes que presenta en cada revisión a un máximo configurable, ordenadas por valor, y MUST descartar las candidatas de menor valor cuando se supere.
+Mira MUST ordenar por valor las preguntas pendientes que presenta. El máximo de preguntas pendientes MUST ser opcional y configurable: **por defecto no hay máximo**. Si se configura y se supera, Mira MUST descartar las candidatas de menor valor.
+
+#### Scenario: Sin máximo configurado
+- **WHEN** no se ha configurado ningún máximo y hay muchas preguntas candidatas
+- **THEN** se crean todas las válidas, ordenadas por valor
 
 #### Scenario: Más candidatas que el máximo
-- **WHEN** hay más preguntas candidatas que el máximo configurado
+- **WHEN** el usuario ha configurado un máximo y hay más preguntas candidatas que ese máximo
 - **THEN** solo se crean las de mayor valor
 
 #### Scenario: Valor de una pregunta
@@ -41,13 +45,6 @@ Una pregunta MUST cerrarse como respondida, «no lo recuerdo», «no relevante»
 #### Scenario: No sucedió
 - **WHEN** el usuario cierra la pregunta como «no sucedió»
 - **THEN** no se repite y el hecho queda como ausente confirmado por el usuario
-
-### Requirement: Solo datos estructurales
-Mira MUST preguntar únicamente por datos estructurales del registro (fecha, hora, duración, personas, lugar, ciudad, proyecto, estado o resultado) o, para contrastar una hipótesis declarada por el usuario, por la presencia o ausencia de un factor o efecto ya declarado, y MUST NOT preguntar por el contenido sustantivo de lo hablado o decidido.
-
-#### Scenario: Reunión con acuerdos sin detallar
-- **WHEN** la captura dice que se llegó a acuerdos sin indicarlos
-- **THEN** Mira no pregunta cuáles fueron
 
 ### Requirement: Tono
 La formulación MUST ser cercana, serena y neutra, y MUST NOT incluir consejos, valoraciones ni recomendaciones no solicitadas.
@@ -70,3 +67,18 @@ Para completar el contraste de una hipótesis, Mira MUST poder preguntar por la 
 #### Scenario: Pregunta de exposición
 - **WHEN** un registro indica que el usuario estuvo fuera pero no cuánto
 - **THEN** Mira puede preguntar la duración
+
+### Requirement: Datos estructurales y contenido que falta
+Mira MUST preguntar por los datos estructurales del registro (fecha, hora, duración, personas, lugar, ciudad, proyecto, estado o resultado) y también por el **contenido que la nota deja abierto o sin detallar** (el porqué, el resultado, lo que quedó pendiente, las personas implicadas), usando los campos del registro que admiten corrección. Mira MUST NOT inventar ni suponer el contenido que pregunta, MUST NOT sugerir la respuesta y, para contrastar una hipótesis declarada por el usuario, MUST seguir preguntando solo por la presencia o ausencia de un factor o efecto ya declarado.
+
+#### Scenario: Reunión con acuerdos sin detallar
+- **WHEN** la captura dice que se llegó a acuerdos sin indicarlos
+- **THEN** Mira puede preguntar cuáles fueron, y mientras no responda el campo queda desconocido
+
+#### Scenario: Contenido ya dicho
+- **WHEN** la nota ya indica el motivo o el resultado
+- **THEN** Mira no pregunta por ese dato
+
+#### Scenario: La respuesta rellena el campo
+- **WHEN** el usuario responde a una pregunta de contenido
+- **THEN** el campo del registro se completa con su texto y pasa a confirmado

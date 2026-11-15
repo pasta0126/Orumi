@@ -15,6 +15,14 @@ Mira MUST ordenar por valor las preguntas pendientes que presenta. El máximo de
 - **WHEN** Mira prioriza
 - **THEN** da más valor a conflictos y a datos que dejan abierto un asunto (por ejemplo, si una incidencia se resolvió) que a datos accesorios
 
+## REMOVED Requirements
+
+### Requirement: Solo datos estructurales
+**Reason**: el usuario prefiere que Mira pregunte de todo antes que no pregunte, y recabar más información exige poder preguntar también por el contenido.
+**Migration**: sustituido por «Datos estructurales y contenido que falta». El cierre «no relevante» y el aprendizaje por clase siguen reduciendo la prioridad de lo que no interesa.
+
+## ADDED Requirements
+
 ### Requirement: Datos estructurales y contenido que falta
 Mira MUST preguntar por los datos estructurales del registro (fecha, hora, duración, personas, lugar, ciudad, proyecto, estado o resultado) y también por el **contenido que la nota deja abierto o sin detallar** (el porqué, el resultado, lo que quedó pendiente, las personas implicadas), usando los campos del registro que admiten corrección. Mira MUST NOT inventar ni suponer el contenido que pregunta, MUST NOT sugerir la respuesta y, para contrastar una hipótesis declarada por el usuario, MUST seguir preguntando solo por la presencia o ausencia de un factor o efecto ya declarado.
 
@@ -29,9 +37,3 @@ Mira MUST preguntar por los datos estructurales del registro (fecha, hora, durac
 #### Scenario: La respuesta rellena el campo
 - **WHEN** el usuario responde a una pregunta de contenido
 - **THEN** el campo del registro se completa con su texto y pasa a confirmado
-
-## REMOVED Requirements
-
-### Requirement: Solo datos estructurales
-**Reason**: el usuario prefiere que Mira pregunte de todo antes que no pregunte, y recabar más información exige poder preguntar también por el contenido.
-**Migration**: sustituido por «Datos estructurales y contenido que falta». El cierre «no relevante» y el aprendizaje por clase siguen reduciendo la prioridad de lo que no interesa.

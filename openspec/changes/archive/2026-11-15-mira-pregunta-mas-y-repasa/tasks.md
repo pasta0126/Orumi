@@ -44,4 +44,4 @@
 ## 6. Documentación y cierre
 
 - [x] 6.1 Actualizar `docs/agente-mira.md`, `docs/formato-de-ficheros.md` (bloque `repaso` del lote y configuración) y README
-- [ ] 6.2 Desplegar vía `infra` y revisar con el usuario las primeras noches (volumen, tono y utilidad de las preguntas), ajustando *prompt* y tope
+- [x] 6.2 Desplegar vía `infra` y revisar con el usuario las primeras noches (volumen, tono y utilidad de las preguntas), ajustando *prompt* y tope — **Desplegado el 2026-11-15**; la revisión de las primeras noches queda en «Pendientes con fecha» de `docs/decisiones.md`

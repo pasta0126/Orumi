@@ -44,3 +44,25 @@ Mira MUST enviar al servicio meteorológico únicamente coordenadas redondeadas 
 #### Scenario: Servicio no admitido
 - **WHEN** el servicio configurado exige una cuenta o una clave personal
 - **THEN** Mira no lo consulta y avisa
+
+### Requirement: Envío mínimo de Noa
+Noa MUST enviar al proveedor de IA únicamente los datos agregados mínimos necesarios para el apartado que se genera, MUST usar solo el proveedor y las garantías de no reutilización ya exigidos a Mira, MUST NOT enviar audio, ubicación ni datos de otros destinos, MUST NOT conservar copia de lo enviado fuera de los ficheros del perfil, y MUST dejar constancia, también en las ejecuciones periódicas, en cada generación del proveedor y el modelo usados. Si no puede asegurar las garantías, MUST NOT generar nada y MUST avisar.
+
+#### Scenario: Generar un apartado
+- **WHEN** Noa genera un apartado del perfil
+- **THEN** solo salen los extractos agregados necesarios y la generación registra proveedor y modelo
+
+#### Scenario: Proveedor sin garantías
+- **WHEN** no se puede asegurar la no reutilización de los datos
+- **THEN** no se envía nada y se avisa al usuario
+
+### Requirement: El repaso se somete a las mismas garantías
+La capa del repaso que usa el modelo MUST enviar solo los registros con huecos y el texto mínimo necesario para formular la pregunta, MUST usar únicamente el proveedor y las garantías ya exigidas a Mira, MUST NOT enviar clima, audio, ubicación ni datos de otros destinos y MUST dejar constancia del proveedor y del modelo. Si no puede asegurar las garantías, MUST NOT enviar nada y MUST mantener solo la capa determinista, avisando.
+
+#### Scenario: Repaso con garantías vigentes
+- **WHEN** las garantías están vigentes
+- **THEN** solo salen los registros con huecos y el repaso registra proveedor y modelo
+
+#### Scenario: Sin garantías
+- **WHEN** la garantía de privacidad no está vigente
+- **THEN** no se envía nada al proveedor y se ejecuta solo la capa determinista

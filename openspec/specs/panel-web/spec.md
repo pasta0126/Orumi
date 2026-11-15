@@ -174,3 +174,44 @@ El panel MUST ofrecer una sección de descubrimientos con la última revisión s
 #### Scenario: Mira procesando
 - **WHEN** Mira está procesando
 - **THEN** la escritura se rechaza con conflicto, como el resto de escrituras
+
+### Requirement: Sección de perfil
+El panel MUST ofrecer una sección de perfil que permita solicitar su generación, ver su calendario y la última ejecución u omisión,, leer cada rasgo con su certeza y su evidencia enlazada, corregirlo, matizarlo, descartarlo y borrar el perfil entero, exigiendo en todas las operaciones la misma sesión autorizada, los mismos límites y la misma protección que el resto de la API, y MUST NOT servirlo de forma pública ni cachearlo.
+
+#### Scenario: Pedir una versión
+- **WHEN** el usuario pide generar el perfil desde el panel
+- **THEN** se lanza una única generación y la página muestra el resultado o el progreso de datos
+
+#### Scenario: Revisar un rasgo
+- **WHEN** el usuario abre un rasgo
+- **THEN** ve su categoría de certeza y puede ir a los registros que lo sustentan
+
+#### Scenario: Sin sesión autorizada
+- **WHEN** se solicita el perfil sin una sesión de un correo autorizado
+- **THEN** se rechaza sin devolver datos
+
+#### Scenario: Borrar el perfil
+- **WHEN** el usuario confirma el borrado
+- **THEN** se elimina el perfil y su historial
+
+### Requirement: Lanzar y ver el repaso desde el panel
+El panel MUST permitir al usuario lanzar un repaso de sus registros y MUST mostrar si hay uno en curso y el resultado del último (registros revisados y preguntas creadas), con las mismas garantías de acceso, limitación de peticiones y bloqueo frente a Mira que el resto de escrituras. Si Mira está procesando, MUST responder que está ocupada sin cambiar nada.
+
+#### Scenario: Lanzar un repaso
+- **WHEN** el usuario pulsa «Repasar ahora»
+- **THEN** el repaso se ejecuta en segundo plano y las preguntas nuevas aparecen en «Preguntas»
+
+#### Scenario: Mira ocupada
+- **WHEN** Mira está procesando o ya hay un repaso en curso
+- **THEN** el panel lo indica y no lanza otro
+
+### Requirement: Botones de respuesta rápida en las preguntas
+El panel MUST mostrar, en cada pregunta con opciones, un botón por opción que responde con un clic, junto a los cierres «No lo recuerdo», «No es relevante» y «No sucedió», y MUST seguir ofreciendo el campo de texto cuando la pregunta es abierta. Tras una respuesta rápida que fusiona registros, MUST ofrecer «Deshacer» durante unos segundos. Los botones MUST tener nombre accesible y respetar el movimiento reducido.
+
+#### Scenario: Respuesta con un clic
+- **WHEN** el usuario pulsa una opción
+- **THEN** la pregunta se responde y desaparece de la lista, sin avisos de formato
+
+#### Scenario: Pregunta abierta
+- **WHEN** la pregunta no tiene opciones
+- **THEN** solo se muestra el campo de texto y los cierres
