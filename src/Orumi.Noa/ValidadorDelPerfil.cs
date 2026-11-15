@@ -43,7 +43,7 @@ public static class ValidadorDelPerfil
 
     /// <summary>La familia o los allegados como sujeto de un rasgo («su hijo es…»): el perfil es solo del usuario y menos aún de menores.</summary>
     private static readonly Regex RelacionComoSujeto = new(
-        @"\b(hij[oa]s?|madre|padre|pareja|espos[ao]|marido|mujer|amig[oa]s?|companer[oa]s?|jef[ea]|hermano|hermana|abuel[oa]s?|suegr[oa]s?|prim[oa]s?|ti[oa]s?|vecin[oa]s?)\s+(es|son|esta|estan|tiene|tienen|siente|sienten|muestra|muestran|parece|parecen|suele|suelen|sufre|sufren|se\s+siente|se\s+muestra)\b",
+        @"\b(hij[oa]s?|madre|padre|pareja|espos[ao]|marido|mujer|amig[oa]s?|companer[oa]s?|jef[ea]|hermano|hermana|abuel[oa]s?|suegr[oa]s?|prim[oa]s?|ti[oa]s?|vecin[oa]s?)(?:\s+suy[oa]s?|\s+de(?:l)?\s+(?:el\s+)?(?:trabajo|clase|casa|la\s+oficina))?\s+(es|son|esta|estan|tiene|tienen|siente|sienten|muestra|muestran|parece|parecen|suele|suelen|sufre|sufren|se\s+siente|se\s+muestra)\b",
         RegexOptions.Compiled);
 
     private static readonly string[] Sensibles =

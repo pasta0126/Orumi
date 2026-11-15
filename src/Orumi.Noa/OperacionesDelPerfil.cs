@@ -165,7 +165,7 @@ public static class PerfilEnMarkdown
             sb.AppendLine("## Conjeturas (baja confianza, un solo registro)").AppendLine();
             foreach (var r in conjeturas)
             {
-                sb.AppendLine($"- {r.Texto} _({Apartados.Buscar(r.Apartado)?.Titulo})_");
+                sb.AppendLine($"- {r.Texto} _({Apartados.Buscar(r.Apartado)?.Titulo}{(r.Sensible ? "; sensible" : "")})_");
             }
 
             sb.AppendLine();

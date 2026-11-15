@@ -78,7 +78,8 @@ public sealed class GeneradorDePerfil(
 
         var nuevos = corpus.Registros - (previo?.RegistrosVistos ?? 0);
         var diasNuevos = ultima is null ? corpus.DiasConRegistros : corpus.Fuentes.Where(f => f.Id.StartsWith("reg-", StringComparison.Ordinal) && string.CompareOrdinal(f.Fecha, ultima.Fecha.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)) > 0).Select(f => f.Fecha).Distinct().Count();
-        if (nuevos < config.MinimoRegistrosNuevos && diasNuevos < config.MinimoDiasNuevos)
+        // A petición basta con datos suficientes en conjunto (etapa de observación superada); la exigencia de información nueva es solo de la ejecución periódica.
+        if (!aPeticion && nuevos < config.MinimoRegistrosNuevos && diasNuevos < config.MinimoDiasNuevos)
         {
             return Omitir(ahora, motivo, $"Sin información nueva suficiente: {Math.Max(nuevos, 0)} registro(s) nuevos (se piden {config.MinimoRegistrosNuevos}) y {diasNuevos} día(s) de notas (se piden {config.MinimoDiasNuevos}).", corpus, previo);
         }
