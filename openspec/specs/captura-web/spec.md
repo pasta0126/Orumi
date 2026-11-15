@@ -1,28 +1,9 @@
 # captura-web Specification
 
 ## Purpose
-Permitir crear capturas desde cualquier dispositivo con un navegador, escribiendo o dictando, sin terminal, conservando las garantías de inmutabilidad y trazabilidad de las capturas.
+Permitir crear capturas desde cualquier dispositivo con un navegador, escribiendo, sin terminal, conservando las garantías de inmutabilidad y trazabilidad de las capturas.
 
 ## Requirements
-
-### Requirement: Crear una captura desde la web
-El sistema MUST permitir enviar un texto desde la página de captura y crear con él una captura inmutable idéntica, en formato y validaciones, a la creada por línea de comandos, devolviendo su identificador.
-
-#### Scenario: Nota escrita
-- **WHEN** el usuario escribe una nota y la envía
-- **THEN** se crea una captura con origen texto y la página muestra su identificador
-
-#### Scenario: Nota dictada
-- **WHEN** el usuario dicta una nota, la revisa y la envía
-- **THEN** se crea una captura con origen voz con el texto tal como quedó tras la revisión
-
-#### Scenario: Metadatos opcionales
-- **WHEN** el usuario indica una fecha del acontecimiento o una etiqueta
-- **THEN** se guardan en la captura; si la fecha no es válida, no se crea nada y se informa
-
-#### Scenario: Texto vacío
-- **WHEN** el texto está vacío o solo tiene espacios
-- **THEN** no se crea ninguna captura
 
 ### Requirement: Acceso restringido
 El sistema MUST exigir una sesión válida del proveedor de identidad de la plataforma en toda operación, MUST admitir únicamente cuentas cuyo correo verificado figure en la lista configurada, MUST limitar los intentos fallidos y MUST NOT revelar datos ni crear capturas sin una sesión autorizada.
@@ -58,13 +39,6 @@ La página MUST conservar en el dispositivo toda nota no confirmada por el servi
 - **WHEN** el servidor creó la captura pero la respuesta no llegó
 - **THEN** el reenvío no crea una segunda captura
 
-### Requirement: Dictado opcional y transparente
-La página MUST ofrecer el dictado como opción, MUST permitir escribir sin él, MUST avisar de que el audio lo procesa el proveedor del navegador y MUST seguir funcionando para escribir si el navegador no admite dictado.
-
-#### Scenario: Navegador sin dictado
-- **WHEN** el navegador no admite reconocimiento de voz
-- **THEN** el botón de dictado no se ofrece y se puede escribir la nota
-
 ### Requirement: Alcance mínimo
 El servicio MUST limitarse a crear capturas: no MUST leer, modificar ni borrar capturas, registros ni preguntas existentes, y MUST escribir solo en el directorio de capturas.
 
@@ -82,3 +56,33 @@ La página MUST permitir iniciar y cerrar sesión con Google, MUST renovar la se
 #### Scenario: Sesión caducada con notas pendientes
 - **WHEN** no se puede renovar la sesión
 - **THEN** la página pide iniciar sesión, conserva las notas y las envía tras iniciar sesión
+
+### Requirement: Crear una captura de texto desde la web
+El sistema MUST permitir enviar un texto escrito desde la página de captura y crear con él una captura inmutable idéntica, en formato y validaciones, a la creada por línea de comandos, devolviendo su identificador. Toda captura creada desde la web MUST tener origen texto.
+
+#### Scenario: Nota escrita
+- **WHEN** el usuario escribe una nota (incluido el texto introducido con el voz a texto del teclado del dispositivo) y la envía
+- **THEN** se crea una captura con origen texto y la página muestra su identificador
+
+#### Scenario: Metadatos opcionales
+- **WHEN** el usuario indica una fecha del acontecimiento o una etiqueta
+- **THEN** se guardan en la captura; si la fecha no es válida, no se crea nada y se informa
+
+#### Scenario: Texto vacío
+- **WHEN** el texto está vacío o solo tiene espacios
+- **THEN** no se crea ninguna captura
+
+#### Scenario: Indicador de voz heredado
+- **WHEN** llega una petición que aún incluye el indicador de voz (página antigua en caché)
+- **THEN** se ignora y la captura se crea con origen texto
+
+### Requirement: Indicar la ciudad en la web
+La página de captura MUST ofrecer un campo opcional de ciudad, MUST recordar la última ciudad indicada solo en el dispositivo como sugerencia editable, y MUST NOT usar la geolocalización del navegador.
+
+#### Scenario: Ciudad indicada
+- **WHEN** el usuario escribe una ciudad y envía la nota
+- **THEN** la captura guarda esa ciudad
+
+#### Scenario: Sin geolocalización
+- **WHEN** el usuario no indica ciudad
+- **THEN** la página no solicita permiso de ubicación y la captura no guarda ciudad
