@@ -14,4 +14,4 @@
 ## 3. Documentación y cierre
 
 - [x] 3.1 `docs/decisiones.md`: nueva decisión X59 (dictado retirado), anotar en X53 que queda sustituida en lo del dictado y quitar el pendiente «Probar el dictado»; actualizar AGENTS.md (estado actual) y README si lo mencionan
-- [ ] 3.2 Desplegar `orumi-web` en el servidor vía `infra` y comprobar desde el móvil que se puede escribir y enviar
+- [x] 3.2 Desplegar `orumi-web` en el servidor vía `infra` y comprobar desde el móvil que se puede escribir y enviar

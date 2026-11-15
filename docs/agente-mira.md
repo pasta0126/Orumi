@@ -141,7 +141,9 @@ Cada lote indica el proveedor y el modelo usados. Cambiar de proveedor requiere 
 
 ## 8. Fuera de alcance
 
-Detección de patrones, hipótesis e informes (change posterior, X20–X23); transcripción de voz; API de entrada; app; panel; notificación de preguntas pendientes; elección de proveedor, modelo, lenguaje y planificador (X32).
+Transcripción de voz; API de entrada; app; panel; notificación de preguntas pendientes; elección de proveedor, modelo, lenguaje y planificador (X32).
+
+> Los patrones, las hipótesis del usuario y la revisión semanal (antes fuera de alcance) están implementados: ver §15.
 
 ## 9. Notas de implementación del MVP (change `mvp-mira`)
 
@@ -195,3 +197,14 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 - **Mira respeta lo hecho:** las tumbas se siguen contando como existentes de la captura (no se reutilizan sus claves) pero **no se ofrecen** al modelo ni como claves reclamables ni como registros relacionados. Si el modelo propone un hecho que coincide con una tumba, o ampliar un registro del que se separó esa captura, la acción se **omite** (no se escribe nada; el lote anota «N hecho(s) omitido(s)») y las relaciones hacia registros omitidos se descartan.
 - Todas las operaciones validan el resultado antes de escribir, escriben todos los ficheros o ninguno (con vuelta atrás si una escritura falla), toman el bloqueo frente a Mira y no tocan nunca las capturas.
 
+## 15. Clima, hipótesis y análisis semanal (change `contexto-meteorologico-y-analisis-semanal`, X60–X67)
+
+**Contexto meteorológico.** Cada noche, tras procesar, Mira pide a Open-Meteo el clima (temperatura, humedad, precipitación, nubosidad, radiación, horas de sol, UV) de los días con registros y lo guarda en `clima/` como contexto derivado y regenerable; el UV solo está disponible para los últimos 92 días (después queda `desconocido`, nunca estimado). **El modelo no recibe nunca el clima** al interpretar las notas. La ciudad de cada registro es la de su captura (la indica el usuario; por defecto Barcelona). Una ciudad desconocida se ubica por su nombre y, si está clara, se usa ya y se pregunta para confirmar; con dudas se pregunta y no se consulta (X67).
+
+**Hipótesis y etiquetas.** Las sospechas del usuario son hipótesis «dichas por el usuario, por verificar» (`hipotesis/`). Para contrastarlas, el modelo señala en cada registro qué **conceptos dijo explícitamente el usuario** (con cita literal, que el código verifica); lo no mencionado no se etiqueta ni cuenta como ausencia (X65).
+
+**Contraste y revisión semanal.** El contraste es código determinista, sin causalidad (X66): días con y sin el factor, efecto en la ventana de retardo, veredicto *apoyada / sin apoyo / insuficiente*. La revisión (`analisis/`) se genera la primera noche de cada semana, tras 4 semanas de observación, con evidencia enlazada, sugerencias de umbral que nunca se aplican solas y «Qué ha aprendido Mira». El usuario confirma, matiza o descarta cada contraste.
+
+**Preguntas de contraste.** Mira pregunta pocas veces, con texto neutro, por la presencia de un efecto en un día sin dato (o la duración de estar fuera): «respondida» = ocurrió, «No sucedió» = ausencia confirmada. Dentro del máximo de preguntas y sin repetir.
+
+**Aprendizaje (X64).** Cada cierre de pregunta enseña: con ≥ 3 cierres «no relevante» de una clase en ≥ 2 días, esa clase pasa por detrás de las demás (nunca se prohíbe); las reglas son visibles, con su evidencia, y el usuario las desactiva, activa o borra.

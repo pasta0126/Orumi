@@ -53,6 +53,6 @@
 
 ## 8. Documentación y cierre
 
-- [ ] 8.1 Actualizar `docs/agente-mira.md` (patrones fuera de alcance → implementado; preguntas de contraste y aprendizaje), `docs/decisiones.md` (pendientes), AGENTS.md (estado y X25) y README
-- [ ] 8.2 Desplegar en el servidor vía `infra` (configuración con la ciudad por defecto, temporizador), ejecutar `orumi clima` con el histórico y revisar la primera semana
-- [ ] 8.3 Tras ~4 semanas de datos: primera revisión de contrastes y de la evolución de Mira con el usuario; ajuste de umbrales
+- [x] 8.1 Actualizar `docs/agente-mira.md` (patrones fuera de alcance → implementado; preguntas de contraste y aprendizaje), `docs/decisiones.md` (pendientes), AGENTS.md (estado y X25) y README
+- [x] 8.2 Desplegar en el servidor vía `infra` (configuración con la ciudad por defecto, temporizador), ejecutar `orumi clima` con el histórico y revisar la primera semana
+- [x] 8.3 Registrar como pendiente con fecha (`docs/decisiones.md`) la primera revisión con el usuario tras ~4 semanas de datos (desde el 2026-12-11) y el ajuste de umbrales; la revisión en sí no es parte de la implementación

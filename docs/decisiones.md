@@ -173,6 +173,9 @@ Notas abiertas derivadas:
 
 ## Pendientes con fecha
 
+- **Primera revisión real de las hipótesis (2026-12-11 o más tarde):** pasadas 4 semanas desde el primer registro (2026-11-13), Mira genera la primera revisión con contrastes. Revisarla con el usuario: qué dice cada contraste, si las descripciones de los conceptos etiquetan bien (p. ej. «socialización»), si los umbrales de clima (UV ≥ 6, lluvia ≥ 1 mm, soleado) discriminan, cuántos días quedan «sin dato» y si el ritmo de las preguntas de contraste es el adecuado (X66). También ver cómo evoluciona «Qué ha aprendido Mira» (X64).
+- **Noa (perfil, change `perfil-personal`) y avatares:** planificada, sin implementar. Esperando los avatares de Mira y Noa (`docs/agentes-avatares.md`) y datos suficientes. Incluye la etiqueta de agente en las preguntas y los bloques por agente en el panel.
+
 - **Comparar Haiku 5.5 y Sonnet 5.5** sobre las mismas notas reales (calidad de registros, preguntas y coste) a partir del **2026-11-27 o más tarde**, con al menos dos semanas de notas reales. Decidir entonces si se baja de modelo (X50). Mientras tanto, Sonnet 5.5 con lotes (X51).
 - **Educar a Mira con casos reales:** ajustar el prompt y las preguntas según lo que se vea (p. ej. no preguntar por lo que la nota dice no recordar). Sin fecha: se hace por casos.
 - **Renovar la garantía de privacidad** (X47) antes del **2027-05-12**: actualizar `garantia.verificada` en `orumi.yaml` tras releer las condiciones del proveedor.
