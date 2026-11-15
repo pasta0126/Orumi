@@ -38,6 +38,11 @@ public sealed class Comandos(
                 return Consultar(args.Skip(1).ToArray());
             }
 
+            if (args[0] == "noa")
+            {
+                return NoaComando(args.Skip(1).ToArray());
+            }
+
             if (args[0] == "hipotesis")
             {
                 return Hipotesis(args.Skip(1).ToArray());
@@ -734,6 +739,169 @@ public sealed class Comandos(
         return r.Problemas.Count == 0 ? 0 : 1;
     }
 
+    /// <summary>
+    /// Noa, la agente del perfil (spec <c>perfil-personal</c>): independiente de Mira, solo del propio usuario y solo con lo que ORUMI ya conserva.
+    /// <c>ejecutar</c> respeta la cadencia y la información nueva; <c>generar</c> es a petición; el resto son los controles del usuario.
+    /// </summary>
+    private int NoaComando(string[] args)
+    {
+        var accion = args.Length > 0 && !args[0].StartsWith("--", StringComparison.Ordinal) ? args[0] : "ver";
+        var resto = args.Skip(accion == (args.Length > 0 ? args[0] : "") ? 1 : 0).ToList();
+        var posicionales = resto.TakeWhile(a => !a.StartsWith("--", StringComparison.Ordinal)).ToList();
+        var o = Opciones.Analizar([.. resto.Skip(posicionales.Count)]);
+        var rutaConfig = o.Valor("config") ?? entorno(VariableConfiguracion);
+        var yaml = rutaConfig is not null && File.Exists(rutaConfig) ? File.ReadAllText(rutaConfig, Encoding.UTF8) : null;
+        var config = yaml is null ? null : Configuracion.Leer(yaml);
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config?.Datos) ? null : config.Datos) ?? entorno(VariableDatos);
+        if (string.IsNullOrWhiteSpace(datos) || !Directory.Exists(datos))
+        {
+            error.WriteLine($"Indica un directorio de datos existente con --datos, en la configuración o con la variable {VariableDatos}.");
+            return 2;
+        }
+
+        var ahora = reloj();
+        if (accion is "ver")
+        {
+            var p = Orumi.Noa.AlmacenDePerfil.Leer(datos);
+            if (p is null)
+            {
+                salida.WriteLine("Noa aún no ha generado ningún perfil.");
+                MostrarEstadoDeNoa(datos, yaml);
+                return 0;
+            }
+
+            if (o.Valor("markdown") is "si" or "true")
+            {
+                salida.Write(Orumi.Noa.PerfilEnMarkdown.Generar(p));
+                return 0;
+            }
+
+            salida.WriteLine($"Perfil versión {p.Version}, generado el {p.Generada:yyyy-MM-dd}. {p.Rasgos.Count(r => r.Visible)} rasgo(s) visibles, {p.Recomendaciones.Count(r => r.Visible)} recomendación(es).");
+            foreach (var r in p.Rasgos.Where(r => !r.Oculto || o.Valor("todo") is "si"))
+            {
+                salida.WriteLine($"  {r.Clave}  [{r.Apartado}; {r.Nivel}; {r.Certeza}{(r.Sensible ? "; sensible" : "")}; {r.Estado}{(r.Oculto ? "; oculto" : "")}]  {r.Texto}");
+            }
+
+            foreach (var r in p.Recomendaciones.Where(r => r.Visible))
+            {
+                salida.WriteLine($"  {r.Id}  [recomendación del sistema]  {r.Texto}");
+            }
+
+            MostrarEstadoDeNoa(datos, yaml);
+            return 0;
+        }
+
+        if (accion is "estado")
+        {
+            MostrarEstadoDeNoa(datos, yaml);
+            return 0;
+        }
+
+        using var bloqueo = Orumi.Noa.BloqueoDeNoa.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Noa está trabajando ahora mismo: no se ha modificado nada. Vuelve a intentarlo dentro de unos minutos.");
+            return 3;
+        }
+
+        try
+        {
+            switch (accion)
+            {
+                case "ejecutar" or "generar":
+                {
+                    var cfg = yaml is null ? null : Orumi.Noa.ConfiguracionDeNoa.Leer(yaml);
+                    if (cfg is null)
+                    {
+                        salida.WriteLine("Noa no está activada: falta la sección «noa» en la configuración. No se ha enviado nada.");
+                        return 0;
+                    }
+
+                    var proveedor = ProveedorDeTexto(o, config);
+                    if (proveedor is null)
+                    {
+                        throw new ArgumentException("Indica el proveedor en la configuración (--config) o usa --simulado FICHERO para una prueba sin enviar nada.");
+                    }
+
+                    var r = new Orumi.Noa.GeneradorDePerfil(datos, proveedor, reloj, cfg, config, entorno).EjecutarAsync(aPeticion: accion == "generar").GetAwaiter().GetResult();
+                    switch (r.Estado)
+                    {
+                        case Orumi.Noa.ResultadoDeNoa.Generado:
+                            salida.WriteLine($"Perfil versión {r.Perfil!.Version} generado: {r.Generacion!.RasgosAceptados} rasgo(s) aceptados, {r.Generacion.RasgosDescartados} descartado(s) por no cumplir las reglas, {r.Perfil.Recomendaciones.Count} recomendación(es).");
+                            if (r.Generacion.TokensEntrada + r.Generacion.TokensSalida > 0)
+                            {
+                                salida.WriteLine($"Uso: {r.Generacion.TokensEntrada} tokens de entrada y {r.Generacion.TokensSalida} de salida; coste estimado " + (r.Generacion.CosteUsd is { } c ? $"{Formato.Usd2(c)} US$." : "desconocido."));
+                            }
+
+                            return 0;
+                        case Orumi.Noa.ResultadoDeNoa.Detenido:
+                            error.WriteLine("No se envió nada: las comprobaciones de privacidad no se cumplen.");
+                            r.Detenida.ToList().ForEach(m => error.WriteLine($"  - {m}"));
+                            return 4;
+                        case Orumi.Noa.ResultadoDeNoa.Fallido:
+                            error.WriteLine(r.Detalle);
+                            return 1;
+                        default:
+                            salida.WriteLine(r.Detalle);
+                            return 0;
+                    }
+                }
+
+                case "corregir" when posicionales.Count >= 2:
+                    Orumi.Noa.OperacionesDelPerfil.Corregir(datos, posicionales[0], string.Join(' ', posicionales.Skip(1)), ahora);
+                    salida.WriteLine($"«{posicionales[0]}» corregido: ahora es tu versión y Noa no la vuelve a escribir.");
+                    return 0;
+                case "matizar" when posicionales.Count >= 2:
+                    Orumi.Noa.OperacionesDelPerfil.Matizar(datos, posicionales[0], string.Join(' ', posicionales.Skip(1)), ahora);
+                    salida.WriteLine($"«{posicionales[0]}» matizado: tu comentario prevalece sobre la interpretación de Noa.");
+                    return 0;
+                case "descartar" when posicionales.Count == 1:
+                    Orumi.Noa.OperacionesDelPerfil.Descartar(datos, posicionales[0], ahora);
+                    salida.WriteLine($"«{posicionales[0]}» descartado: no volverá a proponerse salvo evidencia nueva sustancial.");
+                    return 0;
+                case "borrar" when posicionales.Count == 1:
+                    Orumi.Noa.OperacionesDelPerfil.Borrar(datos, posicionales[0], ahora);
+                    salida.WriteLine($"«{posicionales[0]}» borrado: no volverá a proponerse salvo evidencia nueva sustancial.");
+                    return 0;
+                case "ocultar" or "mostrar" when posicionales.Count == 1:
+                    Orumi.Noa.OperacionesDelPerfil.Ocultar(datos, posicionales[0], accion == "ocultar", ahora);
+                    salida.WriteLine($"«{posicionales[0]}» {(accion == "ocultar" ? "oculto: sale de la vista y de la descarga, pero no se borra" : "visible de nuevo")}.");
+                    return 0;
+                case "borrar-todo":
+                    if (o.Valor("confirmar") is not "si")
+                    {
+                        error.WriteLine("Borrar el perfil elimina todas sus versiones y su historial, y no se puede deshacer. Repite el comando con --confirmar si para confirmarlo.");
+                        return 2;
+                    }
+
+                    Orumi.Noa.OperacionesDelPerfil.BorrarTodo(datos);
+                    salida.WriteLine("Perfil borrado con todo su historial. Capturas, registros y preguntas no se han tocado.");
+                    return 0;
+                default:
+                    return Uso("Uso: orumi noa ver [--markdown si] | estado | ejecutar | generar | corregir CLAVE TEXTO | matizar CLAVE COMENTARIO | descartar CLAVE | borrar CLAVE | ocultar|mostrar CLAVE|apartado:SLUG|rec-ID | borrar-todo --confirmar si");
+            }
+        }
+        catch (Orumi.Noa.PerfilInvalidoException e)
+        {
+            error.WriteLine($"No se ha modificado nada: {e.Message}");
+            return 2;
+        }
+    }
+
+    private void MostrarEstadoDeNoa(string datos, string? yaml)
+    {
+        var cfg = yaml is null ? null : Orumi.Noa.ConfiguracionDeNoa.Leer(yaml);
+        if (cfg is null)
+        {
+            salida.WriteLine("Noa no está activada (falta la sección «noa» en la configuración).");
+            return;
+        }
+
+        var g = Orumi.Noa.AlmacenDePerfil.Generaciones(datos).OrderBy(x => x.Fecha).LastOrDefault();
+        salida.WriteLine($"Cadencia: cada {cfg.CadenciaDias} días; observación mínima: {cfg.SemanasDeObservacion} semanas.");
+        salida.WriteLine(g is null ? "Última ejecución: ninguna." : $"Última ejecución: {g.Fecha:yyyy-MM-dd HH:mm} — {g.Resultado}{(g.Detalle is null ? "" : ": " + g.Detalle)}");
+    }
+
     /// <summary>Proveedor para el etiquetado: el de prueba, una respuesta simulada o el configurado; <c>null</c> si no hay ninguno.</summary>
     private Orumi.Agente.Etiquetado.IProveedorDeTexto? ProveedorDeTexto(Opciones o, Configuracion? config)
     {
@@ -1202,6 +1370,7 @@ public sealed class Comandos(
           orumi consultar entidad X | proyecto X | clase X | certeza X [campo] | fecha D H | relacion ID | pendientes | sin-procesar | conflictos
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante | PREGUNTA --no-sucedio
           orumi hipotesis listar | iniciales | añadir --formulacion "…" --factor clima:uv_alto --efecto CONCEPTO [--retardo 0-1]   (tus hipótesis, «por verificar»)
+          orumi noa ver [--markdown si] | estado | ejecutar | generar | corregir CLAVE TEXTO | matizar CLAVE COMENTARIO | descartar CLAVE | borrar CLAVE | ocultar|mostrar CLAVE|apartado:SLUG | borrar-todo --confirmar si   (el perfil que Noa elabora de ti)
           orumi analizar  [--datos RUTA] [--simulado RESPUESTA.json]   (revisión semanal: contrasta tus hipótesis con tus registros y el clima)
           orumi hipotesis confirmar|matizar|descartar HIPOTESIS[#CONTRASTE] [--comentario "…"]
           orumi etiquetar [--datos RUTA] [--simulado RESPUESTA.json]   (el modelo señala qué conceptos dijiste explícitamente en cada registro)
@@ -1225,7 +1394,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo", "comentario", "etiquetar"];
+        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo", "comentario", "etiquetar", "markdown", "todo", "confirmar"];
 
     private readonly Dictionary<string, string> _valores = [];
 
