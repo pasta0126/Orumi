@@ -58,6 +58,40 @@ public class IndiceTests : IDisposable
 
     private static List<string> Ids(IEnumerable<FilaRegistro> filas) => filas.Select(f => f.Id).Order().ToList();
 
+    [PostgresFact]
+    public async Task El_clima_se_indexa_con_lo_desconocido_como_nulo_y_se_consulta_por_fecha_y_ciudad()
+    {
+        var barcelona = new Orumi.Agente.Clima.Ciudad("Barcelona", 41.4, 2.2);
+        var segur = new Orumi.Agente.Clima.Ciudad("Segur de Calafell", 41.3, 1.6);
+        var fecha = new DateOnly(2026, 11, 14);
+        Orumi.Agente.Clima.ClimaDia Dia(Orumi.Agente.Clima.Ciudad c, double? uv) => new(
+            fecha, c.Nombre, "open-meteo", c.LatitudRedondeada, c.LongitudRedondeada, "Europe/Madrid", DateTimeOffset.Parse("2026-11-15T03:00:00+01:00"),
+            new(uv, "07:12", "17:35", 36000, 26000, 0.4, 9.1, 17.3, 68, 40),
+            Enumerable.Range(0, 24).Select(h => new Orumi.Agente.Clima.ClimaHora(h, 12, 70, 0, 40, 100, 0, uv)).ToList());
+        foreach (var (c, uv) in new[] { (barcelona, (double?)3.1), (segur, null) })
+        {
+            var ruta = Orumi.Agente.Clima.FormatoDeClima.Ruta(_copia, fecha, c);
+            Directory.CreateDirectory(Path.GetDirectoryName(ruta)!);
+            File.WriteAllText(ruta, Orumi.Agente.Clima.FormatoDeClima.Escribir(Dia(c, uv)));
+        }
+
+        var informe = await Reindexar();
+        Assert.True(informe.Sustituido);
+
+        var todos = await Consultas().ClimaPorFecha(fecha, fecha);
+        Assert.Equal(["Barcelona", "Segur de Calafell"], todos.Select(f => f.Ciudad).ToArray());
+        Assert.Equal(3.1, todos[0].UvMaximo);
+        Assert.Null(todos[1].UvMaximo);
+        var uno = Assert.Single(await Consultas().ClimaPorFecha(fecha, fecha, "segur de calafell"));
+        Assert.Equal("Segur de Calafell", uno.Ciudad);
+
+        await using var con = new NpgsqlConnection(Conexion);
+        await con.OpenAsync();
+        await using var cmd = new NpgsqlCommand($"SELECT count(*) FROM {_esquema}.clima_hora WHERE fecha = @f AND uv IS NULL", con);
+        cmd.Parameters.AddWithValue("f", fecha);
+        Assert.Equal(24L, await cmd.ExecuteScalarAsync());
+    }
+
     // ---------------------------------------------------------------- no necesitan base de datos
 
     [Fact]

@@ -76,6 +76,43 @@ public class CapturasTests : IDisposable
     }
 
     [Fact]
+    public void Guarda_la_ciudad_indicada_por_el_usuario_recortada_y_pasa_la_validacion()
+    {
+        var c = CreadorDeCapturas.Crear(_datos, "Partido de mi hijo", Ahora, ciudad: "  Segur de Calafell ");
+        var doc = Documento.Analizar(c.Ruta, Leer(c));
+        Assert.Equal("Segur de Calafell", doc.Frontmatter["ciudad"]);
+        Assert.Equal("Partido de mi hijo", doc.Cuerpo);
+        Assert.All(Validador.Validar(Almacen.Cargar(_datos)), i => Assert.Equal("captura sin lote", i.Mensaje));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Sin_ciudad_la_captura_no_lleva_la_clave(string? ciudad)
+    {
+        var c = CreadorDeCapturas.Crear(_datos, "hola", Ahora, ciudad: ciudad);
+        Assert.DoesNotContain("ciudad", Documento.Analizar(c.Ruta, Leer(c)).Frontmatter.Keys);
+    }
+
+    [Theory]
+    [InlineData("Girona\nBarcelona")]
+    [InlineData("Una ciudad con un nombre larguísimo que supera con mucho el máximo permitido de sesenta caracteres")]
+    public void Rechaza_una_ciudad_invalida_sin_crear_nada(string ciudad)
+    {
+        Assert.Throws<CapturaInvalidaException>(() => CreadorDeCapturas.Crear(_datos, "x", Ahora, ciudad: ciudad));
+        Assert.Empty(Directory.GetFiles(_datos, "*", SearchOption.AllDirectories));
+    }
+
+    [Fact]
+    public void El_validador_rechaza_una_ciudad_mal_formada_en_un_fichero_existente()
+    {
+        var c = CreadorDeCapturas.Crear(_datos, "hola", Ahora, ciudad: "Girona");
+        File.WriteAllText(c.Ruta, File.ReadAllText(c.Ruta).Replace("ciudad: Girona", "ciudad: \"\""));
+        Assert.Contains(Validador.Validar(Almacen.Cargar(_datos)), i => i.Mensaje.StartsWith("ciudad inválida"));
+    }
+
+    [Fact]
     public void Ante_una_colision_de_identificador_genera_otro_y_no_toca_la_captura_existente()
     {
         var primera = CreadorDeCapturas.Crear(_datos, "primera", Ahora, generadorId: _ => "cap-20261116-0815-aaa");

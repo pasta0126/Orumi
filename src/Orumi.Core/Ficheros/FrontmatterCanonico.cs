@@ -19,7 +19,7 @@ public static partial class FrontmatterCanonico
 
     private static readonly string[] OrdenPregunta =
     [
-        "id", "tipo", "registro", "otros_registros", "campo", "texto", "estado", "valor", "creada_el", "generada_por", "cerrada_el", "respuesta",
+        "id", "tipo", "registro", "otros_registros", "campo", "clase_pregunta", "rasgo", "contradice", "apartado", "hipotesis", "contraste", "concepto", "dia", "texto", "estado", "valor", "creada_el", "generada_por", "cerrada_el", "respuesta",
     ];
 
     private static readonly string[] OrdenEnvio =

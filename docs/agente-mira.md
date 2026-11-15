@@ -9,7 +9,7 @@ Estado: propuesta de la change `agente-mira`. Describe **qué hace** Mira, no c�
 3. **Cobertura completa (X37).** Todo lo que el usuario cuenta genera registro, también lo cotidiano. Mira no decide qué importa; filtrar es cosa del panel.
 4. **Lo del usuario manda (X30).** Lo que el usuario corrige o completa es válido y no se pisa.
 5. **Trazable.** Cada registro cita su fragmento, su certeza, su versión de Mira y su lote.
-6. **Pocas preguntas, estructurales (X13, X36).**
+6. **Preguntar todo lo que falte (X69, reinterpreta X13 y X36).**
 7. **Fallo cerrado en privacidad (X38).**
 
 Tono en todo texto que Mira escribe (títulos, descripciones, preguntas): cercano, sereno y neutro; sin entusiasmo, valoraciones ni consejos no solicitados.
@@ -88,7 +88,7 @@ Todo fichero se comprueba antes de guardarse. Si falla, no se guarda; se reinten
 
 ## 6. Preguntas (tareas 2.1 y 2.2)
 
-**Qué se pregunta.** Solo datos estructurales de un registro: fecha, hora, duración, personas, lugar, proyecto, y estado o resultado de lo que queda abierto. **Nunca el contenido sustantivo** de lo hablado o decidido (qué acuerdos hubo, por qué se decidió algo).
+**Qué se pregunta.** Los datos estructurales de un registro (fecha, hora, duración, personas, lugar, proyecto, estado o resultado de lo que queda abierto) **y el contenido que la nota deja abierto o sin detallar** (el porqué, el resultado, lo pendiente, las personas implicadas), sin inventar ni sugerir la respuesta (X69). No hay máximo de pendientes salvo que se configure. Además del procesamiento de cada nota, el **repaso** (cada noche y a petición) revisa los registros existentes y crea las preguntas que falten, con un tope de creación por ejecución.
 
 **Candidatas y valor.**
 
@@ -100,7 +100,9 @@ Todo fichero se comprueba antes de guardarse. Si falla, no se guarda; se reinten
 
 **Máximo por revisión.** Tras cada ejecución hay como mucho **N preguntas pendientes presentadas** (N configurable; **por defecto 5**), ordenadas por valor. Una candidata de valor mayor puede desplazar a una pendiente de valor menor, que pasa a `cerrada_por_limite`; las candidatas de menor valor no se crean. Las descartadas pueden volver a surgir en otra ejecución si el dato sigue ausente y la pregunta no se cerró como «no lo recuerdo» o «no relevante».
 
-**Cierre.** `respondida` (el dato pasa a `confirmado`, la respuesta es la evidencia), `no_recuerda`, `no_relevante` (ambas: no se repite ni se formulan equivalentes sobre ese dato) o `cerrada_por_limite` (también si el registro ya cubre el valor esperado, X19).
+**Cierre.** `respondida` (el dato pasa a `confirmado`, la respuesta es la evidencia), `no_recuerda`, `no_relevante`, `no_sucedio` (todas: esa pregunta no se repite ni se formulan equivalentes sobre ese mismo dato) o `cerrada_por_limite` (también si el registro ya cubre el valor esperado, X19). «No sucedió» deja el registro como está y, en las preguntas de contraste de una hipótesis, confirma la ausencia (X63).
+
+**Aprendizaje (X64).** Cada pregunta tiene una **clase** (`campo:clase de registro`, p. ej. `duracion:actividad`; las preguntas anteriores la deducen). Cuando el usuario cierra ≥ 3 preguntas de la misma clase como «no relevante» en ≥ 2 días distintos (umbrales configurables), Mira escribe un **aprendizaje** (`aprendizajes/apr-*.yaml`: descripción legible, clase y preguntas que lo sustentan): esa clase pasa **por detrás de las demás** al elegir las preguntas del cupo y su descripción se cuenta al modelo como preferencia del usuario (sin textos de cierres). Nunca se prohíbe una clase: con cupo libre se sigue preguntando, y una respuesta con datos restablece la prioridad. Los cierres del sistema (p. ej. al eliminar un registro), «no sucedió» y «no lo recuerdo» no enseñan nada. El usuario ve, desactiva, activa o borra los aprendizajes (`orumi aprendizajes`, y la vista «Aprendizajes» del panel); lo desactivado no lo reactiva Mira y lo borrado solo vuelve con evidencia posterior.
 
 **Formulación.** Una pregunta, un dato. Autocontenida: nombra el registro por su título, de modo que se entienda sin abrir nada. Sin juicio ni consejo. Tono sereno y curioso.
 
@@ -139,7 +141,9 @@ Cada lote indica el proveedor y el modelo usados. Cambiar de proveedor requiere 
 
 ## 8. Fuera de alcance
 
-Detección de patrones, hipótesis e informes (change posterior, X20–X23); transcripción de voz; API de entrada; app; panel; notificación de preguntas pendientes; elección de proveedor, modelo, lenguaje y planificador (X32).
+Transcripción de voz; API de entrada; app; panel; notificación de preguntas pendientes; elección de proveedor, modelo, lenguaje y planificador (X32).
+
+> Los patrones, las hipótesis del usuario y la revisión semanal (antes fuera de alcance) están implementados: ver §15.
 
 ## 9. Notas de implementación del MVP (change `mvp-mira`)
 
@@ -193,3 +197,14 @@ Decisiones de detalle tomadas al implementar, coherentes con las specs:
 - **Mira respeta lo hecho:** las tumbas se siguen contando como existentes de la captura (no se reutilizan sus claves) pero **no se ofrecen** al modelo ni como claves reclamables ni como registros relacionados. Si el modelo propone un hecho que coincide con una tumba, o ampliar un registro del que se separó esa captura, la acción se **omite** (no se escribe nada; el lote anota «N hecho(s) omitido(s)») y las relaciones hacia registros omitidos se descartan.
 - Todas las operaciones validan el resultado antes de escribir, escriben todos los ficheros o ninguno (con vuelta atrás si una escritura falla), toman el bloqueo frente a Mira y no tocan nunca las capturas.
 
+## 15. Clima, hipótesis y análisis semanal (change `contexto-meteorologico-y-analisis-semanal`, X60–X67)
+
+**Contexto meteorológico.** Cada noche, tras procesar, Mira pide a Open-Meteo el clima (temperatura, humedad, precipitación, nubosidad, radiación, horas de sol, UV) de los días con registros y lo guarda en `clima/` como contexto derivado y regenerable; el UV solo está disponible para los últimos 92 días (después queda `desconocido`, nunca estimado). **El modelo no recibe nunca el clima** al interpretar las notas. La ciudad de cada registro es la de su captura (la indica el usuario; por defecto Barcelona). Una ciudad desconocida se ubica por su nombre y, si está clara, se usa ya y se pregunta para confirmar; con dudas se pregunta y no se consulta (X67).
+
+**Hipótesis y etiquetas.** Las sospechas del usuario son hipótesis «dichas por el usuario, por verificar» (`hipotesis/`). Para contrastarlas, el modelo señala en cada registro qué **conceptos dijo explícitamente el usuario** (con cita literal, que el código verifica); lo no mencionado no se etiqueta ni cuenta como ausencia (X65).
+
+**Contraste y revisión semanal.** El contraste es código determinista, sin causalidad (X66): días con y sin el factor, efecto en la ventana de retardo, veredicto *apoyada / sin apoyo / insuficiente*. La revisión (`analisis/`) se genera la primera noche de cada semana, tras 4 semanas de observación, con evidencia enlazada, sugerencias de umbral que nunca se aplican solas y «Qué ha aprendido Mira». El usuario confirma, matiza o descarta cada contraste.
+
+**Preguntas de contraste.** Mira pregunta pocas veces, con texto neutro, por la presencia de un efecto en un día sin dato (o la duración de estar fuera): «respondida» = ocurrió, «No sucedió» = ausencia confirmada. Dentro del máximo de preguntas y sin repetir.
+
+**Aprendizaje (X64).** Cada cierre de pregunta enseña: con ≥ 3 cierres «no relevante» de una clase en ≥ 2 días, esa clase pasa por detrás de las demás (nunca se prohíbe); las reglas son visibles, con su evidencia, y el usuario las desactiva, activa o borra.

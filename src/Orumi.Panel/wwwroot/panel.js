@@ -31,6 +31,16 @@
     if (texto) temporizador = setTimeout(() => { a.textContent = ''; }, clase === 'mal' ? 7000 : 3500);
   }
 
+  /** Aviso con «Deshacer» durante un minuto (respuestas rápidas que fusionan registros). */
+  function avisarConDeshacer(texto, ficha) {
+    const a = $('aviso'); clearTimeout(temporizador);
+    vaciar(a); a.className = 'aviso ok';
+    a.append(document.createTextNode(texto + ' '), boton('Deshacer', 'deshacer', { class: 'fantasma pequeno', onclick: async () => {
+      try { const x = await post('/api/deshacer/' + ficha, {}); avisar(x.mensaje || 'Hecho.', 'ok'); enrutar(); } catch (e) { manejar(e); }
+    } }));
+    temporizador = setTimeout(() => { vaciar(a); }, 60000);
+  }
+
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const hoy = () => iso(new Date());
@@ -44,6 +54,11 @@
   const ID_REG = /^reg-\d{8}-[a-z0-9]{4}$/;
 
   const CAMPOS = { titulo: 'Título', fecha: 'Fecha', hora: 'Hora', duracion: 'Duración', personas: 'Personas', entidades: 'Entidades', lugares: 'Lugares', proyectos: 'Proyectos', herramientas: 'Herramientas', contexto: 'Contexto', acciones: 'Acciones', resultados: 'Resultados', problemas: 'Problemas', ideas: 'Ideas', multidia: 'Varios días' };
+  // Preguntas que no son de un campo del registro: su etiqueta y el icono con que se pintan.
+  const CAMPOS_EXTRA = { ciudad: ['Ciudad', 'lugares'], contraste: ['Contraste con tus hipótesis', 'hipotesis'], perfil: ['Perfil', 'personas'] };
+  // Los agentes se distinguen por su nombre escrito y por su imagen (emotes propios); la imagen nunca es lo único que dice quién pregunta.
+  const AGENTES = { Mira: 'mira', Noa: 'noa' };
+  const avatar = (agente, expresion, clase) => el('img', { class: 'avatar ' + (clase || ''), src: `agentes/${AGENTES[agente] || 'mira'}/${expresion || 'neutra'}.png`, alt: agente, loading: 'lazy', decoding: 'async' });
   const CLASES = { actividad: 'Actividad', evento: 'Evento', idea: 'Idea', decision: 'Decisión', problema: 'Problema', otro: 'Otro' };
   const CERTEZAS = { dicho: 'Dicho por ti', confirmado: 'Confirmado', interpretado: 'Interpretado', hipotesis: 'Hipótesis', recomendacion: 'Recomendación' };
   const FORMATOS = { fecha: 'AAAA-MM-DD o AAAA-MM-DD..AAAA-MM-DD', hora: 'HH:MM', duracion: '90, 2h, 1h30', entidades: 'Nombre:tipo, Nombre:tipo' };
@@ -156,7 +171,7 @@
     const barra = $('barra');
     if (!$('marca').firstChild) $('marca').append(Logo(30), el('span', { text: 'ORUMI' }));
     const nav = (id, icono, texto) => { const a = $(id); if (!a.firstChild) a.append(ic(icono), el('span', { text: texto })); if (id === 'nav-pendientes') a.append(el('span', { class: 'contador', id: 'contador', hidden: true })); };
-    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera');
+    nav('nav-dia', 'dia', 'Día'); nav('nav-buscar', 'buscar', 'Buscar'); nav('nav-pendientes', 'pregunta', 'Preguntas'); nav('nav-papelera', 'papelera', 'Papelera'); nav('nav-descubrimientos', 'spark', 'Descubrimientos'); nav('nav-perfil', 'personas', 'Perfil');
     const acc = $('acciones');
     if (!acc.firstChild) {
       const tema = el('button', { type: 'button', class: 'boton fantasma icono-solo', 'aria-label': 'Cambiar tema' });
@@ -285,39 +300,74 @@
   }
 
   // ------------------------------------------------------------ vista: preguntas pendientes
-  async function vistaPendientes() {
+  async function vistaPendientes(resto) {
+    const filtro = new URLSearchParams(resto || '').get('agente');
+    const agenteFiltro = AGENTES[filtro] ? filtro : '';
     const lista = el('div', {}, esqueletos(2));
-    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Mira necesita saber' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Preguntas' })))), lista);
+    const enlace = (valor, texto) => el('a', { class: 'chip c-neutro' + (agenteFiltro === valor ? ' activo' : ''), href: '#/pendientes' + (valor ? '?agente=' + valor : ''), 'aria-current': agenteFiltro === valor ? 'true' : null, text: texto });
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Mira y Noa necesitan saber' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Preguntas' }))),
+      el('nav', { class: 'chips', 'aria-label': 'Filtrar por agente' }, enlace('', 'Todas'), enlace('Mira', 'Mira'), enlace('Noa', 'Noa'))), lista);
+    const repaso = el('div', { class: 'fila repaso' });
+    lista.before(repaso);
+    get('/api/repaso').then((r) => {
+      const u = r.ultimo;
+      repaso.append(boton(r.enCurso ? 'Repasando…' : 'Repasar ahora', 'spark', { class: 'fantasma pequeno', disabled: r.enCurso ? true : null, onclick: async () => {
+        try { const x = await post('/api/repaso', {}); avisar(x.mensaje || 'Hecho.', 'ok'); setTimeout(enrutar, 6000); } catch (e) { manejar(e); }
+      } }), el('span', { class: 'meta', text: u ? `Último repaso: ${momento(u.fecha)} · ${u.revisados} registros revisados · ${u.creadas} preguntas nuevas` : 'Mira repasa tus registros cada noche y crea las preguntas que falten.' }));
+    }).catch(() => { /* accesorio */ });
     try {
-      const preguntas = await get('/api/preguntas');
+      const preguntas = await get('/api/preguntas', { agente: agenteFiltro });
       vaciar(lista);
-      if (!preguntas.length) { lista.append(estadoVacio('Todo al día: no hay preguntas pendientes.')); return; }
-      preguntas.forEach((p, i) => lista.append(entra(tarjetaDePregunta(p), i)));
+      if (!preguntas.length) { lista.append(estadoVacio('Todo al día: no hay preguntas pendientes.', avatar('Mira', 'dormida', 'grande'))); return; }
+      let i = 0;
+      ['Mira', 'Noa'].forEach((ag) => {
+        const del = preguntas.filter((p) => (p.agente || 'Mira') === ag);
+        if (!del.length) return;
+        lista.append(el('section', { class: 'bloque-agente' },
+          el('div', { class: 'cabecera-agente' }, avatar(ag, 'neutra', 'grande'), el('h3', { class: 'titulo-apartado', text: ag }), el('span', { class: 'chip c-neutro', text: del.length === 1 ? '1 pregunta' : `${del.length} preguntas` })),
+          del.map((p) => entra(tarjetaDePregunta(p), i++))));
+      });
     } catch (e) { manejar(e); }
   }
 
   function tarjetaDePregunta(p) {
+    const agente = p.agente || 'Mira';
     const conflicto = p.otros.length > 0 && p.campo !== 'coincidencia';
     const valor = el('input', { type: 'text', placeholder: conflicto ? 'Valor correcto' : p.campo === 'coincidencia' ? 'misma o distinta' : (FORMATOS[p.campo] ? FORMATOS[p.campo] : 'Tu respuesta'), maxlength: 500, 'aria-label': 'Respuesta' });
     const destino = conflicto ? el('select', { 'aria-label': 'Registro al que corresponde el valor' }, [p.registro, ...p.otros].map((r) => el('option', { value: r.id, text: `${r.titulo || r.id} (${r.valorActual})` }))) : null;
     const enviar = async (cuerpo, ruta) => {
       try {
-        const r = await post(ruta, cuerpo); avisar(r.mensaje || 'Hecho.', 'ok');
+        const r = await post(ruta, cuerpo);
+        if (r.deshacer) avisarConDeshacer(r.mensaje || 'Hecho.', r.deshacer); else avisar(r.mensaje || 'Hecho.', 'ok');
         tarjeta.classList.add('sale'); setTimeout(() => { tarjeta.remove(); actualizarContador(); }, reducido ? 0 : 340);
       } catch (e) { manejar(e); }
     };
     const registroLink = (r) => el('a', { href: '#/registro/' + r.id, text: r.titulo || r.id });
-    const tarjeta = el('div', { class: 'pregunta cristal foco-luz' },
+    const cierres = () => el('div', { class: 'opciones' },
+      boton('No lo recuerdo', 'historial', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_recuerda' }, `/api/preguntas/${p.id}/cerrar`) }),
+      boton('No es relevante', 'cerrar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_relevante' }, `/api/preguntas/${p.id}/cerrar`) }),
+      boton('No sucedió', 'rechazar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_sucedio' }, `/api/preguntas/${p.id}/cerrar`) }));
+    const campoEscrito = () => el('div', { class: 'respuesta' + (conflicto ? ' conflicto' : '') }, valor, destino,
+      boton('Responder', 'enviar', { class: 'principal', onclick: () => enviar({ valor: valor.value, registro: destino ? destino.value : null }, `/api/preguntas/${p.id}/responder`) }));
+    // Respuestas rápidas: un clic equivale a escribir esa respuesta. Las preguntas abiertas siguen con su campo de texto.
+    const opciones = lista(p.opciones);
+    const rapida = (o) => boton(o.etiqueta, o.cierre ? 'rechazar' : o.fusiona ? 'fusionar' : 'check', { class: 'principal rapida', onclick: () => {
+      if (o.cierre) return enviar({ estado: o.cierre }, `/api/preguntas/${p.id}/cerrar`);
+      return enviar({ valor: o.valor, registro: o.registro || null, fusionar: o.fusiona ? true : null }, `/api/preguntas/${p.id}/responder`);
+    } });
+    const cuerpoDeRespuesta = () => {
+      if (!opciones.length) return el('div', {}, campoEscrito(), cierres());
+      const otra = p.campo === 'coincidencia' ? null : el('details', { class: 'otra-respuesta' }, el('summary', {}, ic('editar'), 'Escribir otra respuesta'), campoEscrito());
+      return el('div', { class: 'respuestas-rapidas' }, el('div', { class: 'fila' }, opciones.map(rapida)), otra, cierres());
+    };
+    const tarjeta = el('div', { class: 'pregunta cristal foco-luz agente-' + agente.toLowerCase() },
+      el('div', { class: 'chip-agente' }, avatar(agente, 'pregunta', 'chico'), el('span', { text: 'Pregunta de ' + agente })),
       el('p', { class: 'texto-pregunta', text: p.texto }),
-      el('div', { class: 'contexto' },
+      agente === 'Noa' ? el('div', { class: 'contexto' }, el('div', {}, ic('personas'), p.rasgo ? `Sobre un rasgo de tu perfil (${p.rasgo})` : 'Sobre un apartado de tu perfil sin datos')) : el('div', { class: 'contexto' },
         el('div', {}, ic('nota'), 'Registro: ', registroLink(p.registro)),
-        el('div', {}, ic(p.campo === 'coincidencia' ? 'enlace' : p.campo), `Campo: ${CAMPOS[p.campo] || p.campo}`, el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + p.registro.valorActual)),
+        el('div', {}, ic(p.campo === 'coincidencia' ? 'enlace' : (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][1] : p.campo)), `Campo: ${CAMPOS[p.campo] || (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][0] : p.campo)}`, el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + p.registro.valorActual)),
         p.otros.map((o) => el('div', {}, ic('enlace'), 'Con: ', registroLink(o), el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + o.valorActual)))),
-      el('div', { class: 'respuesta' + (conflicto ? ' conflicto' : '') }, valor, destino,
-        boton('Responder', 'enviar', { class: 'principal', onclick: () => enviar({ valor: valor.value, registro: destino ? destino.value : null }, `/api/preguntas/${p.id}/responder`) }),
-        el('div', { class: 'opciones' },
-          boton('No lo recuerdo', 'historial', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_recuerda' }, `/api/preguntas/${p.id}/cerrar`) }),
-          boton('No es relevante', 'cerrar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_relevante' }, `/api/preguntas/${p.id}/cerrar`) }))));
+      cuerpoDeRespuesta());
     return tarjeta;
   }
 
@@ -378,6 +428,142 @@
           el('div', { class: 'cuerpo' }, el('h3', {}, el('a', { href: '#/registro/' + r.id, text: r.titulo })), el('div', { class: 'chips' }, chipClase(r.clase), el('span', { class: 'meta', text: 'Eliminado ' + momento(r.eliminadoEl) }))),
           boton('Restaurar', 'deshacer', { class: 'pequeno', onclick: async () => { try { const r2 = await post(`/api/registros/${r.id}/restaurar`, {}); avisar(r2.mensaje, 'ok'); fila.classList.add('sale'); setTimeout(() => fila.remove(), reducido ? 0 : 340); } catch (e) { manejar(e); } } }));
         lista.append(entra(fila, i));
+      });
+    } catch (e) { manejar(e); }
+  }
+
+  // ------------------------------------------------------------ vista: descubrimientos (revisión semanal y tus hipótesis)
+  const VEREDICTOS = {
+    apoyada: ['Apoyada por los datos', 'c-confirmado', 'check'],
+    sin_apoyo: ['Sin apoyo en los datos', 'c-desconocido', 'rechazar'],
+    insuficiente: ['Evidencia insuficiente', 'c-interpretado', 'historial'],
+  };
+  const REVISIONES = { confirmada: 'Lo confirmaste', matizada: 'Lo matizaste', descartada: 'Lo descartaste' };
+  const FACTORES = [
+    ['clima:uv_alto', 'Índice UV alto'], ['clima:lluvia', 'Lluvia'], ['clima:soleado', 'Día soleado o despejado'],
+    ['registro:socializacion', 'Socializar'], ['registro:exterior>=90', 'Más de 90 min al aire libre'],
+  ];
+  const pct = (x) => (x === undefined || x === null || x === 'desconocido' || x === '') ? '—' : Math.round(Number(x) * 100) + ' %';
+  const lista = (v) => (Array.isArray(v) ? v : []);
+  const slug = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+
+  function tarjetaDeContraste(c) {
+    const [hip, con] = c.id.split('#');
+    const v = VEREDICTOS[c.veredicto] || VEREDICTOS.insuficiente;
+    const r = c.resumen || {};
+    const accion = async (ruta, cuerpo) => {
+      try { const x = await post(`/api/hipotesis/${hip}/${ruta}`, { contraste: con, ...cuerpo }); avisar(x.mensaje || 'Hecho.', 'ok'); enrutar(); } catch (e) { manejar(e); }
+    };
+    const comentario = el('input', { type: 'text', maxlength: 500, placeholder: 'Cómo lo matizas, con tus palabras', 'aria-label': 'Comentario para matizar' });
+    const dias = lista(c.evidencia);
+    const evidencia = dias.length ? el('details', { class: 'nota-original' },
+      el('summary', {}, ic('nota'), `Ver los ${dias.length} día(s) en que se basa`),
+      el('div', { class: 'evidencia' }, dias.map((e) => el('div', { class: 'dia-evidencia' },
+        el('strong', { text: `${fmtCorto.format(aFecha(e.fecha))} · ${e.ciudad}` }),
+        el('span', { class: 'meta', text: ` · factor: ${e.factor === 'si' ? 'sí' : 'no'} · efecto: ${e.efecto} · ${e.clima}` }),
+        lista(e.registros).map((id) => ID_REG.test(id) ? el('a', { href: '#/registro/' + id, text: ' ' + id }) : null),
+        lista(e.citas).map((q) => el('div', { class: 'meta', text: `«${q}»` })))))) : null;
+    const revision = c.revision && c.revision.estado ? el('p', { class: 'meta' }, ic('dicho'), `${REVISIONES[c.revision.estado] || c.revision.estado}` + (c.revision.comentario && c.revision.comentario !== 'ninguno' ? `: «${c.revision.comentario}»` : '.')) : null;
+    return el('div', { class: 'pregunta cristal foco-luz contraste' },
+      el('p', { class: 'meta', text: 'Tu hipótesis' }),
+      el('p', { class: 'texto-pregunta', text: `«${c.formulacion}»` }),
+      el('div', { class: 'chips' }, el('span', { class: 'chip ' + v[1] }, ic(v[2]), v[0]),
+        el('span', { class: 'chip c-neutro' }, 'Factor: ' + c.factor), el('span', { class: 'chip c-neutro' }, 'Efecto: ' + String(c.efecto).replaceAll('_', ' ')),
+        c.reabierto === 'true' ? el('span', { class: 'chip c-hipotesis' }, 'Reabierto: evidencia nueva') : null),
+      el('p', { text: c.texto }),
+      el('div', { class: 'cifras' },
+        el('span', {}, el('strong', { text: `${r.efecto_con_factor ?? 0} de ${r.dias_con_factor ?? 0}` }), ` con el factor (${pct(r.tasa_con_factor)})`),
+        el('span', {}, el('strong', { text: `${r.efecto_sin_factor ?? 0} de ${r.dias_sin_factor ?? 0}` }), ` sin él (${pct(r.tasa_sin_factor)})`)),
+      revision, evidencia,
+      el('div', { class: 'respuesta' }, comentario,
+        boton('Matizar', 'editar', { class: 'pequeno', onclick: () => { if (!comentario.value.trim()) { avisar('Para matizar escribe cómo, con tus palabras.', 'mal'); return; } accion('matizar', { comentario: comentario.value.trim() }); } }),
+        el('div', { class: 'opciones' },
+          boton('Confirmar', 'check', { class: 'fantasma pequeno', onclick: () => accion('confirmar', {}) }),
+          conConfirmacion('Descartar', 'cerrar', 'fantasma pequeno', '¿Descartar este contraste?', () => accion('descartar', {})))));
+  }
+
+  function formularioDeHipotesis() {
+    const t = el('input', { type: 'text', maxlength: 400, placeholder: 'Con tus palabras: «el calor me quita el apetito»', 'aria-label': 'Tu hipótesis' });
+    const f = el('select', { 'aria-label': 'Factor' }, FACTORES.map(([v, n]) => el('option', { value: v, text: n })));
+    const e = el('input', { type: 'text', maxlength: 40, placeholder: 'Efecto, en pocas palabras (p. ej. sin apetito)', 'aria-label': 'Efecto' });
+    const d = el('input', { type: 'text', maxlength: 300, placeholder: 'Cómo lo dirías tú cuando ocurre (para que Mira lo reconozca)', 'aria-label': 'Descripción del efecto' });
+    const a = el('input', { type: 'number', min: 0, max: 14, value: 0, 'aria-label': 'Retardo desde (días)' });
+    const b = el('input', { type: 'number', min: 0, max: 14, value: 0, 'aria-label': 'Retardo hasta (días)' });
+    return el('details', { class: 'filtros' },
+      el('summary', {}, ic('editar'), 'Declarar una hipótesis'),
+      el('div', { class: 'rejilla-mas' },
+        el('label', {}, 'Tu hipótesis', t), el('label', {}, 'Factor', f), el('label', {}, 'Efecto', e), el('label', {}, 'Cómo reconocerlo', d),
+        el('label', {}, 'Retardo: de (días)', a), el('label', {}, 'a (días)', b),
+        boton('Declarar', 'enviar', { class: 'principal', onclick: async () => {
+          try {
+            const r = await post('/api/hipotesis', { formulacion: t.value.trim(), factor: f.value, efecto: slug(e.value), descripcionEfecto: d.value.trim(), retardoDesde: Number(a.value), retardoHasta: Number(b.value) });
+            avisar(r.mensaje || 'Hipótesis declarada.', 'ok'); enrutar();
+          } catch (x) { manejar(x); }
+        } })));
+  }
+
+  async function vistaDescubrimientos() {
+    const caja = el('div', {}, esqueletos(2));
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que dicen tus datos' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Descubrimientos' }))),
+      el('p', { class: 'meta', text: 'Mira contrasta tus hipótesis con tus registros y con el clima, una vez por semana. Describe lo observado: no indica causas ni aconseja.' })), caja);
+    try {
+      const d = await get('/api/descubrimientos');
+      vaciar(caja);
+      const r = d.revision;
+      if (!r) { caja.append(estadoVacio('Aún no hay revisión semanal: Mira la genera la primera noche de cada semana.')); caja.append(formularioDeHipotesis()); return; }
+      const per = r.periodo || {};
+      caja.append(el('p', { class: 'meta', text: `${r.id} · del ${per.desde} al ${per.hasta} · generada ${momento(r.generada_el)}` }));
+      if (r.estado === 'observacion') {
+        const o = r.observacion || {};
+        const hecho = Math.min(Number(o.dias_transcurridos) || 0, Number(o.dias_necesarios) || 28), total = Number(o.dias_necesarios) || 28;
+        const barra = el('div', { class: 'progreso', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': total, 'aria-valuenow': hecho, 'aria-label': 'Etapa de observación' }, el('div', { class: 'progreso-lleno' }));
+        barra.firstChild.style.setProperty('--p', Math.round(hecho / total * 100) + '%');
+        caja.append(entra(el('div', { class: 'pregunta cristal' },
+          el('p', { class: 'texto-pregunta', text: 'Mira está observando antes de sacar conclusiones' }),
+          el('p', { text: `Lleva ${hecho} de ${total} días desde tu primer registro (${o.primer_registro}), con ${o.dias_con_registros} día(s) con registros. Hasta entonces no hay contrastes: un patrón no se afirma con evidencias aisladas.` }), barra), 0));
+      } else {
+        const cs = lista(r.contrastes);
+        if (!cs.length) caja.append(estadoVacio('Esta semana no hay contrastes que mostrar.'));
+        cs.forEach((c, i) => caja.append(entra(tarjetaDeContraste(c), i + 1)));
+        if (lista(r.descartados).length) caja.append(el('p', { class: 'meta', text: `${lista(r.descartados).length} contraste(s) descartado(s) por ti, sin evidencia nueva sustancial.` }));
+      }
+      const sug = lista(r.sugerencias);
+      if (sug.length) caja.append(el('div', { class: 'pregunta cristal' }, el('p', { class: 'texto-pregunta', text: 'Sugerencias de ajuste' }), sug.map((x) => el('p', { class: 'meta', text: x }))));
+      caja.append(formularioDeHipotesis());
+      const ap = r.aprendizaje || {};
+      const sem = lista(ap.tendencia);
+      caja.append(el('div', { class: 'pregunta cristal' },
+        el('p', { class: 'texto-pregunta' }, ic('spark'), ' Qué ha aprendido Mira'),
+        el('p', { class: 'meta', text: `${ap.reglas_activas ?? 0} regla(s) activa(s). ` }, el('a', { href: '#/aprendizajes', text: 'Verlas y gestionarlas' })),
+        lista(ap.cambios).map((x) => el('p', { text: `${momento(x.fecha)} · ${x.accion}: ${x.descripcion}` })),
+        sem.length ? el('div', { class: 'tendencia' }, sem.map((x) => el('div', { class: 'semana' },
+          el('strong', { text: `${fmtCorto.format(aFecha(x.desde))} – ${fmtCorto.format(aFecha(x.hasta))}` }),
+          el('span', { class: 'meta', text: `${x.formuladas} preguntas · ${x.respondidas} respondidas · ${x.no_relevantes} no relevantes · ${x.no_sucedio} no sucedió · respuesta ${pct(x.tasa_respuesta)}` })))) : null));
+    } catch (e) { manejar(e); }
+  }
+
+  // ------------------------------------------------------------ vista: lo que Mira ha aprendido
+  const ESTADO_APRENDIZAJE = { activa: 'Activo', restablecida: 'Restablecido por tus respuestas', desactivada: 'Desactivado por ti' };
+  async function vistaAprendizajes() {
+    const lista = el('div', {}, esqueletos(2));
+    cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Cómo evoluciona Mira' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Aprendizajes' }))),
+      el('p', { class: 'meta', text: 'Mira aprende de cómo cierras sus preguntas. Nada se aplica en secreto: aquí lo ves, lo desactivas o lo borras. Nunca deja de preguntar, solo pasa esas preguntas por detrás de las demás.' })), lista);
+    try {
+      const d = await get('/api/aprendizajes');
+      vaciar(lista);
+      if (!d.aprendizajes.length) { lista.append(estadoVacio('Mira aún no ha aprendido nada de tus cierres de preguntas.')); return; }
+      d.aprendizajes.forEach((a, i) => {
+        const accion = async (ruta, texto) => { try { const r = await post(`/api/aprendizajes/${a.id}/${ruta}`, {}); avisar(r.mensaje || texto, 'ok'); enrutar(); } catch (e) { manejar(e); } };
+        const botones = a.estado === 'activa'
+          ? [boton('Desactivar', 'parar', { class: 'fantasma pequeno', onclick: () => accion('desactivar') })]
+          : [boton('Activar', 'check', { class: 'fantasma pequeno', onclick: () => accion('activar') })];
+        botones.push(conConfirmacion('Borrar', 'papelera', 'fantasma pequeno', '¿Borrar este aprendizaje?', () => accion('borrar')));
+        lista.append(entra(el('div', { class: 'pregunta cristal foco-luz' },
+          el('p', { class: 'texto-pregunta', text: a.descripcion }),
+          el('div', { class: 'contexto' },
+            el('div', {}, ic('spark'), ESTADO_APRENDIZAJE[a.estado] || a.estado, el('span', { class: 'chip c-neutro' }, 'Clase: ' + a.clase)),
+            el('div', {}, ic('historial'), `Evidencia: ${a.evidencia.length} cierre(s) «no relevante»`)),
+          el('div', { class: 'opciones' }, botones)), i));
       });
     } catch (e) { manejar(e); }
   }
@@ -471,6 +657,129 @@
     caja.querySelectorAll('.ficha-cabecera, .datos, .cita').forEach((n, i) => entra(n, i));
   }
 
+  // ------------------------------------------------------------ vista: perfil (Noa)
+  const NIVELES = { patron: 'Patrón', indicio: 'Indicio', conjetura: 'Conjetura (baja confianza)' };
+  const CERTEZAS_PERFIL = { dicho: 'Dicho por ti', confirmado: 'Confirmado', interpretado: 'Interpretación no verificada', hipotesis: 'Hipótesis de varios registros' };
+  let sondeoDeNoa = null;
+
+  async function descargarPerfil() {
+    try {
+      const token = await acceso();
+      const r = await fetch(urlApi + '/api/perfil/descarga', { headers: { Authorization: 'Bearer ' + token } });
+      if (!r.ok) { avisar('No hay perfil que descargar todavía.', 'mal'); return; }
+      const url = URL.createObjectURL(await r.blob());
+      const a = el('a', { href: url, download: 'perfil-noa.md' });
+      document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch { avisar('No se pudo descargar el perfil.', 'mal'); }
+  }
+
+  /** Edición en la misma tarjeta (sin diálogos del navegador): un campo de texto y confirmar/cancelar. */
+  function edicionDeRasgo(r, accion, etiqueta, inicial, hecho) {
+    const campo = el('input', { type: 'text', maxlength: accion === 'matizar' ? 500 : 400, value: inicial || '', 'aria-label': etiqueta });
+    const caja = el('div', { class: 'respuesta' }, campo,
+      boton('Guardar', 'check', { class: 'principal pequeno', onclick: async () => {
+        try { const x = await post(`/api/perfil/rasgos/${r.clave}/${accion}`, { texto: campo.value.trim() }); avisar(x.mensaje || 'Hecho.', 'ok'); hecho(); } catch (e) { manejar(e); }
+      } }),
+      boton('Cancelar', 'cerrar', { class: 'fantasma pequeno', onclick: () => caja.remove() }));
+    return caja;
+  }
+
+  function tarjetaDeRasgo(r, recargar) {
+    const accion = (nombre, extra = {}) => async () => {
+      try { const x = await post(`/api/perfil/rasgos/${r.clave}/${nombre}`, extra); avisar(x.mensaje || 'Hecho.', 'ok'); recargar(); } catch (e) { manejar(e); }
+    };
+    const zona = el('div', {});
+    const editar = (nombre, etiqueta, inicial) => () => { vaciar(zona); zona.append(edicionDeRasgo(r, nombre, etiqueta, inicial, recargar)); };
+    const evidencia = lista(r.evidencia);
+    return el('div', { class: 'pregunta cristal rasgo' + (r.oculto ? ' oculto' : '') },
+      el('p', { class: 'texto-pregunta', text: r.texto }),
+      el('div', { class: 'chips' },
+        el('span', { class: 'chip c-' + (r.certeza === 'dicho' ? 'dicho' : r.certeza === 'hipotesis' ? 'hipotesis' : 'interpretado') }, CERTEZAS_PERFIL[r.certeza] || r.certeza),
+        el('span', { class: 'chip c-neutro' }, NIVELES[r.nivel] || r.nivel),
+        r.sensible ? el('span', { class: 'chip c-conflicto' }, ic('candado'), 'Sensible') : null,
+        r.estado === 'matizado' ? el('span', { class: 'chip c-neutro' }, 'Matizado por ti') : null,
+        r.origen === 'usuario' ? el('span', { class: 'chip c-dicho' }, 'Tu versión') : null,
+        r.oculto ? el('span', { class: 'chip c-neutro' }, 'Oculto') : null),
+      r.comentario ? el('p', { class: 'meta', text: `Tu matiz: «${r.comentario}»` }) : null,
+      evidencia.length ? el('details', { class: 'nota-original' },
+        el('summary', {}, ic('nota'), `Evidencia · ${r.fuentes} registro(s) en ${r.semanas} semana(s)`),
+        evidencia.map((e) => el('p', { class: 'meta' }, `${e.fecha} · «${e.cita}» · `, ID_REG.test(e.fuente) ? el('a', { href: '#/registro/' + e.fuente, text: e.fuente }) : e.fuente))) : null,
+      el('div', { class: 'opciones' },
+        boton('Corregir', 'editar', { class: 'fantasma pequeno', onclick: editar('corregir', 'Tu versión', r.texto) }),
+        boton('Matizar', 'nota', { class: 'fantasma pequeno', onclick: editar('matizar', 'Tu matiz', r.comentario || '') }),
+        boton('Descartar', 'rechazar', { class: 'fantasma pequeno', onclick: accion('descartar') }),
+        boton(r.oculto ? 'Mostrar' : 'Ocultar', r.oculto ? 'check' : 'candado', { class: 'fantasma pequeno', onclick: accion(r.oculto ? 'mostrar' : 'ocultar') }),
+        conConfirmacion('Borrar', 'papelera', 'fantasma pequeno', '¿Borrar este rasgo? No se volverá a proponer sin evidencia nueva sustancial.', accion('borrar'))),
+      zona);
+  }
+
+  function bloqueDeApartado(a, rasgos, recargar) {
+    const ocultar = async () => {
+      try { const x = await post(`/api/perfil/rasgos/apartado:${a.slug}/${a.oculto ? 'mostrar' : 'ocultar'}`, {}); avisar(x.mensaje || 'Hecho.', 'ok'); recargar(); } catch (e) { manejar(e); }
+    };
+    return el('section', { class: 'apartado' + (a.oculto ? ' oculto' : '') },
+      el('div', { class: 'fila cabecera-apartado' }, el('h3', { class: 'titulo-apartado', text: a.titulo }),
+        boton(a.oculto ? 'Mostrar apartado' : 'Ocultar apartado', a.oculto ? 'check' : 'candado', { class: 'fantasma pequeno', onclick: ocultar })),
+      a.oculto ? el('p', { class: 'meta', text: 'Apartado oculto: no se muestra ni se incluye en la descarga.' }) : rasgos.map((r, i) => entra(tarjetaDeRasgo(r, recargar), i)));
+  }
+
+  async function vistaPerfil() {
+    const caja = el('div', {}, esqueletos(2));
+    cont.append(el('div', { class: 'cabecera' }, avatar('Noa', 'neutra', 'grande'), el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Noa ve de ti' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Perfil' }))),
+      el('p', { class: 'meta', text: 'Noa deduce a partir de lo que has contado. Nada de esto es un hecho hasta que tú lo confirmes, no incluye diagnósticos y lo tuyo manda: puedes corregir, matizar, ocultar o borrar.' })), caja);
+    clearTimeout(sondeoDeNoa);
+    const recargar = () => { vaciar(cont); vistaPerfil(); };
+    try {
+      const d = await get('/api/perfil');
+      vaciar(caja);
+      const estado = el('div', { class: 'pregunta cristal' });
+      if (!d.activada) estado.append(el('p', { class: 'meta', text: 'Noa no está activada: falta la sección «noa» en la configuración.' }));
+      else {
+        const u = d.ultimaEjecucion;
+        estado.append(el('p', { class: 'meta', text: `Cada ${d.cadenciaDias} días, con información nueva suficiente; observa al menos ${d.semanasDeObservacion} semanas antes de generar.` }),
+          u ? el('p', { class: 'meta', text: `Última ejecución: ${u.fecha} · ${u.resultado}${u.detalle ? ' · ' + u.detalle : ''}` }) : el('p', { class: 'meta', text: 'Aún no ha habido ninguna ejecución.' }),
+          d.proxima ? el('p', { class: 'meta', text: `Próxima versión a partir del ${d.proxima}.` }) : null);
+        if (d.generando) {
+          estado.append(avatar('Noa', 'trabajando', 'grande'), el('p', { text: 'Noa está trabajando en una versión nueva. Esta página se actualizará sola.' }));
+          sondeoDeNoa = setTimeout(() => { if (vistaActual === 'perfil') recargar(); }, 5000);
+        } else if (d.puedeGenerar) {
+          estado.append(boton('Pedir una versión ahora', 'spark', { class: 'principal', onclick: async () => {
+            try { const x = await post('/api/perfil/generar', {}); avisar(x.mensaje || 'Hecho.', 'ok'); recargar(); } catch (e) { manejar(e); }
+          } }));
+        } else estado.append(el('p', { class: 'meta', text: 'Desde el panel no se puede pedir una versión: hazlo desde la línea de comandos.' }));
+      }
+      caja.append(entra(estado, 0));
+      const p = d.perfil;
+      if (!p) { caja.append(estadoVacio('Noa aún no ha generado ningún perfil. Necesita al menos unas semanas de notas para empezar.')); return; }
+      caja.append(el('div', { class: 'fila' }, el('p', { class: 'meta', text: `Versión ${p.version} · ${p.generada} · a partir de ${p.registrosVistos} registros` }),
+        boton('Descargar en Markdown', 'abajo', { class: 'fantasma pequeno', onclick: descargarPerfil })));
+      const rasgos = lista(p.rasgos);
+      const normales = rasgos.filter((r) => r.nivel !== 'conjetura');
+      const conjeturas = rasgos.filter((r) => r.nivel === 'conjetura');
+      lista(p.apartados).forEach((a) => {
+        const del = normales.filter((r) => r.apartado === a.slug);
+        if (del.length || a.oculto) caja.append(bloqueDeApartado(a, del, recargar));
+      });
+      if (conjeturas.length) caja.append(el('section', { class: 'apartado' },
+        el('h3', { class: 'titulo-apartado', text: 'Conjeturas (baja confianza, un solo registro)' }),
+        el('p', { class: 'meta', text: 'Deducciones apoyadas en un único registro. No se usan como base de patrones ni de recomendaciones.' }),
+        conjeturas.map((r, i) => entra(tarjetaDeRasgo(r, recargar), i))));
+      const recs = lista(p.recomendaciones);
+      if (recs.length) caja.append(el('section', { class: 'apartado' },
+        el('h3', { class: 'titulo-apartado', text: 'Recomendaciones de comunicación (del sistema, no son hechos)' }),
+        recs.map((x, i) => entra(el('div', { class: 'pregunta cristal' + (x.oculta ? ' oculto' : '') },
+          el('p', { text: x.texto }),
+          el('div', { class: 'chips' }, el('span', { class: 'chip c-recomendacion' }, ic('recomendacion'), 'Recomendación del sistema'), x.oculta ? el('span', { class: 'chip c-neutro' }, 'Oculta') : null),
+          el('div', { class: 'opciones' }, boton(x.oculta ? 'Mostrar' : 'Ocultar', x.oculta ? 'check' : 'candado', { class: 'fantasma pequeno', onclick: async () => {
+            try { const y = await post(`/api/perfil/rasgos/${x.id}/${x.oculta ? 'mostrar' : 'ocultar'}`, {}); avisar(y.mensaje || 'Hecho.', 'ok'); recargar(); } catch (e) { manejar(e); }
+          } }))), i))));
+      caja.append(el('div', { class: 'fila zona-peligro' }, conConfirmacion('Borrar todo el perfil', 'papelera', 'fantasma pequeno',
+        '¿Borrar el perfil con todas sus versiones y su historial? No se puede deshacer.', async () => {
+          try { const x = await post('/api/perfil/borrar-todo', { confirmar: true }); avisar(x.mensaje || 'Hecho.', 'ok'); recargar(); } catch (e) { manejar(e); }
+        })));
+    } catch (e) { manejar(e); }
+  }
+
   // ------------------------------------------------------------ enrutado
   let vistaActual = '';
   async function enrutar() {
@@ -479,11 +788,14 @@
     pintarBarra();
     const m = (location.hash.replace(/^#/, '') || '/dia').match(/^\/([^/?]*)(?:[/?](.*))?$/) || [];
     const vista = m[1] || 'dia', resto = m[2];
-    vistaActual = vista === 'registro' ? 'dia' : vista;
+    vistaActual = vista === 'registro' ? 'dia' : vista === 'aprendizajes' ? 'descubrimientos' : vista;
     moverIndicador(vistaActual); actualizarContador();
     if (vista === 'buscar') await vistaBuscar(resto || '');
-    else if (vista === 'pendientes') await vistaPendientes();
+    else if (vista === 'pendientes') await vistaPendientes(resto);
     else if (vista === 'papelera') await vistaPapelera();
+    else if (vista === 'aprendizajes') await vistaAprendizajes();
+    else if (vista === 'descubrimientos') await vistaDescubrimientos();
+    else if (vista === 'perfil') await vistaPerfil();
     else if (vista === 'registro') await vistaRegistro(resto);
     else await vistaDia(vista === 'dia' ? resto : null);
     window.scrollTo({ top: 0 });

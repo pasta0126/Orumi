@@ -44,15 +44,16 @@
     <div class="lienzo cristal" id="lienzo">
       <textarea id="texto" rows="9" placeholder="Cuéntalo como te salga: qué pasó, con quién, cuándo, cuánto duró…" aria-label="Nota"></textarea>
       <div class="barra-lienzo">
-        <button id="dictar" type="button" class="boton mic" aria-pressed="false" hidden>
-          <span class="ondas" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-          <span class="etiqueta-mic">Dictar</span>
-        </button>
         <span class="espacio"></span>
         <span id="cuenta" class="cuenta" aria-hidden="true"></span>
         <button id="enviar" type="button" class="boton principal"><span>Enviar nota</span></button>
       </div>
     </div>
+
+    <label class="ciudad">¿Dónde estás? <small>(solo si no es Barcelona)</small>
+      <input id="ciudad" type="text" maxlength="60" autocomplete="off" list="ciudades" placeholder="Barcelona">
+      <datalist id="ciudades"></datalist>
+    </label>
 
     <details class="mas">
       <summary><span class="resumen-icono" data-icono="filtros"></span>Más opciones</summary>
@@ -66,7 +67,6 @@
       </div>
     </details>
 
-    <p id="aviso-voz" class="privacidad" hidden><span data-icono="microfono"></span>El dictado lo procesa el navegador (Google en Chrome y Edge, Apple en Safari): el audio sale de tu dispositivo. Si prefieres que no, escribe la nota.</p>
     <p id="pendientes" class="privacidad pend" hidden></p>
   </section>
 </main>

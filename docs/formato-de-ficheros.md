@@ -63,6 +63,7 @@ contexto_automatico:
 # Opcionales (si el usuario los aporta, cuentan como «dicho»):
 fecha_acontecimiento: 2026-11-08
 etiqueta: casa
+ciudad: Segur de Calafell      # solo si no es la ciudad por defecto; la indica el usuario
 ---
 <texto literal tal como se recibió>
 ```
@@ -70,7 +71,8 @@ etiqueta: casa
 - **Cuerpo:** todo lo que sigue a la línea de cierre `---` y su salto de línea, sin tocar (ni limpieza, ni resumen, ni salto final añadido).
 - **`huella`:** permite comprobar que el cuerpo no se ha alterado. Si no coincide, el fichero se considera dañado.
 - **`comunicada_el`** es siempre la fecha y hora de comunicación; `fecha_acontecimiento` no la altera.
-- **Prohibido:** ubicación y cualquier monitorización. `contexto_automatico` solo admite `dispositivo` (la hora ya está en `comunicada_el`).
+- **`ciudad`** (opcional, X62): texto de 1 a 60 caracteres que **indica el usuario**; sin ella, la ciudad por defecto de la configuración. Es un metadato «dicho por el usuario», no una ubicación.
+- **Prohibido:** coordenadas, ubicación obtenida del dispositivo y cualquier monitorización. `contexto_automatico` solo admite `dispositivo` (la hora ya está en `comunicada_el`).
 - **Fragmentos:** un fragmento se identifica por posición en el cuerpo: `desde` (incluido) y `hasta` (excluido), en caracteres Unicode, base 0. Al ser el cuerpo inmutable, la posición es estable.
 - **Audio:** se guarda fuera de `capturas/` (en `entrada/`, §5) hasta confirmar que la captura quedó escrita y verificada; después se borra (X5/X28). Si la transcripción falla, el audio permanece en `entrada/` con la marca `.pendiente` y no existe fichero de captura.
 
@@ -217,6 +219,19 @@ orumi/
 ├── lotes/AAAA/MM/lote-….md         # bitácora de ejecuciones de Mira
 ├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
+├── hipotesis/hip-….yaml            # hipótesis del usuario, «por verificar» (X65)
+├── analisis/repaso/AAAA/MM/rep-….yaml    # constancia de cada repaso (X69): revisados, creadas, descartes, modelo y coste
+├── analisis/repaso/revisados.yaml        # registros que el modelo ya revisó (id → huella); derivado y regenerable
+├── perfil/                          # Noa (X68): lo único que escribe
+│   ├── perfil.yaml                  # versión vigente
+│   ├── historial/perfil-vNNN-AAAAMMDD-HHMM.yaml   # una copia por versión
+│   └── generaciones/gen-….yaml      # constancia de cada ejecución (sin texto del usuario)
+├── analisis/etiquetas/AAAA/MM/reg-….yaml   # conceptos dichos en cada registro (derivado, regenerable)
+├── analisis/ejecuciones/AAAA/MM/eti-….yaml # constancia de cada etiquetado (proveedor, modelo, uso)
+├── analisis/AAAA/semana-AAAA-Www.yaml      # revisión semanal: contrastes, evidencia y aprendizaje de Mira
+├── aprendizajes/apr-….yaml         # lo que Mira ha aprendido de los cierres de preguntas (X64)
+├── clima/AAAA/MM/AAAA-MM-DD-ciudad.yaml   # clima diario por ciudad (contexto derivado y regenerable)
+├── clima/ciudades.yaml             # ciudades aprendidas y ciudad fijada para notas concretas (X67)
 ├── entrada/                         # audio pendiente de transcribir/verificar (fuera de git)
 └── .indice/                         # índice derivado, desechable (ver docs/indice-derivado.md)
 ```
@@ -224,6 +239,126 @@ orumi/
 - La ruta se deduce del identificador (fecha de creación): no cambia al editar el fichero.
 - El estado (`pendiente`, `abierto`…) va en el frontmatter, nunca en la ruta, para no mover ficheros.
 - Nada de `orumi/` se copia a vedlvm ni a su remoto (X12).
+
+### 5.00 Hipótesis y etiquetas (`hipotesis/`, `analisis/`, X65)
+
+**Hipótesis** del usuario, con sus palabras (certeza `dicho`), a verificar. Cada una tiene uno o varios **contrastes** (factor → efecto con una ventana de retardo en días) y la descripción de los **conceptos** que el modelo debe reconocer:
+
+```yaml
+id: hip-uv-dolor-de-cabeza
+tipo: hipotesis
+formulacion: "un índice UV alto con luz fuerte me provoca dolor de cabeza"
+certeza: dicho
+estado: por_verificar          # por_verificar | confirmada | matizada | descartada (la revisión es del usuario)
+declarada_el: "2026-11-14T23:50:00+01:00"
+conceptos:
+  dolor_de_cabeza: "El usuario dice que tiene o ha tenido dolor de cabeza o jaqueca."
+contrastes:
+  - id: c1
+    factor: ["clima:uv_alto"]  # clima:uv_alto | clima:lluvia | clima:soleado | registro:CONCEPTO[>=MINUTOS]; todas deben cumplirse
+    efecto: dolor_de_cabeza
+    retardo_dias: {desde: 0, hasta: 0}
+historial:
+  - {fecha: "2026-11-14T23:50:00+01:00", accion: declarada, origen: usuario, motivo: ninguno}
+```
+
+**Etiquetas** de un registro: qué conceptos aparecen **explícitamente** en lo que el usuario dijo (el fragmento de su captura, no la paráfrasis de Mira). `presente` si lo dijo; `negado` solo si dijo expresamente que no ocurrió; `quitado` si el usuario descarta la etiqueta. **Lo no mencionado no se etiqueta** y no cuenta como ausencia. Certeza `interpretado`; se regeneran cuando cambia el texto o los conceptos (`entrada` es la huella de lo enviado); lo que corrige el usuario (`origen: usuario`) prevalece. Cada cita se verifica literalmente contra el texto del usuario: una etiqueta sin cita literal se descarta.
+
+```yaml
+registro: reg-20261118-ab12
+tipo: etiquetas
+entrada: "sha256:…"
+generada_el: "2026-11-19T04:00:11+01:00"
+proveedor: anthropic
+modelo: claude-sonnet-5-5
+certeza: interpretado
+etiquetas:
+  - {concepto: exterior, estado: presente, origen: mira, cita: "tres horas en la playa", minutos: 180}
+  - {concepto: dolor_de_cabeza, estado: negado, origen: usuario, cita: "no tuve dolor de cabeza", minutos: desconocido}
+```
+
+La constancia de cada ejecución (`analisis/ejecuciones/…/eti-AAAAMMDD-HHMM.yaml`) lleva proveedor, modelo, registros enviados, etiquetas, descartadas, tokens y coste estimado; nunca texto del usuario. Al modelo solo le llegan los conceptos y el texto del usuario: **ningún dato meteorológico**.
+
+### 5.01 Revisión semanal (`analisis/AAAA/semana-AAAA-Www.yaml`, X21–X23, X66)
+
+Se genera la primera noche de cada semana (también con `orumi analizar`) y se reemplaza si se regenera. **Etapa de observación** (4 semanas desde el primer registro): solo `observacion` (días transcurridos y necesarios, días con registros), sin contrastes ni preguntas. Después, un **contraste por hipótesis** con solo frecuencia observada y evidencia enlazada, sin causalidad ni recomendaciones:
+
+```yaml
+id: semana-2026-W49
+tipo: revision_semanal
+estado: completa               # observacion | completa
+contrastes:
+  - id: "hip-uv-dolor-de-cabeza#c1"
+    formulacion: "un índice UV alto con luz fuerte me provoca dolor de cabeza"   # tus palabras
+    factor: "UV alto (≥ 6)"
+    veredicto: apoyada          # apoyada | sin_apoyo | insuficiente
+    resumen: {dias_con_factor: 12, efecto_con_factor: 9, dias_sin_factor: 12, efecto_sin_factor: 1, tasa_con_factor: 0.75, tasa_sin_factor: 0.083, diferencia: 0.667, dias_con_efecto: 10, semanas_con_efecto: 4}
+    excluidos: {sin_clima: 0, factor_sin_dato: 0, efecto_sin_dato: 3}   # días que NO cuentan como «no ocurrió»
+    motivos: []                 # lo que falta cuando es insuficiente
+    texto: "Los datos apoyan tu hipótesis: … Es una asociación observada: no indica que sea la causa."
+    revision: ninguna           # o {estado: confirmada|matizada|descartada, comentario, fecha}; lo descartado no sale salvo evidencia nueva sustancial
+    evidencia:                  # trazabilidad a los registros y al clima usado
+      - {fecha: 2026-10-03, ciudad: "Barcelona", factor: si, efecto: presente, registros: [reg-20261003-ab12], clima: "UV máx 7.5, lluvia 0 mm, nubes 40 %", citas: ["me dolía la cabeza"]}
+sugerencias: ["Hay 2 día(s) con UV ≥ 6; con un umbral de 5 habría 10. No se cambia solo."]
+aprendizaje: {reglas_activas: 1, cambios: [...], tendencia: [{desde, hasta, formuladas, respondidas, no_relevantes, no_sucedio, no_recuerda, por_limite, pendientes, tasa_respuesta, tasa_no_relevante}]}
+preguntas_creadas: [preg-…]
+etiquetado: {ejecucion: eti-…, proveedor: anthropic, modelo: claude-sonnet-5-5, coste_estimado_usd: "0.013210"}
+```
+
+**Veredicto (X20):** *insuficiente* si faltan días conocidos con y sin el factor (≥ 4 por grupo), días con el efecto (≥ 3) o semanas distintas con el efecto (≥ 2); *apoyada* si la diferencia de tasas es ≥ 0,25 y los intervalos de Wilson no se solapan; *sin apoyo* si es ≤ 0,10; lo intermedio es *insuficiente* («no concluyente»). Todos los umbrales son configuración (`analisis:`). **Un día sin dato del efecto no cuenta como «no ocurrió»**: solo cuentan lo dicho (`presente`) o lo confirmado como ausente (`negado` o la respuesta «No sucedió»). Límite conocido: lo mencionado espontáneamente cuenta siempre, y la ausencia solo si se confirmó, por lo que puede sobrerrepresentarse el efecto; por eso las preguntas de contraste buscan equilibrar ambos grupos.
+
+**Preguntas de contraste (X63):** `campo: contraste` con `hipotesis`, `contraste`, `concepto`, `dia` y `clase_pregunta: "contraste:hip-…#cN"`; el `registro` es el de referencia del día. «Respondida» = ocurrió; «No sucedió» = ausencia confirmada; la duración de estar fuera (`concepto: exterior_duracion`) se lee de la respuesta («2 horas», «1h30», «media hora»; lo vago es desconocido).
+
+### 5.0 Aprendizajes (`aprendizajes/`, X64)
+
+Un fichero YAML por regla, visible y editable por el usuario (desde la terminal o el panel). Se regenera desde las preguntas cerradas; lo que el usuario desactiva o borra prevalece.
+
+```yaml
+id: apr-duracion-actividad
+tipo: aprendizaje
+regla: prioridad_baja
+clase_pregunta: "duracion:actividad"
+descripcion: "Preguntar menos por «duracion» en registros de clase «actividad»: el usuario lo ha cerrado como no relevante 3 veces en 2 días distintos."
+estado: activa                 # activa | restablecida | desactivada | borrada
+evidencia: [preg-20261116-ab12, preg-20261117-cd34, preg-20261118-ef56]   # cierres «no relevante» que la sustentan
+creada_el: "2026-11-19T04:00:11+01:00"
+actualizada_el: "2026-11-19T04:00:11+01:00"
+fijada_por_usuario: true       # solo si el usuario la activó a mano: Mira no la restablece
+borrada_el: "…"                # solo en las borradas: vuelven únicamente con evidencia posterior
+historial:
+  - {fecha: "2026-11-19T04:00:11+01:00", accion: creada, origen: mira, motivo: "3 cierres «no relevante» en 2 días."}
+```
+
+### 5.1 Clima (`clima/`, X60–X62)
+
+Contexto derivado y regenerable obtenido por `orumi clima`; **nunca** se escribe en capturas ni en registros y el modelo no lo recibe al interpretar notas. Un fichero por día y ciudad, en YAML plano (sin frontmatter):
+
+```yaml
+fecha: 2026-11-13
+ciudad: Barcelona
+fuente: open-meteo
+ubicacion: {lat: 41.4, lon: 2.2}      # redondeada a 1 decimal (~10 km): lo único que sale al servicio
+zona_horaria: Europe/Madrid
+obtenido: "2026-11-14T23:22:36+01:00"   # un día guardado el mismo día se vuelve a pedir: está incompleto
+dia:
+  uv_maximo: 3.15
+  amanecer: "07:37"
+  atardecer: "17:33"
+  luz_s: 35770.55
+  sol_s: 32910.12
+  precipitacion_mm: 0
+  temperatura_minima: 16.3
+  temperatura_maxima: 20.8
+  humedad_media: 70.625
+  nubosidad_media: 31.083
+horas:                                 # 24 entradas, hora local
+  - {h: 0, temperatura: 18.8, humedad: 63, precipitacion: 0, nubosidad: 0, radiacion: 0, sol_s: 0, uv: 0}
+```
+
+- **`desconocido`** es un valor explícito: lo que el servicio no ofrece (p. ej. el UV de un día de hace más de 92 días, que el histórico no trae) nunca se estima ni se rellena.
+- La ciudad de un día es la de la captura de origen del registro (la que indicó el usuario o la de por defecto, X62); una ciudad sin reconocer no se supone: no se consulta y se avisa.
+- **`clima/ciudades.yaml`** (X67): `ciudades` (clave, nombre, descripción, `lat`/`lon` ya redondeadas, `estado`: `por_confirmar` | `confirmada` | `rechazada`, `origen`: `geocodificada` | `usuario`), `notas` (la ciudad que el usuario fijó para una captura concreta al responder «¿estabas allí?») y `aplicadas` (preguntas de ciudad ya aplicadas). Lo de la configuración manda sobre lo aprendido. Las preguntas de ciudad llevan `campo: ciudad`, `ciudad_tipo` (`confirmar` | `elegir` | `mencion`), `ciudad_clave`, `ciudad_nombre` y, en las de mención, `ciudad_captura`.
+- Unidades: °C, %, mm, nubosidad en %, radiación en W/m², horas de sol y de luz en segundos, UV como índice.
 
 ## 6. Preguntas y lotes
 
@@ -236,7 +371,8 @@ registro: reg-20261110-t5k8
 otros_registros: []             # p. ej. conflictos
 campo: contexto
 texto: "¿Qué te llevó a dejar la automatización para más adelante?"
-estado: no_recuerda             # pendiente | respondida | no_recuerda | no_relevante | cerrada_por_limite
+estado: no_recuerda             # pendiente | respondida | no_recuerda | no_relevante | no_sucedio | cerrada_por_limite
+clase_pregunta: "duracion:actividad"   # campo y clase del registro; opcional (las anteriores se deducen); base del aprendizaje
 valor: media                    # alta | media | baja
 creada_el: 2026-11-13T03:00:00+01:00
 generada_por: {agente: Mira, version: "…", modelo: "…"}
@@ -244,7 +380,7 @@ cerrada_el: 2026-11-13T08:30:00+01:00     # al cerrarse
 respuesta: {texto: "No lo recuerdo.", respondida_el: 2026-11-13T08:30:00+01:00}
 ```
 
-Las preguntas completan **datos estructurales** del registro (cuándo, duración, personas, lugar, estado o resultado), no su contenido sustantivo (X36). Una pregunta `no_recuerda` o `no_relevante` no se repite; `no_relevante` es el usuario diciendo que el dato no le importa y sirve de señal para no formular preguntas parecidas. Si es `respondida`, el registro afectado pasa el campo a `confirmado` y su `historial` enlaza con la pregunta (la respuesta es la evidencia).
+Las preguntas completan **datos estructurales** del registro y, desde X69, el **contenido que la nota deja abierto** (`contexto`, `resultados`, `acciones`, `problemas`, `ideas`); las del repaso llevan `generada_por: {agente: Mira, version: repaso, modelo: determinista | <modelo>}`. Las **respuestas rápidas** (botones) no se guardan: se derivan del contenido de la pregunta al listarla. Antes, las preguntas completaban solo **datos estructurales** del registro (cuándo, duración, personas, lugar, estado o resultado), no su contenido sustantivo (X36). Una pregunta `no_recuerda` o `no_relevante` no se repite; `no_relevante` es el usuario diciendo que el dato no le importa y sirve de señal para no formular preguntas parecidas. Si es `respondida`, el registro afectado pasa el campo a `confirmado` y su `historial` enlaza con la pregunta (la respuesta es la evidencia).
 
 **Lote** (bitácora de cada ejecución de Mira, nocturna o a petición): lista las capturas procesadas y los registros y preguntas creados o actualizados, con versión y modelo. Es lo que permite saber qué capturas ya se procesaron sin modificar las capturas (inmutables) y evita reprocesar capturas que no produjeron registros.
 
@@ -282,6 +418,51 @@ lote: lote-20261114-0320                 # lote de Mira donde quedó el resultad
 ```
 
 Los `ofrecidos` se guardan para comprobar, al recoger, que el proveedor solo cita registros que se le enviaron. El proveedor retiene los datos de un lote 29 días y no admite retención cero. El lote de Mira lleva `modo` (`lotes` | `inmediato`) y, si procede, `envios`.
+
+## 8. Perfil de Noa (X68, change `perfil-personal`)
+
+Noa escribe **solo** en `perfil/` y Mira no lo lee (el almacén de Mira no carga `perfil/`). Son YAML legibles a mano.
+
+**`perfil/perfil.yaml`** (versión vigente; cada versión nueva se copia además en `perfil/historial/`):
+
+```yaml
+version: 3
+generada: 2026-12-04T05:00:00+01:00
+generacion: gen-20261204-0500
+registros_vistos: 64
+apartados_sin_datos: [miedos_preocupaciones]
+apartados_ocultos: []           # los oculta el usuario
+rasgos:
+  - clave: prefiere_mensajes_cortos       # a-z, 0-9 y _; identifica el rasgo entre versiones
+    apartado: comunicacion
+    texto: "Prefiere mensajes cortos y directos, sin rodeos."
+    certeza: hipotesis                    # dicho | confirmado | interpretado | hipotesis
+    nivel: patron                         # patron | indicio | conjetura (lo calcula el código)
+    sensible: false
+    fuentes: 3                            # registros distintos con cita literal verificada
+    semanas: 3
+    evidencia: [{fuente: reg-20261001-ab12, fecha: 2026-10-01, cita: "mensajes cortos y directos"}]
+    estado: activo                        # activo | matizado | descartado | borrado
+    origen: noa                           # noa | usuario (corregido por el usuario: prevalece)
+    oculto: false
+    comentario_usuario: "Solo cuando voy con prisa"   # opcional
+    evidencia_al_descartar: 3             # opcional: con cuántas fuentes se descartó
+    version_creada: 1
+    actualizado: 2026-12-04T05:00:00+01:00
+    historial: [{fecha: …, accion: propuesto, origen: noa, detalle: "patron; 3 fuente(s) en 3 semana(s)"}]
+recomendaciones:                           # del sistema, no son hechos; solo sobre patrones o indicios
+  - {id: rec-0a1b2c3d, texto: "…", rasgos: [prefiere_mensajes_cortos], estado: activo, oculta: false}
+```
+
+El apartado `energia_animo` solo admite rasgos con `hipotesis: [ids]` de hipótesis que el usuario confirmó. `superficie` es el apartado de ingeniería social (qué podría deducir un tercero), para que el usuario se proteja.
+
+**`perfil/generaciones/gen-….yaml`**: motivo (`periodica` o `peticion`), resultado (`generada`, `omitida` con su motivo o `fallida`), proveedor, modelo, registros enviados y excluidos, rasgos aceptados y descartados (con el recuento de descartes por causa), tokens y coste estimado. **Nunca contiene texto del usuario.**
+
+**Preguntas de Noa** (`perfil/preguntas/preg-….md`): mismo formato que las de Mira (sección 6), con `generada_por: {agente: Noa}`, **sin `registro`** (no se atan a un registro) y con `rasgo` (la clave del rasgo del perfil) o `apartado` (un apartado sin datos), más `contradice` si pregunta por dos rasgos que no encajan, `campo: perfil` y `clase_pregunta: "noa:<apartado>"` (el aprendizaje de Noa es aparte). Las candidatas las elige el código (conjeturas e indicios no sensibles, contradicciones señaladas por el modelo y comprobadas, apartados sin datos); el cupo por ejecución es `noa.maximo_preguntas` (3). Lo que responde el usuario se guarda en la propia pregunta y entra, como dicho por él, en la siguiente versión. Mira no las carga (el almacén de Mira excluye `perfil/`).
+
+En toda pregunta, `generada_por.agente` es `Mira` o `Noa`; una pregunta anterior sin agente escrito se entiende de Mira sin tocar el fichero.
+
+Borrar el perfil elimina `perfil/` entero (versiones, generaciones y preguntas de Noa) y no toca capturas, registros ni preguntas de Mira.
 
 ## 7. Lectura sin herramientas
 

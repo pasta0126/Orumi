@@ -16,7 +16,11 @@ public sealed class Almacen
 
     private Almacen(string raiz) => Raiz = raiz;
 
-    public static Almacen Cargar(string raiz)
+    /// <summary>
+    /// Carga el almacén. <c>perfil/</c> es el espacio de Noa y <b>no se carga por defecto</b>: así Mira (y todo lo que no sea Noa) no ve ni cuenta
+    /// nada suyo. Solo quien debe verlo (panel, terminal, operaciones del usuario, aprendizaje y la propia Noa) lo pide con <paramref name="incluirPerfil"/>.
+    /// </summary>
+    public static Almacen Cargar(string raiz, bool incluirPerfil = false)
     {
         var almacen = new Almacen(Path.GetFullPath(raiz));
         // IgnoreInaccessible: una carpeta sin permiso de lectura no debe tumbar la lectura de todo lo demás.
@@ -25,7 +29,7 @@ public sealed class Almacen
         {
             var relativa = Path.GetRelativePath(almacen.Raiz, ruta).Replace('\\', '/');
             var partes = relativa.Split('/');
-            if (partes.Any(p => p.StartsWith('.')) || Omitidos.Contains(partes[0]))
+            if (partes.Any(p => p.StartsWith('.')) || Omitidos.Contains(partes[0]) || (!incluirPerfil && partes[0] == "perfil"))
             {
                 continue;
             }

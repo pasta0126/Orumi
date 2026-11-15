@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Orumi.Core\Orumi.Core.csproj" />
     <ProjectReference Include="..\Orumi.Agente\Orumi.Agente.csproj" />
+    <ProjectReference Include="..\Orumi.Noa\Orumi.Noa.csproj" />
     <ProjectReference Include="..\Orumi.Acceso\Orumi.Acceso.csproj" />
   </ItemGroup>
 

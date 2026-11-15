@@ -9,6 +9,9 @@ public sealed record Procesamiento(string Modo = "inmediato", int EsperaMaximaMi
     public bool PorLotes => Modo == "lotes";
 }
 
+/// <summary>Repaso de los registros existentes (spec <c>repaso-de-registros</c>): activo por defecto; <c>maximo_nuevas</c> acota las preguntas que crea cada ejecución (0 = no crear).</summary>
+public sealed record ConfiguracionDeRepaso(bool Activado = true, int MaximoNuevas = 200, int RegistrosPorLlamada = 15);
+
 public sealed record GarantiaDePrivacidad(bool Declarada, DateOnly? VerificadaEl, string? Fuente, int CaducidadDias);
 
 public sealed record Configuracion(
@@ -18,11 +21,14 @@ public sealed record Configuracion(
     GarantiaDePrivacidad Garantia,
     string Horario,
     int VentanaRelacionadosDias,
-    int MaximoPendientes,
+    int? MaximoPendientes,
     bool ExigirVolumen = false,
     Precios? Precios = null,
     Presupuesto? Presupuesto = null,
-    Procesamiento? Procesamiento = null)
+    Procesamiento? Procesamiento = null,
+    Orumi.Agente.Clima.ConfiguracionDeClima? Clima = null,
+    Orumi.Agente.Analisis.UmbralesDeAnalisis? Analisis = null,
+    ConfiguracionDeRepaso? Repaso = null)
 {
     public const int CaducidadPorDefecto = 180;
 
@@ -53,11 +59,21 @@ public sealed record Configuracion(
             new GarantiaDePrivacidad(Texto(garantia, "declarada") == "true", verificada, garantia.GetValueOrDefault("fuente") as string, Entero(garantia, "caducidad_dias", CaducidadPorDefecto)),
             Texto(lote, "horario", "03:00"),
             Entero(lote, "ventana_relacionados_dias", 14),
-            Entero(preguntas, "maximo_pendientes", 5),
+            preguntas.ContainsKey("maximo_pendientes") && Entero(preguntas, "maximo_pendientes", 0) is > 0 and var maximo ? maximo : null, // ausente = sin máximo (spec preguntas-de-mira)
             Texto(Mapa(raiz, "volumen"), "exigir") == "true",
             LeerPrecios(Mapa(raiz, "precios")),
             LeerPresupuesto(Mapa(raiz, "presupuesto")),
-            LeerProcesamiento(Mapa(raiz, "procesamiento")));
+            LeerProcesamiento(Mapa(raiz, "procesamiento")),
+            raiz.ContainsKey("clima") ? Orumi.Agente.Clima.ConfiguracionDeClima.Leer(Mapa(raiz, "clima")) : null,
+            raiz.ContainsKey("analisis") ? Orumi.Agente.Analisis.UmbralesDeAnalisis.Leer(Mapa(raiz, "analisis")) : null,
+            LeerRepaso(Mapa(raiz, "repaso")));
+    }
+
+    private static ConfiguracionDeRepaso LeerRepaso(Dictionary<string, object?> m)
+    {
+        var d = new ConfiguracionDeRepaso();
+        int Entero(string k, int x) => int.TryParse(m.GetValueOrDefault(k) as string, CultureInfo.InvariantCulture, out var n) && n >= 0 ? n : x;
+        return new ConfiguracionDeRepaso((m.GetValueOrDefault("activado") as string) != "false", Entero("maximo_nuevas", d.MaximoNuevas), Math.Max(1, Entero("registros_por_llamada", d.RegistrosPorLlamada)));
     }
 
     private static Precios? LeerPrecios(Dictionary<string, object?> m)

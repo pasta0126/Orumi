@@ -6,7 +6,8 @@ using Orumi.Core.Validacion;
 namespace Orumi.Agente;
 
 public sealed record OpcionesProcesador(
-    int MaximoPendientes = 5, int VentanaRelacionadosDias = 14, string VersionMira = "0.1.0-mvp", Precios? Precios = null, Presupuesto? Presupuesto = null);
+    int? MaximoPendientes = null, int VentanaRelacionadosDias = 14, string VersionMira = "0.1.0-mvp", Precios? Precios = null, Presupuesto? Presupuesto = null,
+    Orumi.Core.Aprendizaje.UmbralesDeAprendizaje? UmbralesDeAprendizaje = null);
 
 public sealed record ProblemaDeLote(string Captura, string Motivo, string? Tipo = null);
 
@@ -67,17 +68,42 @@ public sealed class Procesador(
 
     /// <summary>Campos por los que Mira puede preguntar (solo datos estructurales, X36).</summary>
     private static readonly string[] CamposPreguntables =
-        ["fecha", "hora", "duracion", "personas", "lugares", "proyectos", "entidades", "herramientas", "resultados", "coincidencia"];
+        ["fecha", "hora", "duracion", "personas", "lugares", "proyectos", "entidades", "herramientas", "resultados", "contexto", "acciones", "problemas", "ideas", "coincidencia"];
 
-    private static readonly string[] ClasesConResultadoPreguntable = ["actividad", "problema"];
+    /// <summary>Campos de contenido: se pregunta por lo que la nota deja abierto (spec <c>preguntas-de-mira</c>, «Datos estructurales y contenido que falta»).</summary>
+    private static readonly string[] CamposDeContenido = ["contexto", "resultados", "acciones", "problemas", "ideas"];
 
     private const string Iso = "yyyy-MM-dd'T'HH:mm:sszzz";
+
+    private HashSet<string> _rebajadas = [];
+
+    private IReadOnlyList<string> _preferencias = [];
+
+    /// <summary>
+    /// Recalcula lo que Mira ha aprendido de cómo el usuario cierra sus preguntas (X64) antes de cada ejecución: qué clases
+    /// pasan por detrás de las demás y qué preferencias se le cuentan al modelo. Nunca impide una pregunta ni falla la ejecución.
+    /// </summary>
+    private void ActualizarAprendizaje()
+    {
+        try
+        {
+            Orumi.Core.Aprendizaje.MotorDeAprendizaje.Actualizar(datos, reloj(), opciones.UmbralesDeAprendizaje);
+            _rebajadas = Orumi.Core.Aprendizaje.MotorDeAprendizaje.ClasesRebajadas(datos);
+            _preferencias = Orumi.Core.Aprendizaje.MotorDeAprendizaje.Preferencias(datos);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or Orumi.Core.Ficheros.EscrituraFallidaException)
+        {
+            _rebajadas = [];
+            _preferencias = [];
+        }
+    }
 
     /// <param name="reprocesar">Capturas ya procesadas que se vuelven a procesar por petición expresa.</param>
     public async Task<ResultadoEjecucion> EjecutarAsync(
         string ejecucion, CancellationToken ct = default, Action<string>? hito = null, IReadOnlyCollection<string>? reprocesar = null)
     {
         var resultado = new ResultadoEjecucion();
+        ActualizarAprendizaje();
         var almacen = Almacen.Cargar(datos);
         var pendientes = Pendientes(almacen, reprocesar);
         resultado.Pendientes = pendientes.Count;
@@ -242,7 +268,8 @@ public sealed class Procesador(
             captura.Frontmatter.GetValueOrDefault("fecha_acontecimiento") as string,
             captura.Frontmatter.GetValueOrDefault("etiqueta") as string,
             existentes.Where(r => !r.Frontmatter.ContainsKey("estado")).Select(r => (string)r.Frontmatter["clave_extraccion"]!).ToList(),
-            relacionados);
+            relacionados,
+            _preferencias);
         return (solicitud, existentes, relacionados);
     }
 
@@ -919,10 +946,18 @@ public sealed class Procesador(
                                   ?? ctx.Almacen.Documentos.FirstOrDefault(d => d.Id == id)?.Frontmatter;
         var candidatas = new List<Candidata>();
 
+        // Una clase de pregunta que el usuario suele cerrar como no relevante pasa por detrás de las demás (nunca se prohíbe).
+        // Las preguntas automáticas (conflictos) no se rebajan: dejarían un conflicto sin pregunta.
+        bool Rebajada(Documento? existente, Candidata? nueva) =>
+            _rebajadas.Count > 0 && (existente is not null
+                ? _rebajadas.Contains(Orumi.Core.Aprendizaje.ClaseDePregunta.De(existente, ctx.Almacen))
+                : nueva is { Automatica: false } c && _rebajadas.Contains(ClaseDe(c)));
+        string ClaseDe(Candidata c) => Orumi.Core.Aprendizaje.ClaseDePregunta.Construir(c.Campo, fmDe(c.RegistroId)?.GetValueOrDefault("clase") as string);
+
         foreach (var p in respuesta.Preguntas)
         {
             var registroId = p.RegistroId ?? (p.RegistroIndice is { } i && i >= 0 && i < ids.Count ? ids[i] : null);
-            if (registroId is null || ctx.Omitidos.Contains(registroId) || fmDe(registroId) is not { } fm || !PuedePreguntarse(ctx, registroId, fm, p.Campo, res))
+            if (registroId is null || ctx.Omitidos.Contains(registroId) || fmDe(registroId) is not { } fm || !TonoDePreguntas.EsValido(p.Texto) || !PuedePreguntarse(ctx, registroId, fm, p.Campo, res))
             {
                 res.PreguntasDescartadas++;
                 continue;
@@ -958,12 +993,14 @@ public sealed class Procesador(
         var todas = pendientes.Select(p => (Existente: p, Nueva: (Candidata?)null, Valor: (string)p.Frontmatter["valor"]!))
             .Concat(candidatas.Select(c => (Existente: (Documento?)null, Nueva: (Candidata?)c, c.Valor)))
             .Select((x, indice) => (x, indice))
-            .OrderBy(t => Orden(t.x.Valor)).ThenBy(t => t.indice)
+            .OrderBy(t => Rebajada(t.x.Existente, t.x.Nueva) ? 1 : 0).ThenBy(t => Orden(t.x.Valor)).ThenBy(t => t.indice)
             .Select(t => t.x)
             .ToList();
-        var conservadas = todas.Take(opciones.MaximoPendientes).ToList();
+        // Sin máximo configurado no se descarta ninguna; con él, solo las de mayor valor.
+        var maximo = opciones.MaximoPendientes ?? int.MaxValue;
+        var conservadas = todas.Take(maximo).ToList();
 
-        foreach (var x in todas.Skip(opciones.MaximoPendientes))
+        foreach (var x in todas.Skip(maximo))
         {
             if (x.Existente is { } desplazada)
             {
@@ -990,6 +1027,7 @@ public sealed class Procesador(
                 ["registro"] = c.RegistroId,
                 ["otros_registros"] = c.Otros.Cast<object?>().ToList(),
                 ["campo"] = c.Campo,
+                ["clase_pregunta"] = ClaseDe(c),
                 ["texto"] = c.Texto,
                 ["estado"] = "pendiente",
                 ["valor"] = c.Valor,
@@ -1016,6 +1054,11 @@ public sealed class Procesador(
     private readonly Dictionary<(string, string), string> _idsAutomaticos = [];
 
     /// <summary>Solo datos estructurales; nada que ya esté cubierto o que el usuario haya cerrado.</summary>
+    /// <summary>Un campo de contenido que declara que algo existe pero «no se indica» está sin detallar: se puede preguntar.</summary>
+    internal static bool SinDetallar(string campo, object? valor) =>
+        CamposDeContenido.Contains(campo)
+        && (valor switch { string t => [t], List<object?> l => l.OfType<string>().ToList(), _ => new List<string>() }).Any(t => t.Contains("no se indic", StringComparison.OrdinalIgnoreCase));
+
     private bool PuedePreguntarse(Contexto ctx, string registroId, Dictionary<string, object?> fm, string campo, ResultadoCaptura res)
     {
         if (!CamposPreguntables.Contains(campo))
@@ -1023,14 +1066,8 @@ public sealed class Procesador(
             return false;
         }
 
-        var clase = (string?)fm.GetValueOrDefault("clase");
-        if (campo == "resultados" && !ClasesConResultadoPreguntable.Contains(clase ?? string.Empty))
-        {
-            return false; // el resultado de una reunión o de una decisión es contenido, no estado
-        }
-
-        // Nada que completar si el dato ya es conocido por el usuario.
-        if (campo != "coincidencia" && fm.TryGetValue(campo, out var valor) && valor as string != "desconocido"
+        // Nada que completar si el dato ya es conocido por el usuario. Un campo de contenido que dice «no se indica…» sí está por completar.
+        if (campo != "coincidencia" && fm.TryGetValue(campo, out var valor) && valor as string != "desconocido" && !SinDetallar(campo, valor)
             && fm.TryGetValue("certeza", out var cz) && cz is Dictionary<string, object?> certeza
             && certeza.GetValueOrDefault(campo) as string is "dicho" or "confirmado")
         {
@@ -1047,15 +1084,7 @@ public sealed class Procesador(
             }
 
             var mismoRegistro = (string?)q.Frontmatter.GetValueOrDefault("registro") == registroId;
-            if (mismoRegistro && estado is "no_recuerda" or "no_relevante" or "respondida")
-            {
-                return false;
-            }
-
-            // «No relevante» desalienta preguntas equivalentes: mismo campo y misma clase de registro.
-            if (estado == "no_relevante"
-                && ctx.Almacen.Documentos.FirstOrDefault(d => d.Id == (string?)q.Frontmatter.GetValueOrDefault("registro")) is { } origen
-                && (string?)origen.Frontmatter.GetValueOrDefault("clase") == clase)
+            if (mismoRegistro && estado is "no_recuerda" or "no_relevante" or "no_sucedio" or "respondida")
             {
                 return false;
             }
@@ -1106,6 +1135,7 @@ public sealed class Procesador(
     {
         _modoLotes = true;
         var resultado = new ResultadoEjecucion();
+        ActualizarAprendizaje();
         var almacen = Almacen.Cargar(datos);
         var abiertos = EnviosAbiertos(almacen);
         resultado.Pendientes = PendientesSinEnvio(almacen).Count;

@@ -118,7 +118,7 @@ public class ProcesadorTests
     // ---------------------------------------------------------------- C3 preguntas estructurales
 
     [Fact]
-    public async Task C3_Solo_se_crean_preguntas_estructurales_y_se_descartan_las_de_contenido()
+    public async Task C3_Se_crean_preguntas_estructurales_y_de_contenido_y_se_descartan_las_de_campos_no_preguntables()
     {
         using var e = new EntornoMira();
         e.Capturar("Hoy reunión con Nuvia sobre el piloto. Hemos llegado a varios acuerdos. Después he estado con la incidencia del servidor de Nuvia.");
@@ -130,16 +130,19 @@ public class ProcesadorTests
         ],
             new PreguntaCandidata("resultados", "¿Quedó resuelta la incidencia del servidor de Nuvia?", "alta", RegistroIndice: 1),
             new PreguntaCandidata("duracion", "¿Cuánto duró la reunión con Nuvia?", "media", RegistroIndice: 0),
-            new PreguntaCandidata("resultados", "¿Qué acuerdos tomasteis?", "alta", RegistroIndice: 0), // contenido sustantivo de una reunión
-            new PreguntaCandidata("contexto", "¿Qué fallaba en el servidor?", "alta", RegistroIndice: 1)); // campo no estructural
+            new PreguntaCandidata("resultados", "¿Qué acuerdos tomasteis?", "alta", RegistroIndice: 0), // contenido que la nota deja sin detallar
+            new PreguntaCandidata("contexto", "¿Qué fallaba en el servidor?", "alta", RegistroIndice: 1),
+            new PreguntaCandidata("titulo", "¿Cómo se llama la reunión?", "baja", RegistroIndice: 0)); // campo no preguntable
 
         var r = await e.Procesar();
 
-        Assert.Equal(2, r.PreguntasCreadas.Count);
+        Assert.Equal(4, r.PreguntasCreadas.Count);
         var textos = e.Preguntas().Select(p => (string)p.Frontmatter["texto"]!).ToList();
         Assert.Contains("¿Quedó resuelta la incidencia del servidor de Nuvia?", textos);
         Assert.Contains("¿Cuánto duró la reunión con Nuvia?", textos);
-        Assert.DoesNotContain(textos, t => t.Contains("acuerdos") || t.Contains("fallaba"));
+        Assert.Contains("¿Qué acuerdos tomasteis?", textos);
+        Assert.Contains("¿Qué fallaba en el servidor?", textos);
+        Assert.DoesNotContain(textos, t => t.Contains("Cómo se llama"));
         Assert.Contains("preguntas_descartadas", e.Leer(r.LoteId!));
         Assert.All(e.Preguntas(), p => Assert.Equal("pendiente", p.Frontmatter["estado"]));
         Assert.Empty(e.Validar());
@@ -437,9 +440,27 @@ public class ProcesadorTests
     private static PreguntaCandidata P(int registro, string campo, string valor, string texto = "¿…?") => new(campo, texto, valor, RegistroIndice: registro);
 
     [Fact]
-    public async Task C10_Solo_se_crean_las_cinco_preguntas_de_mayor_valor()
+    public async Task C10_Sin_maximo_configurado_se_crean_todas_las_preguntas_validas()
     {
         using var e = new EntornoMira();
+        e.Capturar("A uno. B dos. C tres. D cuatro.");
+        e.Respuesta = _ => Resp([
+            Registro("A uno.", "actividad", "A"), Registro("B dos.", "actividad", "B"), Registro("C tres.", "actividad", "C"), Registro("D cuatro.", "actividad", "D"),
+        ],
+            P(0, "duracion", "baja"), P(0, "lugares", "baja"), P(1, "duracion", "media"), P(1, "personas", "media"),
+            P(2, "duracion", "alta"), P(2, "hora", "alta"), P(3, "duracion", "media"), P(3, "proyectos", "baja"));
+
+        var r = await e.Procesar();
+
+        Assert.Equal(8, r.PreguntasCreadas.Count);
+        Assert.DoesNotContain("preguntas_descartadas", e.Leer(r.LoteId!));
+        Assert.Empty(r.PreguntasCerradasPorLimite);
+    }
+
+    [Fact]
+    public async Task C10_Con_maximo_configurado_solo_se_crean_las_cinco_preguntas_de_mayor_valor()
+    {
+        using var e = new EntornoMira { Opciones = new OpcionesProcesador(MaximoPendientes: 5) };
         e.Capturar("A uno. B dos. C tres. D cuatro.");
         e.Respuesta = _ => Resp([
             Registro("A uno.", "actividad", "A"), Registro("B dos.", "actividad", "B"), Registro("C tres.", "actividad", "C"), Registro("D cuatro.", "actividad", "D"),
@@ -479,7 +500,7 @@ public class ProcesadorTests
     }
 
     [Fact]
-    public async Task C11_Tras_no_relevante_no_se_repite_ni_se_formula_otra_equivalente()
+    public async Task C11_Tras_un_no_relevante_no_se_repite_esa_pregunta_pero_una_clase_no_se_prohibe_con_un_solo_cierre()
     {
         using var e = new EntornoMira();
         e.Capturar("Se me ha ocurrido usar cron.");
@@ -498,8 +519,10 @@ public class ProcesadorTests
         e.Respuesta = _ => Resp([Registro("Otra idea suelta.", "idea", "Otra idea")], P(0, "proyectos", "baja", "¿Y esta, de qué proyecto?"));
         var r = await e.Procesar();
 
-        Assert.Empty(r.PreguntasCreadas); // misma clase y mismo campo: equivalente
-        Assert.Single(e.Preguntas());
+        // Con un solo cierre no hay aprendizaje (hacen falta ≥ 3 en ≥ 2 días): la clase no se prohíbe, X64.
+        Assert.Single(r.PreguntasCreadas);
+        Assert.Equal(2, e.Preguntas().Count);
+        Assert.Empty(Orumi.Core.Aprendizaje.MotorDeAprendizaje.Listar(e.Datos));
     }
 
     [Fact]

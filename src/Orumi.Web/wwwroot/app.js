@@ -2,7 +2,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const CLAVE_TOKEN = 'orumi_token';
-  const texto = $('texto'), dictar = $('dictar'), enviar = $('enviar'), estado = $('estado'), pendientes = $('pendientes');
+  const texto = $('texto'), enviar = $('enviar'), estado = $('estado'), pendientes = $('pendientes');
   const { Icono, Logo } = window.OrumiIconos;
   const reducido = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -130,13 +130,37 @@
     actualizarPendientes();
   }
 
+  // La ciudad la indica el usuario; se sugieren las últimas usadas en este dispositivo, sin rellenarla sola
+  // ni usar la geolocalización del navegador.
+  const CLAVE_CIUDADES = 'orumi.ciudades';
+  const CIUDADES_BASE = ['Barcelona', 'Segur de Calafell'];
+  function ciudadIndicada() {
+    const c = ($('ciudad').value || '').trim();
+    return c && c.toLowerCase() !== 'barcelona' ? c : null;
+  }
+  function pintarSugerencias() {
+    const lista = $('ciudades');
+    while (lista.firstChild) lista.removeChild(lista.firstChild);
+    const vistas = new Set();
+    for (const c of [...(leerLS(CLAVE_CIUDADES) || []), ...CIUDADES_BASE]) {
+      if (typeof c !== 'string' || vistas.has(c.toLowerCase())) continue;
+      vistas.add(c.toLowerCase());
+      const o = document.createElement('option'); o.value = c; lista.append(o);
+    }
+  }
+  function recordarCiudad(c) {
+    if (!c) return;
+    const previas = (leerLS(CLAVE_CIUDADES) || []).filter((x) => typeof x === 'string' && x.toLowerCase() !== c.toLowerCase());
+    escribirLS(CLAVE_CIUDADES, [c, ...previas].slice(0, 5));
+    pintarSugerencias();
+  }
+
   async function enviarNota() {
     const t = texto.value;
-    if (!t.trim()) { decir('Escribe o dicta algo antes de enviar.', 'mal'); return; }
-    parar();
+    if (!t.trim()) { decir('Escribe algo antes de enviar.', 'mal'); return; }
     enviar.disabled = true;
     const nota = {
-      idEnvio: crypto.randomUUID(), texto: t, voz: huboDictado, fechaAcontecimiento: $('fecha').value || null,
+      idEnvio: crypto.randomUUID(), texto: t, ciudad: ciudadIndicada(), fechaAcontecimiento: $('fecha').value || null,
       etiqueta: $('etiqueta').value.trim() || null, dispositivo: dispositivo(), creada: new Date().toISOString(),
     };
     try { await guardar(nota); } catch { /* si no hay almacenamiento local se envía igualmente */ }
@@ -144,7 +168,8 @@
     enviar.disabled = false;
     if (r.resultado === 'ok') {
       try { await quitar(nota.idEnvio); } catch { /* nada */ }
-      texto.value = ''; huboDictado = false; base = '';
+      recordarCiudad(nota.ciudad); $('ciudad').value = '';
+      texto.value = '';
       decir('Nota guardada · ' + r.id, 'ok');
       confirmar();
     } else if (r.resultado === 'rechazada') {
@@ -154,7 +179,8 @@
       decir(r.prohibido ? 'Esta cuenta no tiene acceso a ORUMI.' : r.bloqueado ? 'Demasiados intentos. Espera unos minutos.' : 'La sesión ha caducado. La nota queda guardada en este dispositivo: inicia sesión para enviarla.', 'mal');
       texto.value = ''; if (!r.prohibido) mostrar(true);
     } else {
-      texto.value = ''; huboDictado = false; base = '';
+      recordarCiudad(nota.ciudad); $('ciudad').value = '';
+      texto.value = '';
       decir('Sin conexión: la nota queda guardada en este dispositivo y se enviará sola.', 'ok');
     }
     actualizarPendientes();
@@ -165,16 +191,10 @@
     const l = $('lienzo'); l.classList.remove('enviada'); void l.offsetWidth; l.classList.add('enviada');
     setTimeout(() => l.classList.remove('enviada'), reducido ? 0 : 950);
   }
-  function marcarMic(on) {
-    dictar.setAttribute('aria-pressed', on ? 'true' : 'false');
-    dictar.querySelector('.etiqueta-mic').textContent = on ? 'Parar' : 'Dictar';
-  }
   function iniciarInterfaz() {
     document.querySelectorAll('[data-icono]').forEach((n) => n.prepend(Icono(n.dataset.icono)));
     $('marca').append(Logo(30), Object.assign(document.createElement('span'), { textContent: 'ORUMI' }));
     $('logo-acceso').append(Logo(76));
-    dictar.prepend(Object.assign(Icono('microfono'), { }));
-    dictar.firstChild.classList.add('icono-mic');
     enviar.append(Icono('enviar'));
     const t = $('tema');
     const pintar = () => { while (t.firstChild) t.removeChild(t.firstChild); t.append(Icono(window.OrumiTema.actual() === 'dark' ? 'sol' : 'luna')); };
@@ -183,35 +203,6 @@
     const cuenta = $('cuenta');
     texto.addEventListener('input', () => { cuenta.textContent = texto.value.length ? texto.value.length.toLocaleString('es-ES') + ' caracteres' : ''; });
   }
-
-  // ------------------------------------------------------------ dictado (opcional)
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null, escuchando = false, huboDictado = false, base = '', finales = '';
-
-  function parar() { if (rec && escuchando) rec.stop(); }
-
-  if (SR) {
-    dictar.hidden = false; $('aviso-voz').hidden = false;
-    dictar.addEventListener('click', () => {
-      if (escuchando) { rec.stop(); return; }
-      base = texto.value; finales = '';
-      rec = new SR(); rec.lang = 'es-ES'; rec.continuous = true; rec.interimResults = true;
-      rec.onstart = () => { escuchando = true; huboDictado = true; marcarMic(true); decir('Escuchando…'); };
-      rec.onend = () => { escuchando = false; marcarMic(false); texto.value = (base + finales).trimStart(); decir(''); };
-      rec.onerror = (e) => { if (e.error !== 'no-speech' && e.error !== 'aborted') decir('El dictado falló (' + e.error + '). Puedes escribir la nota.', 'mal'); };
-      rec.onresult = (e) => {
-        let provisional = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const parte = e.results[i][0].transcript;
-          if (e.results[i].isFinal) finales += (finales && !/\s$/.test(finales) ? ' ' : '') + parte.trim(); else provisional += parte;
-        }
-        const sep = (base && !/\s$/.test(base) ? ' ' : '');
-        texto.value = base + sep + finales + (provisional ? (finales ? ' ' : '') + provisional : '');
-      };
-      rec.start();
-    });
-  }
-  texto.addEventListener('input', () => { if (!escuchando) base = texto.value; });
 
   // ------------------------------------------------------------ arranque
   $('entrar').addEventListener('click', entrar);
@@ -222,6 +213,7 @@
   window.addEventListener('offline', () => { estado.textContent = 'sin conexión'; });
 
   iniciarInterfaz();
+  pintarSugerencias();
   (async () => {
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
     const vuelta = leerFragmento();

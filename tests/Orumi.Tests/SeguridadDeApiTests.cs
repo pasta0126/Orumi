@@ -130,6 +130,29 @@ public class SeguridadDeApiTests
         Assert.NotEqual(0, (await Peticion(g, "POST", "/api/config", bearer: null)).Estado);
     }
 
+    [Theory]
+    [InlineData("GET", "/api/perfil")]
+    [InlineData("GET", "/api/perfil/descarga")]
+    [InlineData("POST", "/api/perfil/generar")]
+    [InlineData("POST", "/api/perfil/rasgos/prefiere_mensajes_cortos/corregir")]
+    [InlineData("POST", "/api/perfil/borrar-todo")]
+    [InlineData("GET", "/api/repaso")]
+    [InlineData("POST", "/api/repaso")]
+    [InlineData("POST", "/api/deshacer/0123456789abcdef")]
+    public async Task Las_rutas_del_perfil_exigen_sesion_y_rechazan_cuentas_ajenas_y_otros_origenes(string metodo, string ruta)
+    {
+        var (g, _) = Montar();
+
+        Assert.Equal(401, (await Peticion(g, metodo, ruta, bearer: null)).Estado);
+        Assert.Equal(403, (await Peticion(g, metodo, ruta, bearer: "otro", ip: "3.3.3.3")).Estado);
+        if (metodo == "POST")
+        {
+            Assert.Equal(403, (await Peticion(g, metodo, ruta, origenPropio: false, ip: "4.4.4.4")).Estado);
+        }
+
+        Assert.True((await Peticion(g, metodo, ruta, ip: "5.5.5.5")).Sigue);
+    }
+
     [Fact]
     public async Task Una_cuenta_ajena_recibe_403()
     {

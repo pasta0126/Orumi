@@ -150,8 +150,6 @@ label { color: var(--suave); font-size: .85rem; font-weight: 600; }
 @keyframes giro { to { transform: rotate(360deg); } }
 @keyframes pulso { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.28); opacity: .78; } }
 @keyframes brillo-esqueleto { to { transform: translateX(100%); } }
-@keyframes onda { 0%, 100% { transform: scaleY(.28); } 50% { transform: scaleY(1); } }
-@keyframes halo { 0% { transform: scale(1); opacity: .55; } 100% { transform: scale(1.9); opacity: 0; } }
 @keyframes aviso-sube { from { opacity: 0; transform: translate3d(-50%, 18px, 0) scale(.96); } to { opacity: 1; transform: translate3d(-50%, 0, 0) scale(1); } }
 .vista { animation: aparecer .28s var(--ease) both; }
 .entra { animation: subir .6s var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms); }

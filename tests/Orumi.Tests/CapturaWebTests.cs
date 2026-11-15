@@ -16,8 +16,8 @@ public class CapturaWebTests : IDisposable
 
     private ServicioDeCaptura Servicio() => new(_datos, () => _ahora);
 
-    private static SolicitudDeCaptura Nota(string? texto = "Hoy llamé a Marta.", bool voz = false, string? fecha = null, string? etiqueta = null, string? dispositivo = null, string? id = null) =>
-        new(texto, voz, fecha, etiqueta, dispositivo, id ?? Guid.NewGuid().ToString());
+    private static SolicitudDeCaptura Nota(string? texto = "Hoy llamé a Marta.", string? fecha = null, string? etiqueta = null, string? dispositivo = null, string? id = null) =>
+        new(texto, fecha, etiqueta, dispositivo, id ?? Guid.NewGuid().ToString());
 
     private Documento Capturada(string id) => Almacen.Cargar(_datos).DeTipo("captura").Single(d => d.Id == id);
 
@@ -36,14 +36,36 @@ public class CapturaWebTests : IDisposable
     }
 
     [Fact]
-    public void Una_nota_dictada_crea_una_captura_con_origen_voz_y_el_texto_revisado()
+    public void Toda_nota_web_se_crea_con_origen_texto_y_conserva_el_dispositivo()
     {
-        var r = Servicio().Crear(Nota("Texto tras revisarlo.", voz: true, dispositivo: "web-movil"));
+        var r = Servicio().Crear(Nota("Texto escrito.", dispositivo: "web-movil"));
 
         var c = Capturada(r.Id);
-        Assert.Equal("voz", c.Frontmatter["origen"]);
-        Assert.Equal("Texto tras revisarlo.", c.Cuerpo);
+        Assert.Equal("texto", c.Frontmatter["origen"]);
+        Assert.Equal("Texto escrito.", c.Cuerpo);
         Assert.Equal("web-movil", ((Dictionary<string, object?>)c.Frontmatter["contexto_automatico"]!)["dispositivo"]);
+    }
+
+    [Fact]
+    public void La_ciudad_indicada_en_la_web_se_guarda_y_sin_ella_no_hay_ciudad()
+    {
+        var con = Servicio().Crear(Nota("Partido.") with { Ciudad = "Segur de Calafell" });
+        var sin = Servicio().Crear(Nota("Otra nota."));
+
+        Assert.Equal("Segur de Calafell", Capturada(con.Id).Frontmatter["ciudad"]);
+        Assert.DoesNotContain("ciudad", Capturada(sin.Id).Frontmatter.Keys);
+    }
+
+    [Fact]
+    public void El_indicador_de_voz_de_una_pagina_antigua_se_ignora_y_la_captura_es_de_texto()
+    {
+        var cuerpo = "{\"idEnvio\":\"" + Guid.NewGuid() + "\",\"texto\":\"Nota de una página antigua.\",\"voz\":true,\"dispositivo\":\"web\"}";
+        var solicitud = System.Text.Json.JsonSerializer.Deserialize<SolicitudDeCaptura>(
+            cuerpo, new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+
+        var r = Servicio().Crear(solicitud);
+
+        Assert.Equal("texto", Capturada(r.Id).Frontmatter["origen"]);
     }
 
     [Fact]
@@ -74,7 +96,7 @@ public class CapturaWebTests : IDisposable
     public void Sin_un_identificador_de_envio_valido_no_se_crea_nada()
     {
         Assert.Throws<CapturaInvalidaException>(() => Servicio().Crear(Nota(id: "../../etc/passwd")));
-        Assert.Throws<CapturaInvalidaException>(() => Servicio().Crear(new SolicitudDeCaptura("Hola.", false, null, null, null, null)));
+        Assert.Throws<CapturaInvalidaException>(() => Servicio().Crear(new SolicitudDeCaptura("Hola.", null, null, null, null)));
         Assert.Empty(Directory.GetFiles(_datos, "*", SearchOption.AllDirectories));
     }
 

@@ -8,7 +8,7 @@ Cada entidad es una tabla o colección con estos campos. Todos salen del frontma
 
 | Entidad | Campos |
 |---------|--------|
-| `captura` | `id`, `ruta`, `comunicada_el`, `origen`, `fecha_acontecimiento`, `etiqueta`, `dispositivo`, `huella_ok` |
+| `captura` | `id`, `ruta`, `comunicada_el`, `origen`, `fecha_acontecimiento`, `etiqueta`, `ciudad`, `dispositivo`, `huella_ok` |
 | `registro` | `id`, `ruta`, `clase`, `titulo`, `comunicada_el`, `fecha_expresion`, `fecha_desde`, `fecha_hasta`, `hora_valor`, `hora_aproximada`, `hora_expresion`, `duracion_minutos`, `multidia_estado`, `multidia_fin`, `clave_extraccion`, `version_agente`, `modelo`, `generado_el`, `actualizado_el` |
 | `registro_dato` | `registro_id`, `campo`, `valor`, `certeza` (una fila por elemento de `personas`, `lugares`, `proyectos`, `herramientas`, `acciones`, `resultados`, `problemas`, `ideas`, `contexto`) |
 | `registro_entidad` | `registro_id`, `nombre`, `nombre_normalizado`, `tipo`, `certeza` (una fila por entidad) |
@@ -21,6 +21,8 @@ Cada entidad es una tabla o colección con estos campos. Todos salen del frontma
 | `historial` | `registro_id`, `fecha`, `origen`, `campo`, `pregunta_id`, `captura_id` |
 | `pregunta` | `id`, `registro_id`, `campo`, `estado`, `valor`, `creada_el`, `cerrada_el` |
 | `lote` | `id`, `ejecutado_el`, `ejecucion`, `version_agente`, `modelo` |
+| `clima_dia` | `fecha`, `ciudad` (clave), `fuente`, `latitud`, `longitud`, `obtenido`, `uv_maximo`, `amanecer`, `atardecer`, `luz_s`, `sol_s`, `precipitacion_mm`, `temperatura_minima/maxima`, `humedad_media`, `nubosidad_media` (NULL = desconocido) |
+| `clima_hora` | `fecha`, `ciudad`, `hora`, `temperatura`, `humedad`, `precipitacion`, `nubosidad`, `radiacion`, `sol_s`, `uv` |
 | `lote_captura` | `lote_id`, `captura_id`, `registro_id`, `accion` (`creado` / `actualizado`) |
 
 ### Consultas que debe permitir (spec `indice-y-respaldo`)

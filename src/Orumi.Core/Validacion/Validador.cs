@@ -14,13 +14,13 @@ public static partial class Validador
 {
     private static readonly string[] Certezas = ["dicho", "confirmado", "interpretado", "hipotesis", "recomendacion"];
     private static readonly string[] Clases = ["actividad", "evento", "idea", "decision", "problema", "otro"];
-    private static readonly string[] EstadosPregunta = ["pendiente", "respondida", "no_recuerda", "no_relevante", "cerrada_por_limite"];
+    private static readonly string[] EstadosPregunta = ["pendiente", "respondida", "no_recuerda", "no_relevante", "no_sucedio", "cerrada_por_limite"];
     private static readonly string[] TiposEntidad = ["organizacion", "sistema", "producto", "otro"];
     private static readonly string[] TiposRelacion = ["surge_de", "continua", "relacionado_con"];
     private static readonly string[] CamposConCerteza =
         ["fecha", "hora", "duracion", "contexto", "personas", "lugares", "proyectos", "herramientas", "acciones", "resultados", "problemas", "ideas"];
     private static readonly string[] ClavesCaptura =
-        ["id", "tipo", "comunicada_el", "origen", "huella", "contexto_automatico", "fecha_acontecimiento", "etiqueta"];
+        ["id", "tipo", "comunicada_el", "origen", "huella", "contexto_automatico", "fecha_acontecimiento", "etiqueta", "ciudad"];
 
     [GeneratedRegex(@"^\d{4}-\d{2}-\d{2}$")] private static partial Regex FechaRx();
     [GeneratedRegex(@"^([01]\d|2[0-3]):[0-5]\d$")] private static partial Regex HoraRx();
@@ -59,7 +59,8 @@ public static partial class Validador
             {
                 E("el identificador no tiene un formato válido");
             }
-            else if (!d.Ruta.StartsWith(esperado + "/", StringComparison.Ordinal))
+            else if (!d.Ruta.StartsWith(esperado + "/", StringComparison.Ordinal)
+                     && !(d.Tipo == "pregunta" && d.Ruta.StartsWith("perfil/preguntas/", StringComparison.Ordinal))) // las de Noa viven en su espacio
             {
                 E($"ruta esperada {esperado}/");
             }
@@ -149,6 +150,12 @@ public static partial class Validador
         if (Texto(fm, "huella") != Huella.De(d.Cuerpo))
         {
             E("la huella no coincide con el cuerpo");
+        }
+
+        if (fm.TryGetValue("ciudad", out var ciudadFm)
+            && (ciudadFm is not string cs || cs.Length is 0 or > Orumi.Core.Capturas.CreadorDeCapturas.LongitudMaximaCiudad || cs.Any(char.IsControl)))
+        {
+            E("ciudad inválida (texto de 1 a 60 caracteres, sin saltos de línea)");
         }
 
         var extra = fm.Keys.Except(ClavesCaptura).ToList();
@@ -689,7 +696,31 @@ public static partial class Validador
             E("id de pregunta mal formado");
         }
 
-        if (doc("registro", Texto(fm, "registro")) is null)
+        var agenteEscrito = fm.GetValueOrDefault("generada_por") is Dictionary<string, object?> gp ? Texto(gp, "agente") : null;
+        if (!Orumi.Core.Correcciones.AgentesDePregunta.EsValido(agenteEscrito))
+        {
+            E("agente de la pregunta no válido (Mira | Noa)");
+        }
+
+        if (Orumi.Core.Correcciones.AgentesDePregunta.De(fm) == Orumi.Core.Correcciones.AgentesDePregunta.Noa)
+        {
+            // Las de Noa no van atadas a un registro: hablan de un rasgo del perfil o de un apartado, y viven en su espacio.
+            if (!d.Ruta.StartsWith("perfil/preguntas/", StringComparison.Ordinal))
+            {
+                E("una pregunta de Noa vive en perfil/preguntas/");
+            }
+
+            if (fm.ContainsKey("registro") || fm.ContainsKey("otros_registros"))
+            {
+                E("una pregunta de Noa no se ata a un registro");
+            }
+
+            if (Texto(fm, "rasgo") is null && Texto(fm, "apartado") is null)
+            {
+                E("una pregunta de Noa indica su rasgo o su apartado");
+            }
+        }
+        else if (doc("registro", Texto(fm, "registro")) is null)
         {
             E("registro inexistente");
         }
@@ -700,7 +731,7 @@ public static partial class Validador
             E("estado inválido");
         }
 
-        if (estado is "respondida" or "no_recuerda" or "no_relevante" && !fm.ContainsKey("respuesta"))
+        if (estado is "respondida" or "no_recuerda" or "no_relevante" or "no_sucedio" && !fm.ContainsKey("respuesta"))
         {
             E("pregunta cerrada sin respuesta");
         }

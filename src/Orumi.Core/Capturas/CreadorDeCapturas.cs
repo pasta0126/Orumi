@@ -24,7 +24,8 @@ public static class CreadorDeCapturas
         string? fechaAcontecimiento = null,
         string? etiqueta = null,
         Func<DateTimeOffset, string>? generadorId = null,
-        string origen = "texto")
+        string origen = "texto",
+        string? ciudad = null)
     {
         if (origen is not ("texto" or "voz"))
         {
@@ -47,6 +48,8 @@ public static class CreadorDeCapturas
             throw new CapturaInvalidaException("El dispositivo no puede estar vacío.");
         }
 
+        ciudad = NormalizarCiudad(ciudad);
+
         var generar = generadorId ?? Identificadores.NuevaCaptura;
         Exception? ultimo = null;
         for (var intento = 0; intento < IntentosDeIdentificador; intento++)
@@ -61,7 +64,7 @@ public static class CreadorDeCapturas
                 continue;
             }
 
-            var contenido = Contenido(id, texto, comunicadaEl, dispositivo, fechaAcontecimiento, etiqueta, origen);
+            var contenido = Contenido(id, texto, comunicadaEl, dispositivo, fechaAcontecimiento, etiqueta, origen, ciudad);
             try
             {
                 EscrituraAtomica.EscribirNuevo(ruta, contenido);
@@ -78,7 +81,7 @@ public static class CreadorDeCapturas
     }
 
     internal static string Contenido(
-        string id, string texto, DateTimeOffset comunicadaEl, string dispositivo, string? fechaAcontecimiento, string? etiqueta, string origen = "texto")
+        string id, string texto, DateTimeOffset comunicadaEl, string dispositivo, string? fechaAcontecimiento, string? etiqueta, string origen = "texto", string? ciudad = null)
     {
         var pares = new List<(string, YNodo)>
         {
@@ -99,7 +102,34 @@ public static class CreadorDeCapturas
             pares.Add(("etiqueta", new YTexto(etiqueta)));
         }
 
+        if (ciudad is not null)
+        {
+            pares.Add(("ciudad", new YTexto(ciudad)));
+        }
+
         return "---\n" + YamlEscritor.Escribir(YMapa.De([.. pares])) + "---\n" + texto;
+    }
+
+    public const int LongitudMaximaCiudad = 60;
+
+    /// <summary>
+    /// La ciudad la indica el usuario (nunca el dispositivo): se recorta, vacía equivale a ausente y no admite
+    /// saltos de línea ni caracteres de control (spec <c>captura-de-texto</c>, X62).
+    /// </summary>
+    public static string? NormalizarCiudad(string? ciudad)
+    {
+        if (string.IsNullOrWhiteSpace(ciudad))
+        {
+            return null;
+        }
+
+        var c = ciudad.Trim();
+        if (c.Length > LongitudMaximaCiudad || c.Any(char.IsControl))
+        {
+            throw new CapturaInvalidaException($"La ciudad no es válida (máximo {LongitudMaximaCiudad} caracteres, sin saltos de línea).");
+        }
+
+        return c;
     }
 
     /// <summary>Relee la captura escrita: debe poder analizarse y su cuerpo y su huella deben coincidir con el original.</summary>

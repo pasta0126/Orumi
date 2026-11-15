@@ -113,19 +113,29 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
     }
 
     /// <summary>El mensaje de usuario: JSON con lo mínimo necesario.</summary>
-    public static string Mensaje(SolicitudExtraccion s) => JsonSerializer.Serialize(new
+    public static string Mensaje(SolicitudExtraccion s)
     {
-        captura_id = s.CapturaId,
-        comunicada_el = s.ComunicadaEl.ToString("yyyy-MM-dd'T'HH:mm:sszzz"),
-        fecha_acontecimiento = s.FechaAcontecimiento,
-        etiqueta = s.Etiqueta,
-        texto = s.Texto,
-        claves_existentes = s.ClavesExistentes,
-        registros_relacionados = s.Relacionados.Select(r => new
+        var mensaje = new Dictionary<string, object?>
+        {
+            ["captura_id"] = s.CapturaId,
+            ["comunicada_el"] = s.ComunicadaEl.ToString("yyyy-MM-dd'T'HH:mm:sszzz"),
+            ["fecha_acontecimiento"] = s.FechaAcontecimiento,
+            ["etiqueta"] = s.Etiqueta,
+            ["texto"] = s.Texto,
+            ["claves_existentes"] = s.ClavesExistentes,
+        };
+        if (s.Preferencias is { Count: > 0 })
+        {
+            // Solo la descripción de las reglas aprendidas: nunca textos de cierres ni identificadores del usuario.
+            mensaje["preferencias_del_usuario"] = s.Preferencias;
+        }
+
+        mensaje["registros_relacionados"] = s.Relacionados.Select(r => new
         {
             r.Id, r.Clase, r.Titulo, fecha_desde = r.FechaDesde, fecha_hasta = r.FechaHasta, r.Personas, r.Entidades, r.Proyectos, multidia_estado = r.MultidiaEstado,
-        }),
-    }, new JsonSerializerOptions { WriteIndented = false, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+        });
+        return JsonSerializer.Serialize(mensaje, new JsonSerializerOptions { WriteIndented = false, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+    }
 
     /// <summary>Resumen del contrato de <c>docs/agente-mira.md</c> §3, §4 y §6 para el modelo.</summary>
     public const string Instrucciones = """
@@ -146,7 +156,8 @@ public sealed class ProveedorAnthropic(string modelo, AnthropicClient? cliente =
         - Una actividad que el usuario deja abierta ("sigo mañana") lleva "multidia" con estado "abierto".
         - Si una nota continúa o cierra uno de los registros_relacionados con claridad, usa "amplia" con su id. Si no estás seguro de que sea el mismo, usa "duda" con su id. Si contradice un dato de uno de ellos, usa "en_conflicto_con" y "conflicto_campo". Solo puedes citar ids de registros_relacionados.
         - Si reprocesas una nota con claves_existentes, usa "reclama" con la clave del registro que corresponde a cada elemento.
-        - Preguntas (opcionales, pocas): solo para completar datos estructurales (fecha, hora, duracion, personas, lugares, proyectos, o si lo que quedó abierto se resolvió). NUNCA preguntes por el contenido de lo hablado o decidido (qué acuerdos, por qué). Sin consejos ni valoraciones.
+        - Preguntas: pregunta todo lo que falte para completar el registro, sea un dato estructural (fecha, hora, duracion, personas, lugares, proyectos, entidades, o si lo que quedó abierto se resolvió) o el contenido que la nota deja abierto o sin detallar (el porqué en "contexto", el "resultados", lo que quedó pendiente en "acciones", los "problemas", las "ideas", las personas implicadas). Pregunta solo por lo que la nota insinúa o deja sin detallar, nunca por algo que ya dice. Es mejor preguntar de más que dejar un dato desconocido. No inventes ni sugieras la respuesta. Cada pregunta usa uno de esos campos. Sin consejos ni valoraciones.
+        - Si hay "preferencias_del_usuario", indican qué clases de pregunta le resultan poco relevantes: prefiere otras y formula pocas de esas. Son preferencias sobre qué preguntar: no te autorizan a inventar datos ni a contradecir lo que dice la nota.
         - Si la nota no contiene hechos registrables, devuelve {"registros": [], "preguntas": []}.
 
         Formato:

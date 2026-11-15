@@ -23,7 +23,7 @@ public static partial class Esquema
 
             CREATE TABLE {s}.captura (
               id text PRIMARY KEY, ruta text NOT NULL, comunicada_el timestamptz, origen text,
-              fecha_acontecimiento date, etiqueta text, dispositivo text, huella_ok boolean NOT NULL);
+              fecha_acontecimiento date, etiqueta text, ciudad text, dispositivo text, huella_ok boolean NOT NULL);
 
             CREATE TABLE {s}.registro (
               id text PRIMARY KEY, ruta text NOT NULL, clase text, titulo text, comunicada_el timestamptz,
@@ -65,6 +65,17 @@ public static partial class Esquema
               id text PRIMARY KEY, ejecutado_el timestamptz, ejecucion text, version_agente text, modelo text, proveedor text);
 
             CREATE TABLE {s}.lote_captura (lote_id text NOT NULL, captura_id text NOT NULL, registro_id text, accion text);
+
+            CREATE TABLE {s}.clima_dia (
+              fecha date NOT NULL, ciudad text NOT NULL, fuente text, latitud double precision, longitud double precision, obtenido timestamptz,
+              uv_maximo double precision, amanecer text, atardecer text, luz_s double precision, sol_s double precision,
+              precipitacion_mm double precision, temperatura_minima double precision, temperatura_maxima double precision,
+              humedad_media double precision, nubosidad_media double precision, PRIMARY KEY (fecha, ciudad));
+
+            CREATE TABLE {s}.clima_hora (
+              fecha date NOT NULL, ciudad text NOT NULL, hora integer NOT NULL, temperatura double precision, humedad double precision,
+              precipitacion double precision, nubosidad double precision, radiacion double precision, sol_s double precision,
+              uv double precision, PRIMARY KEY (fecha, ciudad, hora));
 
             CREATE INDEX ON {s}.registro (fecha_desde, fecha_hasta);
             CREATE INDEX ON {s}.registro (clase);

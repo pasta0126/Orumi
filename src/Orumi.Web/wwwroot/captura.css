@@ -20,16 +20,6 @@ h2.titulo { font-size: clamp(1.9rem, 5vw, 2.9rem); font-weight: 800; }
 .espacio { flex: 1; }
 .cuenta { color: var(--tenue); font-size: .8rem; font-variant-numeric: tabular-nums; }
 
-/* botón de dictado: halo y ondas mientras escucha */
-.mic { position: relative; gap: 10px; }
-.mic .ondas { display: none; align-items: center; gap: 3px; height: 18px; }
-.mic .ondas i { width: 3px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: center; animation: onda 1s ease-in-out infinite; }
-.mic .ondas i:nth-child(2) { animation-delay: .15s; } .mic .ondas i:nth-child(3) { animation-delay: .3s; } .mic .ondas i:nth-child(4) { animation-delay: .45s; }
-.mic::before { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--c-peligro); opacity: 0; pointer-events: none; }
-.mic[aria-pressed="true"] { color: var(--c-peligro); border-color: color-mix(in srgb, var(--c-peligro) 55%, transparent); background: color-mix(in srgb, var(--c-peligro) 10%, var(--cristal)); }
-.mic[aria-pressed="true"]::before { animation: halo 1.6s ease-out infinite; }
-.mic[aria-pressed="true"] .ondas { display: inline-flex; }
-.mic[aria-pressed="true"] .icono-mic { display: none; }
 
 details.mas { margin: 16px 4px 0; }
 details.mas summary { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; color: var(--suave); font-weight: 600; padding: 6px 2px; }
@@ -62,3 +52,6 @@ details.mas[open] summary { color: var(--texto); }
   .cuenta { display: none; }
   #enviar { flex: 1; }
 }
+
+label.ciudad { display: block; margin: 16px 4px 0; color: var(--tenue); font-size: .9rem; }
+label.ciudad input { display: block; width: 100%; margin-top: 6px; }

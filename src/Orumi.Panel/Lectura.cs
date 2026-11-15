@@ -228,12 +228,22 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
         origen = c.Frontmatter.GetValueOrDefault("origen"),
         fechaAcontecimiento = c.Frontmatter.GetValueOrDefault("fecha_acontecimiento"),
         etiqueta = c.Frontmatter.GetValueOrDefault("etiqueta"),
+        ciudad = c.Frontmatter.GetValueOrDefault("ciudad"),
         texto = c.Cuerpo,
     };
 
     // ---------------------------------------------------------------- preguntas
 
-    public IReadOnlyList<PreguntaConContexto> PreguntasPendientes() => PreguntasConContexto.Pendientes(repositorio.Actual());
+    /// <summary>Preguntas pendientes de todos los agentes o solo de uno (Mira o Noa).</summary>
+    public IReadOnlyList<PreguntaConContexto> PreguntasPendientes(string? agente = null)
+    {
+        if (agente is not null && !AgentesDePregunta.EsValido(agente))
+        {
+            throw new SolicitudInvalidaException("«agente» debe ser Mira o Noa.");
+        }
+
+        return PreguntasConContexto.Pendientes(repositorio.Actual(), agente is null ? null : char.ToUpperInvariant(agente[0]) + agente[1..].ToLowerInvariant());
+    }
 
     // ---------------------------------------------------------------- utilidades
 
@@ -282,6 +292,57 @@ public sealed class Lectura(RepositorioDeDatos repositorio)
 
     /// <summary>Activo = sin estado. Los eliminados y fusionados («tumbas») no salen en días, búsquedas ni recuentos.</summary>
     private static bool EsActivo(Documento r) => !r.Frontmatter.ContainsKey("estado");
+
+    /// <summary>
+    /// Lo que Mira ha aprendido de cómo se cierran sus preguntas (X64), con la evidencia que lo sustenta. Las reglas borradas no salen.
+    /// Se lee de los ficheros en cada petición: los aprendizajes no entran en el almacén de documentos.
+    /// </summary>
+    public object Aprendizajes() => new
+    {
+        aprendizajes = Orumi.Core.Aprendizaje.MotorDeAprendizaje.Listar(repositorio.Datos)
+            .OrderBy(r => r.Estado == Orumi.Core.Aprendizaje.ReglaAprendida.Activa ? 0 : 1).ThenBy(r => r.Id, StringComparer.Ordinal)
+            .Select(r => new
+            {
+                id = r.Id, clase = r.Clase, estado = r.Estado, descripcion = r.Descripcion, evidencia = r.Evidencia, fijada = r.FijadaPorUsuario,
+                creada = r.Creada, actualizada = r.Actualizada,
+                historial = r.Historial.Select(h => new { fecha = h.Fecha, accion = h.Accion, origen = h.Origen, motivo = h.Motivo }),
+            }).ToList(),
+    };
+
+    /// <summary>
+    /// La última revisión semanal (X21) tal como la escribió Mira, las hipótesis del usuario con su estado y la evidencia que hay para reabrir lo
+    /// descartado. Se lee de los ficheros en cada petición. Sin revisión, <c>revision</c> es <c>null</c>.
+    /// </summary>
+    public object Descubrimientos()
+    {
+        var carpeta = Path.Combine(repositorio.Datos, "analisis");
+        var ultima = Directory.Exists(carpeta)
+            ? Directory.EnumerateFiles(carpeta, "semana-*.yaml", SearchOption.AllDirectories).OrderBy(f => Path.GetFileName(f), StringComparer.Ordinal).LastOrDefault()
+            : null;
+        object? revision = null;
+        if (ultima is not null)
+        {
+            try
+            {
+                revision = Orumi.Core.Yaml.YamlLector.LeerMapa(File.ReadAllText(ultima, System.Text.Encoding.UTF8));
+            }
+            catch (Exception e) when (e is IOException or FormatException or YamlDotNet.Core.YamlException)
+            {
+                revision = null; // derivado y regenerable
+            }
+        }
+
+        var hipotesis = Orumi.Core.Hipotesis.AlmacenDeHipotesis.Listar(repositorio.Datos).Select(h => new
+        {
+            id = h.Id, formulacion = h.Formulacion, estado = h.Estado, declarada = h.Declarada,
+            contrastes = h.Contrastes.Select(c => new
+            {
+                id = c.Id, factor = c.Factor, efecto = c.Efecto, retardoDesde = c.RetardoDesde, retardoHasta = c.RetardoHasta,
+                revision = c.Revision is null ? null : new { estado = c.Revision.Estado, comentario = c.Revision.Comentario, fecha = c.Revision.Fecha },
+            }),
+        }).ToList();
+        return new { revision, hipotesis };
+    }
 
     /// <summary>Registros eliminados, para poder restaurarlos.</summary>
     public object Papelera() => new
