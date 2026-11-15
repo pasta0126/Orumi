@@ -220,6 +220,8 @@ orumi/
 ├── envios/AAAA/MM/envio-….md       # lotes diferidos enviados al proveedor (estado abierto o recogido)
 ├── informes/AAAA/MM/inf-….md       # revisiones y análisis (change posterior)
 ├── hipotesis/hip-….yaml            # hipótesis del usuario, «por verificar» (X65)
+├── analisis/repaso/AAAA/MM/rep-….yaml    # constancia de cada repaso (X69): revisados, creadas, descartes, modelo y coste
+├── analisis/repaso/revisados.yaml        # registros que el modelo ya revisó (id → huella); derivado y regenerable
 ├── perfil/                          # Noa (X68): lo único que escribe
 │   ├── perfil.yaml                  # versión vigente
 │   ├── historial/perfil-vNNN-AAAAMMDD-HHMM.yaml   # una copia por versión
@@ -378,7 +380,7 @@ cerrada_el: 2026-11-13T08:30:00+01:00     # al cerrarse
 respuesta: {texto: "No lo recuerdo.", respondida_el: 2026-11-13T08:30:00+01:00}
 ```
 
-Las preguntas completan **datos estructurales** del registro (cuándo, duración, personas, lugar, estado o resultado), no su contenido sustantivo (X36). Una pregunta `no_recuerda` o `no_relevante` no se repite; `no_relevante` es el usuario diciendo que el dato no le importa y sirve de señal para no formular preguntas parecidas. Si es `respondida`, el registro afectado pasa el campo a `confirmado` y su `historial` enlaza con la pregunta (la respuesta es la evidencia).
+Las preguntas completan **datos estructurales** del registro y, desde X69, el **contenido que la nota deja abierto** (`contexto`, `resultados`, `acciones`, `problemas`, `ideas`); las del repaso llevan `generada_por: {agente: Mira, version: repaso, modelo: determinista | <modelo>}`. Las **respuestas rápidas** (botones) no se guardan: se derivan del contenido de la pregunta al listarla. Antes, las preguntas completaban solo **datos estructurales** del registro (cuándo, duración, personas, lugar, estado o resultado), no su contenido sustantivo (X36). Una pregunta `no_recuerda` o `no_relevante` no se repite; `no_relevante` es el usuario diciendo que el dato no le importa y sirve de señal para no formular preguntas parecidas. Si es `respondida`, el registro afectado pasa el campo a `confirmado` y su `historial` enlaza con la pregunta (la respuesta es la evidencia).
 
 **Lote** (bitácora de cada ejecución de Mira, nocturna o a petición): lista las capturas procesadas y los registros y preguntas creados o actualizados, con versión y modelo. Es lo que permite saber qué capturas ya se procesaron sin modificar las capturas (inmutables) y evita reprocesar capturas que no produjeron registros.
 

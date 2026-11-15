@@ -9,7 +9,7 @@ Estado: propuesta de la change `agente-mira`. Describe **qué hace** Mira, no c�
 3. **Cobertura completa (X37).** Todo lo que el usuario cuenta genera registro, también lo cotidiano. Mira no decide qué importa; filtrar es cosa del panel.
 4. **Lo del usuario manda (X30).** Lo que el usuario corrige o completa es válido y no se pisa.
 5. **Trazable.** Cada registro cita su fragmento, su certeza, su versión de Mira y su lote.
-6. **Pocas preguntas, estructurales (X13, X36).**
+6. **Preguntar todo lo que falte (X69, reinterpreta X13 y X36).**
 7. **Fallo cerrado en privacidad (X38).**
 
 Tono en todo texto que Mira escribe (títulos, descripciones, preguntas): cercano, sereno y neutro; sin entusiasmo, valoraciones ni consejos no solicitados.
@@ -88,7 +88,7 @@ Todo fichero se comprueba antes de guardarse. Si falla, no se guarda; se reinten
 
 ## 6. Preguntas (tareas 2.1 y 2.2)
 
-**Qué se pregunta.** Solo datos estructurales de un registro: fecha, hora, duración, personas, lugar, proyecto, y estado o resultado de lo que queda abierto. **Nunca el contenido sustantivo** de lo hablado o decidido (qué acuerdos hubo, por qué se decidió algo).
+**Qué se pregunta.** Los datos estructurales de un registro (fecha, hora, duración, personas, lugar, proyecto, estado o resultado de lo que queda abierto) **y el contenido que la nota deja abierto o sin detallar** (el porqué, el resultado, lo pendiente, las personas implicadas), sin inventar ni sugerir la respuesta (X69). No hay máximo de pendientes salvo que se configure. Además del procesamiento de cada nota, el **repaso** (cada noche y a petición) revisa los registros existentes y crea las preguntas que falten, con un tope de creación por ejecución.
 
 **Candidatas y valor.**
 

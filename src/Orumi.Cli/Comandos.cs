@@ -75,6 +75,7 @@ public sealed class Comandos(
                 "clima" => Clima(opciones),
                 "etiquetar" => Etiquetar(opciones),
                 "analizar" => Analizar(opciones),
+                "repasar" => Repasar(opciones),
                 _ => Uso($"Comando desconocido: {args[0]}"),
             };
         }
@@ -202,7 +203,56 @@ public sealed class Comandos(
             }
         }
 
+        // Repaso de lo ya registrado: crea las preguntas que falten (spec repaso-de-registros). Tampoco cambia el resultado de Mira.
+        if (o.Valor("simulado") is null && ConfigOpcional(o) is { } cfgRepaso && cfgRepaso.Repaso?.Activado != false)
+        {
+            try
+            {
+                Repasar(o);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                error.WriteLine($"Repaso pendiente: {e.Message}");
+            }
+        }
+
         return codigo;
+    }
+
+    /// <summary>
+    /// Repasa los registros existentes y crea las preguntas que falten (spec <c>repaso-de-registros</c>). Sin proveedor o sin garantías solo usa la capa
+    /// determinista; <c>--solo-determinista</c> la fuerza y <c>--simulado FICHERO</c> sustituye al modelo en las pruebas.
+    /// </summary>
+    private int Repasar(Opciones o)
+    {
+        var rutaConfig = o.Valor("config") ?? entorno(VariableConfiguracion);
+        Configuracion? config = rutaConfig is null ? null : Configuracion.Leer(File.ReadAllText(rutaConfig, Encoding.UTF8));
+        var datos = o.Valor("datos") ?? (string.IsNullOrWhiteSpace(config?.Datos) ? null : config.Datos) ?? entorno(VariableDatos);
+        if (string.IsNullOrWhiteSpace(datos) || !Directory.Exists(datos))
+        {
+            error.WriteLine($"Indica un directorio de datos existente con --datos, en la configuración o con la variable {VariableDatos}.");
+            return 2;
+        }
+
+        using var bloqueo = BloqueoDeEjecucion.Adquirir(datos);
+        if (bloqueo is null)
+        {
+            error.WriteLine("Mira está procesando ahora mismo: el repaso termina sin hacer nada.");
+            return 3;
+        }
+
+        var proveedor = o.Valor("solo-determinista") is "si" or "true" ? null : ProveedorDeTexto(o, config);
+        var r = new Orumi.Agente.Repaso.RepasoDeRegistros(datos, reloj, config?.Repaso ?? new ConfiguracionDeRepaso(), proveedor, config, entorno)
+            .EjecutarAsync(soloDeterminista: proveedor is null).GetAwaiter().GetResult();
+        salida.WriteLine($"Repaso: {r.Revisados} registro(s) revisados, {r.Candidatas} pregunta(s) candidatas, {r.Creadas} creada(s)" + (r.Descartadas > 0 ? $", {r.Descartadas} descartada(s) por no cumplir las reglas." : "."));
+        if (r.UsoModelo && r.TokensEntrada + r.TokensSalida > 0)
+        {
+            salida.WriteLine($"Uso: {r.TokensEntrada} tokens de entrada y {r.TokensSalida} de salida; coste estimado " + (r.CosteUsd is { } c ? $"{Formato.Usd2(c)} US$." : "desconocido."));
+        }
+
+        r.Avisos.ToList().ForEach(a => error.WriteLine("  " + a));
+        r.Detenida.ToList().ForEach(m => error.WriteLine($"  - {m}"));
+        return 0;
     }
 
     private void AnalisisNocturno(Opciones o, Configuracion cfg)
@@ -286,7 +336,7 @@ public sealed class Comandos(
         }
 
         var opciones = new OpcionesProcesador(
-            MaximoPendientes: config?.MaximoPendientes ?? 5,
+            MaximoPendientes: config?.MaximoPendientes,
             VentanaRelacionadosDias: config?.VentanaRelacionadosDias ?? 14,
             Precios: config?.Precios,
             Presupuesto: config?.Presupuesto);
@@ -559,6 +609,37 @@ public sealed class Comandos(
         Func<Operaciones, ResultadoOperacion> accion;
         switch (args[0])
         {
+            case "responder" when cierre is null && o.Valor("opcion") is { } numero && posicionales.Count == 1:
+            {
+                var preguntaId = posicionales[0];
+                var pregunta = PreguntasConContexto.Pendientes(Almacen.Cargar(datos, incluirPerfil: true)).FirstOrDefault(p => p.Id == preguntaId);
+                var opciones2 = pregunta?.Opciones ?? [];
+                if (!int.TryParse(numero, out var n) || n < 1 || n > opciones2.Count)
+                {
+                    error.WriteLine(opciones2.Count == 0 ? "Esa pregunta no tiene respuestas rápidas: responde con un valor." : $"--opcion debe ser un número del 1 al {opciones2.Count}.");
+                    return 2;
+                }
+
+                var elegida = opciones2[n - 1];
+                accion = op =>
+                {
+                    if (elegida.Cierre is not null)
+                    {
+                        return op.CerrarSinDato(preguntaId, elegida.Cierre);
+                    }
+
+                    if (elegida.Fusiona)
+                    {
+                        var (destino, origen) = RespuestasRapidas.DestinoDeLaFusion(Almacen.Cargar(datos), preguntaId);
+                        op.Responder(preguntaId, "misma");
+                        return op.Fusionar(destino, origen);
+                    }
+
+                    return op.Responder(preguntaId, elegida.Valor ?? string.Empty, elegida.Registro);
+                };
+                break;
+            }
+
             case "responder" when cierre is not null && posicionales.Count == 1:
                 accion = op => op.CerrarSinDato(posicionales[0], cierre);
                 break;
@@ -587,7 +668,7 @@ public sealed class Comandos(
                 accion = op => op.Separar(posicionales[0], posicionales[1], o.Valor("titulo"));
                 break;
             default:
-                return Uso("Uso: orumi responder PREGUNTA VALOR [--registro ID] | responder PREGUNTA --no-recuerdo | --no-relevante | --no-sucedio\n"
+                return Uso("Uso: orumi responder PREGUNTA VALOR [--registro ID] | responder PREGUNTA --opcion N | responder PREGUNTA --no-recuerdo | --no-relevante | --no-sucedio\n"
                            + "     orumi corregir REGISTRO CAMPO VALOR\n     orumi rechazar REGISTRO CAMPO\n"
                            + "     orumi deshacer REGISTRO [CAMPO]\n     orumi eliminar REGISTRO | restaurar REGISTRO\n"
                            + "     orumi fusionar DESTINO ORIGEN\n     orumi separar REGISTRO CAPTURA [--titulo TEXTO]");
@@ -1194,6 +1275,11 @@ public sealed class Comandos(
                 salida.WriteLine($"    registro: {Titulo(p.Registro)} · campo: {p.Campo} · valor actual: {p.Registro.ValorActual}");
             }
 
+            if (p.Opciones is { Count: > 0 })
+            {
+                salida.WriteLine("    respuestas rápidas: " + string.Join(" · ", p.Opciones.Select((x, i) => $"{i + 1}) {x.Etiqueta}")) + $"   (orumi responder {p.Id} --opcion N)");
+            }
+
             foreach (var otro in p.Otros)
             {
                 salida.WriteLine($"    con: {Titulo(otro)} · valor actual: {otro.ValorActual}");
@@ -1231,7 +1317,7 @@ public sealed class Comandos(
         var geocodificador = geocodificadorDePrueba?.Invoke() ?? new Orumi.Agente.Clima.GeocodificadorOpenMeteo(http);
         var ahora = reloj();
         var resultado = Orumi.Agente.Clima.ObtencionDeClima
-            .EjecutarAsync(datos, Almacen.Cargar(datos), clima, proveedor, DateOnly.FromDateTime(ahora.DateTime), ahora, geocodificador: geocodificador, cupoDePreguntas: config.MaximoPendientes)
+            .EjecutarAsync(datos, Almacen.Cargar(datos), clima, proveedor, DateOnly.FromDateTime(ahora.DateTime), ahora, geocodificador: geocodificador, cupoDePreguntas: config.MaximoPendientes ?? int.MaxValue)
             .GetAwaiter().GetResult();
 
         salida.WriteLine($"Clima: {resultado.Obtenidos} día(s) obtenido(s), {resultado.YaGuardados} ya guardado(s).");
@@ -1387,6 +1473,7 @@ public sealed class Comandos(
           orumi responder PREGUNTA VALOR [--registro ID] | PREGUNTA --no-recuerdo | PREGUNTA --no-relevante | PREGUNTA --no-sucedio
           orumi hipotesis listar | iniciales | añadir --formulacion "…" --factor clima:uv_alto --efecto CONCEPTO [--retardo 0-1]   (tus hipótesis, «por verificar»)
           orumi noa ver [--markdown si] | estado | ejecutar | generar | corregir CLAVE TEXTO | matizar CLAVE COMENTARIO | descartar CLAVE | borrar CLAVE | ocultar|mostrar CLAVE|apartado:SLUG | borrar-todo --confirmar si   (el perfil que Noa elabora de ti)
+          orumi repasar   [--datos RUTA] [--solo-determinista si] [--simulado RESPUESTA.json]   (repasa tus registros y crea las preguntas que falten)
           orumi analizar  [--datos RUTA] [--simulado RESPUESTA.json]   (revisión semanal: contrasta tus hipótesis con tus registros y el clima)
           orumi hipotesis confirmar|matizar|descartar HIPOTESIS[#CONTRASTE] [--comentario "…"]
           orumi etiquetar [--datos RUTA] [--simulado RESPUESTA.json]   (el modelo señala qué conceptos dijiste explícitamente en cada registro)
@@ -1410,7 +1497,7 @@ public sealed class Comandos(
 internal sealed class Opciones
 {
     private static readonly HashSet<string> Conocidas =
-        ["datos", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo", "comentario", "etiquetar", "markdown", "todo", "confirmar"];
+        ["datos", "opcion", "solo-determinista", "texto", "archivo", "fecha-acontecimiento", "etiqueta", "ciudad", "dispositivo", "config", "ejecucion", "reprocesar", "simulado", "exigir-volumen", "esquema", "forzar", "inmediato", "espera-maxima", "registro", "titulo", "formulacion", "factor", "efecto", "descripciones", "retardo", "comentario", "etiquetar", "markdown", "todo", "confirmar"];
 
     private readonly Dictionary<string, string> _valores = [];
 

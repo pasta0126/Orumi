@@ -136,6 +136,9 @@ public class SeguridadDeApiTests
     [InlineData("POST", "/api/perfil/generar")]
     [InlineData("POST", "/api/perfil/rasgos/prefiere_mensajes_cortos/corregir")]
     [InlineData("POST", "/api/perfil/borrar-todo")]
+    [InlineData("GET", "/api/repaso")]
+    [InlineData("POST", "/api/repaso")]
+    [InlineData("POST", "/api/deshacer/0123456789abcdef")]
     public async Task Las_rutas_del_perfil_exigen_sesion_y_rechazan_cuentas_ajenas_y_otros_origenes(string metodo, string ruta)
     {
         var (g, _) = Montar();

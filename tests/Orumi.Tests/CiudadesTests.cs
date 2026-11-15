@@ -417,4 +417,19 @@ public class CiudadesTests : IDisposable
 
         Assert.Empty(PreguntasDeCiudad());
     }
+
+    [Fact]
+    public async Task Responder_con_la_operacion_del_usuario_a_una_pregunta_de_ciudad_la_cierra_sin_tocar_el_registro()
+    {
+        Nota("2026-11-18", ciudad: "Lleida");
+        var geo = Geo(("Lleida", [Lleida]));
+        await Ejecutar(new Clima1(), geo);
+        var pregunta = PreguntasDeCiudad().Single();
+
+        var r = new Orumi.Core.Correcciones.Operaciones(_datos, () => Ahora).Responder((string)pregunta.Id!, "Sí");
+
+        Assert.Contains("respondida", r.Mensaje);
+        var cerrada = Orumi.Core.Ficheros.Almacen.Cargar(_datos).DeTipo("pregunta").Single(p => p.Id == pregunta.Id);
+        Assert.Equal("respondida", cerrada.Frontmatter["estado"]);
+    }
 }

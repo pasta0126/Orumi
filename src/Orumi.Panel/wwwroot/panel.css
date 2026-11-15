@@ -187,3 +187,10 @@ details.filtros[open] summary { color: var(--texto); }
 .chip-agente { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; color: var(--suave); font-size: .88rem; font-weight: 600; }
 .chip.activo { --c: var(--acento-1); font-weight: 700; }
 .vacio .avatar.grande { margin: 0 auto 8px; }
+
+/* Respuestas rápidas */
+.respuestas-rapidas { display: grid; gap: 10px; }
+.respuestas-rapidas .fila { gap: 10px; }
+.boton.rapida { min-height: 44px; padding-inline: 18px; }
+.otra-respuesta summary { cursor: pointer; color: var(--suave); font-size: .9rem; display: flex; align-items: center; gap: 6px; }
+.otra-respuesta .respuesta { margin-top: 10px; }

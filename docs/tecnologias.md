@@ -107,7 +107,11 @@ lote:
   horario: "03:00"                    # lote periódico
   ventana_relacionados_dias: 14       # registros candidatos que se envían (mínimo necesario)
 preguntas:
-  maximo_pendientes: 5
+  # maximo_pendientes: 5    # opcional: sin él no hay máximo (X69)
+repaso:
+  activado: true
+  maximo_nuevas: 20       # preguntas nuevas por repaso (0 = no crear)
+  registros_por_llamada: 15
 indice:
   # la cadena de conexión y la contraseña van en el entorno, no aquí
   base: orumi

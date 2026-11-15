@@ -79,6 +79,9 @@ if (Environment.GetEnvironmentVariable("ORUMI_CONFIG") is { Length: > 0 } rutaCo
     configuracionDeNoa = ConfiguracionDeNoa.Leer(yamlConfig);
 }
 
+var repaso = new RepasoDelPanel(repositorio, Ahora, Console.WriteLine, configuracionGeneral,
+    () => configuracionGeneral is { Proveedor: "anthropic" } ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(configuracionGeneral.Modelo) : null,
+    Environment.GetEnvironmentVariable);
 var perfil = new PerfilDelPanel(repositorio, Ahora, Console.WriteLine, configuracionDeNoa, configuracionGeneral,
     () => configuracionGeneral is { Proveedor: "anthropic" } ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(configuracionGeneral.Modelo) : null,
     Environment.GetEnvironmentVariable);
@@ -103,7 +106,7 @@ string? Q(HttpContext c, string nombre) => c.Request.Query[nombre].FirstOrDefaul
 string? Correo(HttpContext c) => c.Items[GuardianDeApiExtensiones.ClaveDeCorreo] as string;
 
 IResult Respuesta(RespuestaDeEscritura r) =>
-    r.Error is null ? Results.Json(new { mensaje = r.Mensaje }) : Results.Json(new { error = r.Error }, statusCode: r.Estado);
+    r.Error is null ? Results.Json(new { mensaje = r.Mensaje, deshacer = r.Deshacer }) : Results.Json(new { error = r.Error }, statusCode: r.Estado);
 
 IResult? IdInvalido(string id, System.Text.RegularExpressions.Regex rx) =>
     rx.IsMatch(id) ? null : Results.Json(new { error = "Identificador no válido." }, statusCode: 400);
@@ -134,6 +137,8 @@ app.MapGet("/api/papelera", () => Seguro(() => lectura.Papelera()));
 app.MapGet("/api/aprendizajes", () => Seguro(() => lectura.Aprendizajes()));
 app.MapGet("/api/descubrimientos", () => Seguro(() => lectura.Descubrimientos()));
 
+app.MapGet("/api/repaso", () => Seguro(() => repaso.Ver()));
+app.MapPost("/api/repaso", (HttpContext c, Vacio _) => Respuesta(repaso.Lanzar(Correo(c))));
 app.MapGet("/api/perfil", () => Seguro(() => perfil.Ver()));
 app.MapGet("/api/perfil/descarga", (HttpContext c) =>
 {
@@ -221,8 +226,24 @@ app.MapPost("/api/preguntas/{id}/responder", (HttpContext c, string id, Respuest
         return Results.Json(new { error = "Identificador de registro no válido." }, statusCode: 400);
     }
 
+    if (cuerpo.Fusionar is true)
+    {
+        // «Es el mismo»: responde «misma» y fusiona (el más antiguo es el destino). Se puede deshacer durante un minuto.
+        return Respuesta(escritura.EjecutarConDeshacer("responder-y-fusionar", id, Correo(c), op =>
+        {
+            var (destino, origen) = Orumi.Core.Correcciones.RespuestasRapidas.DestinoDeLaFusion(Orumi.Core.Ficheros.Almacen.Cargar(repositorio.Datos), id);
+            var respondida = op.Responder(id, "misma");
+            return [respondida, op.Fusionar(destino, origen)];
+        }));
+    }
+
     return Respuesta(escritura.Ejecutar("responder", id, Correo(c), op => op.Responder(id, cuerpo.Valor ?? string.Empty, string.IsNullOrEmpty(cuerpo.Registro) ? null : cuerpo.Registro)));
 });
+
+app.MapPost("/api/deshacer/{ficha}", (HttpContext c, string ficha, Vacio _) =>
+    System.Text.RegularExpressions.Regex.IsMatch(ficha, "^[0-9a-f]{16}$")
+        ? Respuesta(escritura.Deshacer(ficha, Correo(c)))
+        : Results.Json(new { error = "Identificador no válido." }, statusCode: 400));
 
 app.MapPost("/api/preguntas/{id}/cerrar", (HttpContext c, string id, CierreDePregunta cuerpo) =>
 {
@@ -384,7 +405,7 @@ app.UseStaticFiles();
 app.Run("http://0.0.0.0:8080");
 return 0;
 
-internal sealed record RespuestaAPregunta(string? Valor, string? Registro);
+internal sealed record RespuestaAPregunta(string? Valor, string? Registro, bool? Fusionar = null);
 
 internal sealed record CierreDePregunta(string? Estado);
 

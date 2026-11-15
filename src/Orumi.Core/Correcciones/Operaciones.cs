@@ -4,7 +4,8 @@ using Orumi.Core.Validacion;
 
 namespace Orumi.Core.Correcciones;
 
-public sealed record ResultadoOperacion(string Mensaje, IReadOnlyList<string> Ficheros);
+/// <param name="Originales">Contenido anterior de cada fichero tocado (ruta completa; <c>null</c> si lo creó la operación): permite <see cref="Operaciones.Revertir"/>.</param>
+public sealed record ResultadoOperacion(string Mensaje, IReadOnlyList<string> Ficheros, IReadOnlyDictionary<string, string?>? Originales = null);
 
 /// <summary>
 /// Respuestas, correcciones y rechazos del usuario sobre los registros. Todo se valida antes de escribir; si algo falla,
@@ -136,6 +137,21 @@ public sealed partial class Operaciones(string datos, Func<DateTimeOffset> ahora
         }
 
         var campo = pfm.GetValueOrDefault("campo") as string ?? string.Empty;
+
+        // Las preguntas de ciudad y de contraste no corrigen un campo del registro: se cierran con la respuesta y es Mira quien la aplica
+        // en su siguiente ejecución (confirma o corrige la ciudad; cuenta el factor como presente).
+        if (campo is "ciudad" or "contraste")
+        {
+            var respuesta = texto.Trim();
+            if (respuesta.Length is 0 or > 1000)
+            {
+                throw new OperacionInvalidaException("La respuesta debe tener entre 1 y 1000 caracteres.");
+            }
+
+            Cerrar(pfm, "respondida", respuesta);
+            return Guardar(almacen, [pregunta with { Frontmatter = pfm }], $"Pregunta {preguntaId} respondida: Mira la tendrá en cuenta en su próxima ejecución.");
+        }
+
         var principal = pfm.GetValueOrDefault("registro") as string ?? string.Empty;
         var otros = (pfm.GetValueOrDefault("otros_registros") as List<object?> ?? []).OfType<string>().ToList();
         var cambios = new List<Documento>();
@@ -365,6 +381,36 @@ public sealed partial class Operaciones(string datos, Func<DateTimeOffset> ahora
             throw;
         }
 
-        return new ResultadoOperacion(mensaje, rutas);
+        return new ResultadoOperacion(mensaje, rutas, originales);
+    }
+
+    /// <summary>
+    /// Deshace una operación devolviendo cada fichero a su contenido anterior (el de <see cref="ResultadoOperacion.Originales"/>). Solo se aplica si ninguno de
+    /// los ficheros ha cambiado desde (para no pisar ediciones posteriores); en otro caso no toca nada.
+    /// </summary>
+    public static bool Revertir(IReadOnlyDictionary<string, string?> originales, IReadOnlyDictionary<string, string> despues)
+    {
+        foreach (var (ruta, esperado) in despues)
+        {
+            var actual = File.Exists(ruta) ? File.ReadAllText(ruta, System.Text.Encoding.UTF8) : null;
+            if (actual != esperado)
+            {
+                return false;
+            }
+        }
+
+        foreach (var (ruta, anterior) in originales)
+        {
+            if (anterior is null)
+            {
+                File.Delete(ruta);
+            }
+            else
+            {
+                EscrituraAtomica.Reemplazar(ruta, anterior);
+            }
+        }
+
+        return true;
     }
 }

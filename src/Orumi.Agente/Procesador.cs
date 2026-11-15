@@ -6,7 +6,7 @@ using Orumi.Core.Validacion;
 namespace Orumi.Agente;
 
 public sealed record OpcionesProcesador(
-    int MaximoPendientes = 5, int VentanaRelacionadosDias = 14, string VersionMira = "0.1.0-mvp", Precios? Precios = null, Presupuesto? Presupuesto = null,
+    int? MaximoPendientes = null, int VentanaRelacionadosDias = 14, string VersionMira = "0.1.0-mvp", Precios? Precios = null, Presupuesto? Presupuesto = null,
     Orumi.Core.Aprendizaje.UmbralesDeAprendizaje? UmbralesDeAprendizaje = null);
 
 public sealed record ProblemaDeLote(string Captura, string Motivo, string? Tipo = null);
@@ -68,9 +68,10 @@ public sealed class Procesador(
 
     /// <summary>Campos por los que Mira puede preguntar (solo datos estructurales, X36).</summary>
     private static readonly string[] CamposPreguntables =
-        ["fecha", "hora", "duracion", "personas", "lugares", "proyectos", "entidades", "herramientas", "resultados", "coincidencia"];
+        ["fecha", "hora", "duracion", "personas", "lugares", "proyectos", "entidades", "herramientas", "resultados", "contexto", "acciones", "problemas", "ideas", "coincidencia"];
 
-    private static readonly string[] ClasesConResultadoPreguntable = ["actividad", "problema"];
+    /// <summary>Campos de contenido: se pregunta por lo que la nota deja abierto (spec <c>preguntas-de-mira</c>, «Datos estructurales y contenido que falta»).</summary>
+    private static readonly string[] CamposDeContenido = ["contexto", "resultados", "acciones", "problemas", "ideas"];
 
     private const string Iso = "yyyy-MM-dd'T'HH:mm:sszzz";
 
@@ -956,7 +957,7 @@ public sealed class Procesador(
         foreach (var p in respuesta.Preguntas)
         {
             var registroId = p.RegistroId ?? (p.RegistroIndice is { } i && i >= 0 && i < ids.Count ? ids[i] : null);
-            if (registroId is null || ctx.Omitidos.Contains(registroId) || fmDe(registroId) is not { } fm || !PuedePreguntarse(ctx, registroId, fm, p.Campo, res))
+            if (registroId is null || ctx.Omitidos.Contains(registroId) || fmDe(registroId) is not { } fm || !TonoDePreguntas.EsValido(p.Texto) || !PuedePreguntarse(ctx, registroId, fm, p.Campo, res))
             {
                 res.PreguntasDescartadas++;
                 continue;
@@ -995,9 +996,11 @@ public sealed class Procesador(
             .OrderBy(t => Rebajada(t.x.Existente, t.x.Nueva) ? 1 : 0).ThenBy(t => Orden(t.x.Valor)).ThenBy(t => t.indice)
             .Select(t => t.x)
             .ToList();
-        var conservadas = todas.Take(opciones.MaximoPendientes).ToList();
+        // Sin máximo configurado no se descarta ninguna; con él, solo las de mayor valor.
+        var maximo = opciones.MaximoPendientes ?? int.MaxValue;
+        var conservadas = todas.Take(maximo).ToList();
 
-        foreach (var x in todas.Skip(opciones.MaximoPendientes))
+        foreach (var x in todas.Skip(maximo))
         {
             if (x.Existente is { } desplazada)
             {
@@ -1051,6 +1054,11 @@ public sealed class Procesador(
     private readonly Dictionary<(string, string), string> _idsAutomaticos = [];
 
     /// <summary>Solo datos estructurales; nada que ya esté cubierto o que el usuario haya cerrado.</summary>
+    /// <summary>Un campo de contenido que declara que algo existe pero «no se indica» está sin detallar: se puede preguntar.</summary>
+    internal static bool SinDetallar(string campo, object? valor) =>
+        CamposDeContenido.Contains(campo)
+        && (valor switch { string t => [t], List<object?> l => l.OfType<string>().ToList(), _ => new List<string>() }).Any(t => t.Contains("no se indic", StringComparison.OrdinalIgnoreCase));
+
     private bool PuedePreguntarse(Contexto ctx, string registroId, Dictionary<string, object?> fm, string campo, ResultadoCaptura res)
     {
         if (!CamposPreguntables.Contains(campo))
@@ -1058,14 +1066,8 @@ public sealed class Procesador(
             return false;
         }
 
-        var clase = (string?)fm.GetValueOrDefault("clase");
-        if (campo == "resultados" && !ClasesConResultadoPreguntable.Contains(clase ?? string.Empty))
-        {
-            return false; // el resultado de una reunión o de una decisión es contenido, no estado
-        }
-
-        // Nada que completar si el dato ya es conocido por el usuario.
-        if (campo != "coincidencia" && fm.TryGetValue(campo, out var valor) && valor as string != "desconocido"
+        // Nada que completar si el dato ya es conocido por el usuario. Un campo de contenido que dice «no se indica…» sí está por completar.
+        if (campo != "coincidencia" && fm.TryGetValue(campo, out var valor) && valor as string != "desconocido" && !SinDetallar(campo, valor)
             && fm.TryGetValue("certeza", out var cz) && cz is Dictionary<string, object?> certeza
             && certeza.GetValueOrDefault(campo) as string is "dicho" or "confirmado")
         {

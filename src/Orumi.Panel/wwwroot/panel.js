@@ -31,6 +31,16 @@
     if (texto) temporizador = setTimeout(() => { a.textContent = ''; }, clase === 'mal' ? 7000 : 3500);
   }
 
+  /** Aviso con «Deshacer» durante un minuto (respuestas rápidas que fusionan registros). */
+  function avisarConDeshacer(texto, ficha) {
+    const a = $('aviso'); clearTimeout(temporizador);
+    vaciar(a); a.className = 'aviso ok';
+    a.append(document.createTextNode(texto + ' '), boton('Deshacer', 'deshacer', { class: 'fantasma pequeno', onclick: async () => {
+      try { const x = await post('/api/deshacer/' + ficha, {}); avisar(x.mensaje || 'Hecho.', 'ok'); enrutar(); } catch (e) { manejar(e); }
+    } }));
+    temporizador = setTimeout(() => { vaciar(a); }, 60000);
+  }
+
   const pad = (n) => String(n).padStart(2, '0');
   const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const hoy = () => iso(new Date());
@@ -297,6 +307,14 @@
     const enlace = (valor, texto) => el('a', { class: 'chip c-neutro' + (agenteFiltro === valor ? ' activo' : ''), href: '#/pendientes' + (valor ? '?agente=' + valor : ''), 'aria-current': agenteFiltro === valor ? 'true' : null, text: texto });
     cont.append(el('div', { class: 'cabecera' }, el('div', {}, el('p', { class: 'sobretitulo', text: 'Lo que Mira y Noa necesitan saber' }), el('h2', { class: 'titulo' }, el('span', { class: 'grad', text: 'Preguntas' }))),
       el('nav', { class: 'chips', 'aria-label': 'Filtrar por agente' }, enlace('', 'Todas'), enlace('Mira', 'Mira'), enlace('Noa', 'Noa'))), lista);
+    const repaso = el('div', { class: 'fila repaso' });
+    lista.before(repaso);
+    get('/api/repaso').then((r) => {
+      const u = r.ultimo;
+      repaso.append(boton(r.enCurso ? 'Repasando…' : 'Repasar ahora', 'spark', { class: 'fantasma pequeno', disabled: r.enCurso ? true : null, onclick: async () => {
+        try { const x = await post('/api/repaso', {}); avisar(x.mensaje || 'Hecho.', 'ok'); setTimeout(enrutar, 6000); } catch (e) { manejar(e); }
+      } }), el('span', { class: 'meta', text: u ? `Último repaso: ${momento(u.fecha)} · ${u.revisados} registros revisados · ${u.creadas} preguntas nuevas` : 'Mira repasa tus registros cada noche y crea las preguntas que falten.' }));
+    }).catch(() => { /* accesorio */ });
     try {
       const preguntas = await get('/api/preguntas', { agente: agenteFiltro });
       vaciar(lista);
@@ -319,11 +337,29 @@
     const destino = conflicto ? el('select', { 'aria-label': 'Registro al que corresponde el valor' }, [p.registro, ...p.otros].map((r) => el('option', { value: r.id, text: `${r.titulo || r.id} (${r.valorActual})` }))) : null;
     const enviar = async (cuerpo, ruta) => {
       try {
-        const r = await post(ruta, cuerpo); avisar(r.mensaje || 'Hecho.', 'ok');
+        const r = await post(ruta, cuerpo);
+        if (r.deshacer) avisarConDeshacer(r.mensaje || 'Hecho.', r.deshacer); else avisar(r.mensaje || 'Hecho.', 'ok');
         tarjeta.classList.add('sale'); setTimeout(() => { tarjeta.remove(); actualizarContador(); }, reducido ? 0 : 340);
       } catch (e) { manejar(e); }
     };
     const registroLink = (r) => el('a', { href: '#/registro/' + r.id, text: r.titulo || r.id });
+    const cierres = () => el('div', { class: 'opciones' },
+      boton('No lo recuerdo', 'historial', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_recuerda' }, `/api/preguntas/${p.id}/cerrar`) }),
+      boton('No es relevante', 'cerrar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_relevante' }, `/api/preguntas/${p.id}/cerrar`) }),
+      boton('No sucedió', 'rechazar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_sucedio' }, `/api/preguntas/${p.id}/cerrar`) }));
+    const campoEscrito = () => el('div', { class: 'respuesta' + (conflicto ? ' conflicto' : '') }, valor, destino,
+      boton('Responder', 'enviar', { class: 'principal', onclick: () => enviar({ valor: valor.value, registro: destino ? destino.value : null }, `/api/preguntas/${p.id}/responder`) }));
+    // Respuestas rápidas: un clic equivale a escribir esa respuesta. Las preguntas abiertas siguen con su campo de texto.
+    const opciones = lista(p.opciones);
+    const rapida = (o) => boton(o.etiqueta, o.cierre ? 'rechazar' : o.fusiona ? 'fusionar' : 'check', { class: 'principal rapida', onclick: () => {
+      if (o.cierre) return enviar({ estado: o.cierre }, `/api/preguntas/${p.id}/cerrar`);
+      return enviar({ valor: o.valor, registro: o.registro || null, fusionar: o.fusiona ? true : null }, `/api/preguntas/${p.id}/responder`);
+    } });
+    const cuerpoDeRespuesta = () => {
+      if (!opciones.length) return el('div', {}, campoEscrito(), cierres());
+      const otra = p.campo === 'coincidencia' ? null : el('details', { class: 'otra-respuesta' }, el('summary', {}, ic('editar'), 'Escribir otra respuesta'), campoEscrito());
+      return el('div', { class: 'respuestas-rapidas' }, el('div', { class: 'fila' }, opciones.map(rapida)), otra, cierres());
+    };
     const tarjeta = el('div', { class: 'pregunta cristal foco-luz agente-' + agente.toLowerCase() },
       el('div', { class: 'chip-agente' }, avatar(agente, 'pregunta', 'chico'), el('span', { text: 'Pregunta de ' + agente })),
       el('p', { class: 'texto-pregunta', text: p.texto }),
@@ -331,12 +367,7 @@
         el('div', {}, ic('nota'), 'Registro: ', registroLink(p.registro)),
         el('div', {}, ic(p.campo === 'coincidencia' ? 'enlace' : (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][1] : p.campo)), `Campo: ${CAMPOS[p.campo] || (CAMPOS_EXTRA[p.campo] ? CAMPOS_EXTRA[p.campo][0] : p.campo)}`, el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + p.registro.valorActual)),
         p.otros.map((o) => el('div', {}, ic('enlace'), 'Con: ', registroLink(o), el('span', { class: 'chip c-neutro' }, 'Valor actual: ' + o.valorActual)))),
-      el('div', { class: 'respuesta' + (conflicto ? ' conflicto' : '') }, valor, destino,
-        boton('Responder', 'enviar', { class: 'principal', onclick: () => enviar({ valor: valor.value, registro: destino ? destino.value : null }, `/api/preguntas/${p.id}/responder`) }),
-        el('div', { class: 'opciones' },
-          boton('No lo recuerdo', 'historial', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_recuerda' }, `/api/preguntas/${p.id}/cerrar`) }),
-          boton('No es relevante', 'cerrar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_relevante' }, `/api/preguntas/${p.id}/cerrar`) }),
-          boton('No sucedió', 'rechazar', { class: 'fantasma pequeno', onclick: () => enviar({ estado: 'no_sucedio' }, `/api/preguntas/${p.id}/cerrar`) }))));
+      cuerpoDeRespuesta());
     return tarjeta;
   }
 

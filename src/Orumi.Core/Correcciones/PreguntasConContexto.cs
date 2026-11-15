@@ -8,7 +8,7 @@ public sealed record RegistroImplicado(string Id, string? Titulo, string ValorAc
 /// <param name="Rasgo">Solo las de Noa: el rasgo del perfil por el que pregunta (o <c>null</c> si habla de un apartado entero).</param>
 public sealed record PreguntaConContexto(
     string Id, string Valor, string Texto, string Campo, RegistroImplicado? Registro, IReadOnlyList<RegistroImplicado> Otros, string? CreadaEl,
-    string Agente = AgentesDePregunta.Mira, string? Rasgo = null, string? Apartado = null);
+    string Agente = AgentesDePregunta.Mira, string? Rasgo = null, string? Apartado = null, IReadOnlyList<OpcionDeRespuesta>? Opciones = null);
 
 /// <summary>Preguntas pendientes con el contexto necesario para contestarlas, leídas de los ficheros (sin depender del índice).</summary>
 public static class PreguntasConContexto
@@ -34,10 +34,13 @@ public static class PreguntasConContexto
                 var campo = fm.GetValueOrDefault("campo") as string ?? string.Empty;
                 var principal = fm.GetValueOrDefault("registro") as string;
                 var otros = (fm.GetValueOrDefault("otros_registros") as List<object?> ?? []).OfType<string>().Select(o => Implicado(o, campo)).ToList();
+                var implicado = principal is null ? null : Implicado(principal, campo);
+                var claseDelRegistro = principal is not null && registros.TryGetValue(principal, out var rr) ? rr.Frontmatter.GetValueOrDefault("clase") as string : null;
                 return new PreguntaConContexto(
                     p.Id!, fm.GetValueOrDefault("valor") as string ?? string.Empty, fm.GetValueOrDefault("texto") as string ?? string.Empty,
-                    campo, principal is null ? null : Implicado(principal, campo), otros, fm.GetValueOrDefault("creada_el") as string,
-                    AgentesDePregunta.De(fm), fm.GetValueOrDefault("rasgo") as string, fm.GetValueOrDefault("apartado") as string);
+                    campo, implicado, otros, fm.GetValueOrDefault("creada_el") as string,
+                    AgentesDePregunta.De(fm), fm.GetValueOrDefault("rasgo") as string, fm.GetValueOrDefault("apartado") as string,
+                    RespuestasRapidas.De(fm, claseDelRegistro, implicado, otros));
             })
             .ToList();
     }
