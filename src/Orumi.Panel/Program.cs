@@ -79,11 +79,19 @@ if (Environment.GetEnvironmentVariable("ORUMI_CONFIG") is { Length: > 0 } rutaCo
     configuracionDeNoa = ConfiguracionDeNoa.Leer(yamlConfig);
 }
 
+// El proveedor de IA solo existe en el panel si el contenedor tiene la clave (menor privilegio: sin clave, el panel gestiona y consulta,
+// pero no envía nada; la generación y el repaso con modelo se hacen desde la línea de comandos y el temporizador).
+Orumi.Agente.Etiquetado.IProveedorDeTexto? ProveedorDelPanel() =>
+    configuracionGeneral is { Proveedor: "anthropic" } && Orumi.Agente.ComprobadorDePrivacidad.VariableDeClave("anthropic") is { } variableDeClave
+    && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(variableDeClave))
+        ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(configuracionGeneral.Modelo)
+        : null;
+
 var repaso = new RepasoDelPanel(repositorio, Ahora, Console.WriteLine, configuracionGeneral,
-    () => configuracionGeneral is { Proveedor: "anthropic" } ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(configuracionGeneral.Modelo) : null,
+    ProveedorDelPanel,
     Environment.GetEnvironmentVariable);
 var perfil = new PerfilDelPanel(repositorio, Ahora, Console.WriteLine, configuracionDeNoa, configuracionGeneral,
-    () => configuracionGeneral is { Proveedor: "anthropic" } ? new Orumi.Agente.Etiquetado.ProveedorAnthropicTexto(configuracionGeneral.Modelo) : null,
+    ProveedorDelPanel,
     Environment.GetEnvironmentVariable);
 
 IResult Seguro(Func<object> f)
